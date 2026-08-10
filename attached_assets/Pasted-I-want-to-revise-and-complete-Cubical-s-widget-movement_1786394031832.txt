@@ -1,0 +1,1154 @@
+I want to revise and complete Cubical's widget movement and portable-widget system.
+
+The existing widgets and their functionality already exist. Do NOT rebuild them.
+
+This task is specifically about:
+
+1. Removing grid snapping from widgets.
+2. Making all widget movement free-floating and slightly smooth/floaty.
+3. Fixing widget boundary behavior.
+4. Fixing the collapsed sidebar so icons are fully visible.
+5. Making the workspace expand when the sidebar collapses.
+6. Allowing portable widgets to move between the four MAIN Cubical tabs using sidebar drop targets.
+7. Giving transported widgets a consistent placement area on destination pages.
+8. Making transported widgets follow the user into nested tool/views within Store, Library, or Breakroom.
+9. Implementing individual Recall and global Recall Widgets behavior.
+10. Preserving all widget state, Home layouts, skins, and Sakura decorations.
+
+IMPORTANT:
+
+Do NOT redesign Cubical.
+Do NOT redesign the Sakura skin.
+Do NOT change the Sakura background artwork.
+Do NOT rebuild existing widgets.
+Do NOT change existing widget functionality unless required for this movement/portability system.
+Do NOT add unrelated features.
+
+==================================================
+1. GLOBAL WIDGET MOVEMENT: REMOVE THE GRID
+==================================================
+
+Remove grid snapping entirely from ALL movable widgets.
+
+There should no longer be a placement grid.
+
+This applies anywhere widgets can be moved.
+
+On Home:
+
+- Widgets move completely freely.
+- No grid increments.
+- No predefined cells.
+- No snapping to nearby widgets.
+- No forced alignment.
+- No forced rows or columns.
+
+While dragging:
+
+- The widget should follow the cursor continuously.
+- Movement should feel smooth.
+- Movement should feel ever so slightly soft/floaty rather than rigid.
+
+However:
+
+Do NOT add exaggerated inertia.
+Do NOT make widgets slide after release.
+Do NOT add bouncing.
+Do NOT add overshoot.
+Do NOT make precise placement difficult.
+
+Think:
+
+smooth
+light
+soft
+responsive
+precise
+
+The widget should feel like a physical little object being moved around the workspace.
+
+When I release the mouse:
+
+The widget should stop where I released it.
+
+If that position is valid, Cubical should not alter it.
+
+==================================================
+2. HOME IS A FREE-FLOATING DESKTOP
+==================================================
+
+Home should behave like a freeform desktop/workspace.
+
+Every Home widget can be positioned wherever the user wants within the usable Home canvas.
+
+Current examples include:
+
+- Notepad
+- Clock
+- Calendar
+- Link Shelf
+- Decision Maker
+- Calculator
+
+No grid.
+No automatic arrangement.
+No snapping.
+
+If I carefully place Calculator beside Notepad with a small gap, preserve exactly that placement.
+
+Widget positions and sizes must persist locally.
+
+==================================================
+3. KEEP WIDGETS ACCESSIBLE
+==================================================
+
+Free movement should not allow widgets to become permanently inaccessible.
+
+If a widget is released beyond the usable:
+
+- top edge
+- right edge
+- bottom edge
+
+gently correct its final position only as much as necessary to keep it usable.
+
+Do NOT recenter it.
+Do NOT snap it somewhere arbitrary.
+
+Preserve the user's intended position as closely as possible.
+
+==================================================
+4. SIDEBAR COLLISION BEHAVIOR
+==================================================
+
+The sidebar is NOT normal widget workspace.
+
+A widget should not be allowed to remain hidden underneath the sidebar.
+
+If I drag a widget partly over EMPTY sidebar space and release it:
+
+- detect the overlap
+- gently push/nudge the widget horizontally back into usable workspace
+- preserve its vertical position as much as possible
+
+Example:
+
+I drag Notepad too far left.
+Part of Notepad overlaps the sidebar.
+My cursor is NOT over a valid navigation destination.
+I release.
+
+Result:
+
+Notepad should gently move right just enough to become fully usable.
+
+Do NOT:
+
+- snap it to a grid
+- return it to its previous position
+- recenter it
+- dramatically animate it
+
+Just correct the invalid overlap.
+
+==================================================
+5. FIX COLLAPSED SIDEBAR ICONS
+==================================================
+
+The current collapsed sidebar has a visual bug.
+
+Some navigation icons are being partially cut off/clipped.
+
+Fix this.
+
+When COLLAPSED:
+
+- Sidebar becomes a narrow icon-only rail.
+- EVERY icon must remain fully visible.
+- No icon may be clipped.
+- No icon may be cut in half.
+- Icons should be centered horizontally in the rail.
+- Maintain comfortable clickable hit areas.
+- Maintain consistent vertical spacing.
+
+The collapsed sidebar should look intentional, clean, and usable.
+
+The rail may be narrow, but the FULL icon must always remain visible.
+
+When EXPANDED:
+
+Preserve the existing full sidebar design and labels.
+
+==================================================
+6. WORKSPACE EXPANSION WHEN SIDEBAR COLLAPSES
+==================================================
+
+When the sidebar collapses, the main workspace must reclaim the newly freed horizontal space.
+
+Do not leave an empty column where the expanded sidebar used to exist.
+
+For Home:
+
+The Sakura workspace/background should expand horizontally into the newly available space.
+
+The full-bleed Sakura environment should continue behaving correctly.
+
+When the sidebar expands again:
+
+The workspace should smoothly return to its normal size.
+
+Preserve the existing sidebar collapse animation and pin behavior.
+
+==================================================
+7. PORTABLE WIDGETS
+==================================================
+
+Implement/fix the portable-widget system.
+
+The following widgets should currently be portable:
+
+- Notepad
+- Calendar
+- Link Shelf
+- Decision Maker
+- Calculator
+
+Clock does NOT need to be portable right now.
+
+Portable widgets may ONLY move between the four main Cubical tabs:
+
+- Home
+- Store
+- Library
+- Breakroom
+
+Profile and Settings are NOT portable-widget destinations.
+
+They must be excluded entirely from this system.
+
+Home remains the permanent/canonical home of widgets.
+
+Store, Library, and Breakroom are temporary work surfaces.
+
+==================================================
+8. VALID AND INVALID SIDEBAR DROP TARGETS
+==================================================
+
+When I begin dragging a PORTABLE widget on Home:
+
+Valid sidebar destinations should become drop targets.
+
+VALID:
+
+- Home
+- Store
+- Library
+- Breakroom
+
+INVALID:
+
+- Profile
+- Settings
+
+Profile and Settings should NEVER highlight as widget drop targets.
+
+Dropping a widget over Profile or Settings should NOT:
+
+- navigate there
+- transfer the widget
+- change the widget's location
+
+Instead, treat that as invalid sidebar overlap and gently push the widget back into usable space.
+
+==================================================
+9. SIDEBAR DESTINATIONS BECOME DROP TARGETS
+==================================================
+
+When my cursor moves over a valid destination:
+
+That destination should subtly highlight.
+
+Example:
+
+I drag Notepad toward Library.
+
+When my cursor enters the Library navigation item's hit area:
+
+Library subtly highlights.
+
+This communicates:
+
+"Drop here to bring Notepad to Library."
+
+IMPORTANT:
+
+Use the CURSOR position / active drop target to determine intent.
+
+Do NOT determine destination based merely on the widget rectangle overlapping the sidebar.
+
+==================================================
+10. DISTINGUISH ACCIDENTAL SIDEBAR OVERLAP FROM TRANSFER
+==================================================
+
+Cubical must distinguish between two situations.
+
+CASE A:
+
+Widget overlaps the sidebar, but my cursor is NOT over a valid navigation destination.
+
+Result:
+
+Bump the widget back into usable workspace.
+
+CASE B:
+
+My cursor is actively over a valid navigation destination while dragging a portable widget, and I release.
+
+Result:
+
+Transfer the widget to that destination.
+
+Conceptually:
+
+if cursor is over valid sidebar destination:
+    transfer widget
+else if widget overlaps sidebar:
+    gently move widget back into usable workspace
+
+Do not accidentally transfer widgets simply because part of them touched the sidebar.
+
+==================================================
+11. COLLAPSED SIDEBAR DROP TARGETS
+==================================================
+
+Portable widget transfer must also work when the sidebar is collapsed.
+
+In collapsed mode:
+
+The entire navigation icon BUTTON / HIT AREA should act as the drop target.
+
+Do NOT require the cursor to be directly over the visible SVG or icon artwork.
+
+The icons themselves must remain fully visible while this happens.
+
+==================================================
+12. TRANSFERRING A WIDGET
+==================================================
+
+Example:
+
+I drag Notepad from Home onto Library.
+
+When released:
+
+1. Recognize Library as the destination.
+2. Navigate to Library.
+3. Temporarily remove Notepad from visible Home.
+4. Render the SAME logical Notepad widget in Library.
+5. Preserve all Notepad content.
+6. Preserve all Notepad state.
+7. Preserve its Home position separately.
+8. Preserve its Home size separately.
+9. Preserve its Sakura decorations if Sakura is equipped.
+
+Do NOT create a duplicate Notepad.
+
+There should be ONE logical widget instance whose current location changes.
+
+Conceptually a widget can have:
+
+location = home
+location = store
+location = library
+location = breakroom
+
+Do NOT use:
+
+location = profile
+location = settings
+
+The appropriate page renders that same widget.
+
+==================================================
+13. HOME REMAINS CANONICAL
+==================================================
+
+Before a widget leaves Home, preserve:
+
+- Home X position
+- Home Y position
+- Home width
+- Home height
+- relevant compact/expanded state
+
+These are the widget's canonical Home layout values.
+
+Temporary use on another page must NOT overwrite these values.
+
+When recalled later, these exact Home values should be restored.
+
+==================================================
+14. DESTINATION PAGE PLACEMENT
+==================================================
+
+When a widget first arrives on Store, Library, or Breakroom, do NOT place it randomly over existing page content.
+
+Give transported widgets a consistent temporary workspace area.
+
+The placement rule is:
+
+PAGE TITLE / HEADER
+
+↓
+
+PORTABLE WIDGET AREA
+
+↓
+
+PAGE CONTENT
+
+For example, Library currently contains:
+
+"Your library."
+
+followed by the Library tools.
+
+If Notepad is moved to Library, the structure should become:
+
+Your library.
+
+[ Notepad ]
+
+File Organizer
+Spreadsheet Cleaner
+Bulk File Renamer
+File Finder
+
+The transported widget should therefore appear:
+
+DIRECTLY BELOW the page title/header
+
+and
+
+DIRECTLY ABOVE the page's main content/tools.
+
+This should feel like:
+
+"I carried this widget with me into this workspace."
+
+==================================================
+15. MULTIPLE TRANSPORTED WIDGETS
+==================================================
+
+If multiple portable widgets are moved to the same section:
+
+Do not stack them directly on top of one another.
+
+Use the temporary widget area below the page title.
+
+Where space allows, use a clean row/wrap arrangement.
+
+Example:
+
+Your library.
+
+[ Notepad ] [ Calculator ]
+
+Library tools...
+
+This initial arrangement is only for arrival/automatic placement.
+
+The widgets should still remain independently movable where appropriate.
+
+==================================================
+16. MOVEMENT ON DESTINATION PAGES
+==================================================
+
+After a transported widget appears in its initial temporary placement area, allow the user to move it freely within the usable content area.
+
+Use the same free-floating movement behavior.
+
+No grid.
+No snapping.
+No predefined placement cells.
+
+The widget follows the cursor smoothly and stops where released.
+
+Boundary correction still applies.
+
+Sidebar collision behavior still applies.
+
+Do not allow transported widgets to permanently cover or disappear underneath important navigation/UI.
+
+==================================================
+17. PORTABLE WIDGETS FOLLOW INTO NESTED VIEWS
+==================================================
+
+A transported widget belongs to the DESTINATION SECTION, not merely the section's landing screen.
+
+This applies only within:
+
+- Store
+- Library
+- Breakroom
+
+Profile and Settings remain excluded.
+
+Example:
+
+Notepad has been moved to Library.
+
+If I click:
+
+File Finder
+
+Notepad should follow me into File Finder.
+
+The resulting structure should be:
+
+File Finder title/header
+
+↓
+
+Notepad
+
+↓
+
+File Finder interface
+
+The SAME Notepad instance follows me.
+
+Do not create another Notepad.
+
+==================================================
+18. LIBRARY EXAMPLE
+==================================================
+
+If Notepad's current temporary location is:
+
+Library
+
+then Notepad should remain available through Library's nested views.
+
+For example:
+
+Library index
+→ Notepad appears
+
+File Organizer
+→ Notepad follows
+
+Spreadsheet Cleaner
+→ Notepad follows
+
+Bulk File Renamer
+→ Notepad follows
+
+File Finder
+→ Notepad follows
+
+The widget remains part of my temporary Library workspace until:
+
+- I Recall it
+- I move it to Store
+- I move it to Breakroom
+- I use global Recall Widgets
+
+==================================================
+19. STORE AND BREAKROOM NESTED VIEWS
+==================================================
+
+Apply the same section-level behavior to Store and Breakroom.
+
+If a widget is moved to Store:
+
+- Store landing page → widget appears
+- Store nested subviews → widget follows
+
+If a widget is moved to Breakroom:
+
+- Breakroom landing page → widget appears
+- Breakroom nested subviews → widget follows
+
+Do not apply this system to Profile or Settings.
+
+==================================================
+20. NESTED VIEW PLACEMENT
+==================================================
+
+Whenever a transported widget follows into a nested tool/subpage:
+
+Place it:
+
+DIRECTLY BELOW the current tool/page title
+
+and
+
+DIRECTLY ABOVE the actual tool interface/content.
+
+Do not cover:
+
+- page titles
+- breadcrumbs
+- navigation
+- forms
+- buttons
+- results
+- tool controls
+
+The transported widget should look intentionally integrated into the page structure.
+
+==================================================
+21. NAVIGATING BETWEEN SUBVIEWS
+==================================================
+
+When navigating from one nested view to another inside the same destination section:
+
+The widget remains transported to that SECTION.
+
+For example:
+
+Notepad location = Library
+
+Going:
+
+Library
+→ File Finder
+→ Library
+→ Bulk File Renamer
+
+should NOT recall Notepad.
+
+It remains with me throughout Library.
+
+When entering a new nested view, it is acceptable to return the transported widget to its standard:
+
+below title / above content
+
+placement.
+
+If preserving its previous temporary position is straightforward and safe, that is acceptable too.
+
+Priority:
+
+1. usability
+2. consistency
+3. preserving temporary position
+
+The canonical Home position must never be affected.
+
+==================================================
+22. INDIVIDUAL RECALL
+==================================================
+
+Any widget currently transported away from Home should have a small:
+
+Recall
+
+control.
+
+Recall means:
+
+"Send this widget back Home."
+
+When clicked:
+
+- remove the widget from the temporary section
+- return it to Home
+- restore exact Home X position
+- restore exact Home Y position
+- restore exact Home width
+- restore exact Home height
+- preserve all widget data
+- preserve all widget configuration
+- restore appropriate skin decorations
+
+Recall should work even from a nested tool view.
+
+Example:
+
+Notepad is inside Library → File Finder.
+
+Click Recall.
+
+Notepad immediately returns Home.
+
+The user should NOT need to return to the Library landing page first.
+
+==================================================
+23. RECALL IS DIFFERENT FROM REMOVE
+==================================================
+
+Do not confuse:
+
+Recall
+
+with:
+
+Remove Widget
+
+They are completely different actions.
+
+Recall:
+Temporary widget returns to Home.
+
+Remove:
+Widget is removed/hidden from the Home layout through Edit Widgets.
+
+Recalling a widget must NEVER erase its data.
+
+==================================================
+24. GLOBAL RECALL WIDGETS
+==================================================
+
+On Home, preserve/create the:
+
+Recall Widgets
+
+control directly underneath:
+
+Edit Widgets
+
+Recall Widgets should visually be a SUB-ACTION of Edit Widgets.
+
+It should NOT look equally prominent.
+
+Example:
+
+[ Edit Widgets ]
+  ↶ Recall Widgets (2)
+
+Use:
+
+- smaller text
+- smaller visual footprint
+- lighter visual weight
+- subtle skin accent
+- restrained hover state
+
+When widgets are away from Home:
+
+Show the count.
+
+Examples:
+
+Recall Widgets (1)
+Recall Widgets (2)
+Recall Widgets (3)
+
+When no widgets are displaced:
+
+Keep the control visible but muted/disabled.
+
+Do NOT hide it completely.
+
+This teaches the user that Recall exists.
+
+==================================================
+25. GLOBAL RECALL BEHAVIOR
+==================================================
+
+Clicking Recall Widgets should:
+
+Return ALL currently transported widgets Home.
+
+Each widget should restore its OWN:
+
+- Home X
+- Home Y
+- Home width
+- Home height
+- appropriate state
+
+Preserve all widget data.
+
+Global Recall Widgets must work WITHOUT entering Edit Widgets mode.
+
+==================================================
+26. EDIT WIDGETS COMPATIBILITY
+==================================================
+
+Preserve the existing Edit Widgets system.
+
+When Edit Widgets is active:
+
+- X/remove controls appear
+- Add Widget dropdown appears
+- widgets remain movable
+- widgets remain resizable
+
+Movement inside Edit Widgets should use the SAME new free-floating system.
+
+No grid snapping.
+
+When Edit Widgets closes:
+
+- X controls disappear
+- Add Widget controls disappear
+- final widget positions remain saved
+
+Do not require Edit Widgets mode for normal Recall functionality.
+
+==================================================
+27. SAKURA DECORATIONS MUST TRAVEL WITH WIDGETS
+==================================================
+
+The existing Sakura decorations attached to widgets are working well.
+
+Preserve this behavior.
+
+When Sakura is equipped:
+
+Decorative sprites belong to their widget.
+
+They must travel with the widget during:
+
+- free dragging
+- resizing
+- page transfer
+- nested navigation
+- recall
+
+They must NOT remain floating behind on the previous page.
+
+Example:
+
+If the Sakura flower decoration is attached to Notepad:
+
+Notepad moves → flower moves.
+
+Notepad goes to Library → flower goes to Library.
+
+Notepad enters File Finder → flower follows.
+
+Notepad is recalled Home → flower returns Home with it.
+
+Treat the widget and its skin decorations as one visual object.
+
+Do NOT redesign the existing Sakura sprites.
+
+==================================================
+28. SKIN COMPATIBILITY
+==================================================
+
+This movement/portable system must work with:
+
+- Sakura skin
+- Default skin
+- future skins
+
+Do not hardcode portable behavior specifically around Sakura.
+
+Skin decorations and skin-specific widget presentation should hook into the same widget identity.
+
+==================================================
+29. PERSISTENCE
+==================================================
+
+Persist locally:
+
+- active widgets
+- Home widget X positions
+- Home widget Y positions
+- Home widget widths
+- Home widget heights
+- transported widget locations
+- temporary destination positions where appropriate
+- widget content
+- widget configuration
+
+Refreshing Cubical should not unexpectedly reset the layout.
+
+Reopening the desktop app should restore the appropriate state.
+
+If a widget was transported to Library, Store, or Breakroom before closing Cubical, restoring that transported state is acceptable as long as it is reliable.
+
+==================================================
+30. DO NOT REBUILD EXISTING WIDGET FEATURES
+==================================================
+
+The following already exist.
+
+Do NOT rebuild them as part of this task:
+
+- Link Shelf
+- Decision Maker
+- Calculator
+- Notepad
+- Clock
+- Calendar
+
+Only modify them where necessary to participate in the movement/portable-widget architecture.
+
+Do not change their existing functionality unless required to fix compatibility.
+
+==================================================
+31. DO NOT CHANGE
+==================================================
+
+Do not change:
+
+- Sakura artwork
+- Sakura background
+- Sakura color palette
+- existing Sakura decorative assets
+- overall Home visual design
+- Store functionality
+- Library tool functionality
+- Breakroom functionality
+- Profile functionality
+- Settings functionality
+- Clock functionality
+- Calendar functionality
+- Notepad editing functionality
+- Link Shelf functionality
+- Decision Maker functionality
+- Calculator functionality
+
+Do not add new widgets.
+
+Do not add audio.
+
+Do not add cloud sync.
+
+Do not add accounts.
+
+Do not add payments.
+
+Do not make unrelated visual changes.
+
+==================================================
+32. VERIFY: FREE MOVEMENT
+==================================================
+
+Test the new movement system.
+
+On Home:
+
+1. Drag Notepad slowly.
+2. Verify it follows the cursor continuously.
+3. Verify there is NO grid snapping.
+4. Release it.
+5. Verify it stays where released.
+
+Repeat with:
+
+6. Calendar
+7. Clock
+8. Link Shelf
+9. Decision Maker
+10. Calculator
+
+Verify positions survive refresh.
+
+==================================================
+33. VERIFY: SIDEBAR COLLISION
+==================================================
+
+11. Drag Notepad partly over EMPTY sidebar space.
+
+12. Make sure the cursor is NOT over a navigation destination.
+
+13. Release.
+
+14. Verify Notepad is gently nudged back into usable workspace.
+
+15. Verify its vertical position remains approximately where the user intended.
+
+16. Verify it does not snap to a grid.
+
+==================================================
+34. VERIFY: PROFILE AND SETTINGS ARE INVALID
+==================================================
+
+17. Drag Notepad toward Profile.
+
+18. Verify Profile does NOT highlight.
+
+19. Drop over Profile.
+
+20. Verify Cubical does NOT navigate there.
+
+21. Verify Notepad does NOT transfer there.
+
+22. Verify Notepad is nudged back into usable workspace if necessary.
+
+Repeat with Settings.
+
+==================================================
+35. VERIFY: PORTABLE TRANSFER
+==================================================
+
+23. Drag Notepad toward Library.
+
+24. Hover cursor over Library.
+
+25. Verify Library highlights.
+
+26. Release.
+
+27. Verify Cubical navigates to Library.
+
+28. Verify the SAME Notepad appears.
+
+29. Verify Notepad is no longer visible on Home.
+
+30. Verify Notepad content is unchanged.
+
+31. Verify Notepad appears below:
+
+"Your library."
+
+and above the Library tools.
+
+==================================================
+36. VERIFY: DESTINATION MOVEMENT
+==================================================
+
+32. Move Notepad around Library.
+
+33. Verify free movement.
+
+34. Verify no grid snapping.
+
+35. Verify sidebar/boundary correction works.
+
+==================================================
+37. VERIFY: NESTED TOOL FOLLOWING
+==================================================
+
+36. With Notepad currently transported to Library, open File Finder.
+
+37. Verify Notepad follows into File Finder.
+
+38. Verify it appears below the File Finder title/header.
+
+39. Verify it appears above the File Finder interface.
+
+40. Verify there is still only ONE logical Notepad.
+
+41. Return to Library.
+
+42. Verify Notepad remains part of Library.
+
+43. Open Bulk File Renamer.
+
+44. Verify Notepad follows there too.
+
+==================================================
+38. VERIFY: INDIVIDUAL RECALL
+==================================================
+
+45. From inside a nested Library tool, click Notepad's Recall control.
+
+46. Verify Notepad immediately returns Home.
+
+47. Verify exact original Home X/Y position is restored.
+
+48. Verify exact original Home size is restored.
+
+49. Verify Notepad content is unchanged.
+
+50. Verify Sakura decoration returns with it.
+
+==================================================
+39. VERIFY: MULTIPLE WIDGETS
+==================================================
+
+51. Move Notepad and Calculator to Library.
+
+52. Verify both appear below the Library title and above Library content.
+
+53. Verify they do not initially overlap.
+
+54. Verify both remain independently usable.
+
+55. Verify both follow into File Finder.
+
+56. Verify neither is duplicated.
+
+==================================================
+40. VERIFY: GLOBAL RECALL
+==================================================
+
+57. Move multiple widgets to different VALID sections.
+
+Example:
+
+Notepad → Library
+Calculator → Store
+Decision Maker → Breakroom
+
+58. Return Home.
+
+59. Verify Recall Widgets shows:
+
+Recall Widgets (3)
+
+60. Click it.
+
+61. Verify all three widgets return Home.
+
+62. Verify each restores its own exact Home position and size.
+
+63. Verify all data remains intact.
+
+==================================================
+41. VERIFY: COLLAPSED SIDEBAR
+==================================================
+
+64. Collapse sidebar.
+
+65. Verify every navigation icon is FULLY visible.
+
+66. Verify no icon is clipped.
+
+67. Verify icons are centered.
+
+68. Verify Home workspace expands into the freed horizontal space.
+
+69. Verify Sakura background expands appropriately.
+
+70. Drag a portable widget onto a collapsed VALID navigation icon.
+
+71. Verify the full icon button acts as the drop target.
+
+72. Verify transfer works.
+
+73. Drag a portable widget over collapsed Profile or Settings.
+
+74. Verify neither becomes a valid drop target.
+
+75. Expand sidebar again.
+
+76. Verify everything returns smoothly.
+
+==================================================
+42. FINAL REGRESSION CHECK
+==================================================
+
+Before finishing verify:
+
+- Home free movement works.
+- No widget uses grid snapping.
+- Existing widget resizing still works.
+- Edit Widgets still works.
+- Add Widget still works.
+- Removing widgets still works.
+- Recall works.
+- Global Recall works.
+- Portable transfer works only between Home, Store, Library, and Breakroom.
+- Profile and Settings reject portable widgets.
+- Nested tool following works.
+- Sidebar collapse works.
+- Sidebar icons are fully visible.
+- Sakura decorations remain attached.
+- Sakura skin still works.
+- Default skin still works.
+- Existing tools still work.
+- Widget data persists.
+- Layout data persists.
+
+Do not make unrelated changes.
+
+If the existing architecture conflicts with this behavior, refactor the shared widget positioning/location architecture rather than implementing separate one-off hacks for each widget.
