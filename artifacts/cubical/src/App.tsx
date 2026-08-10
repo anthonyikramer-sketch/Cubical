@@ -256,9 +256,9 @@ type Product = {
 };
 
 const PRODUCTS: Product[] = [
-  { id: 'file-organizer', name: 'File Organizer', description: 'A calmer way to sort, group, and find everything on your desktop.', price: '$1.99', icon: FolderCog, iconColor: 'hsl(164 48% 32%)', iconBg: 'hsl(164 48% 32% / .12)' },
-  { id: 'spreadsheet-cleaner', name: 'Spreadsheet Cleaner', description: 'Sweep out the clutter hiding between your rows and columns.', price: '$2.99', icon: TableProperties, iconColor: 'hsl(31 75% 43%)', iconBg: 'hsl(31 75% 43% / .13)' },
-  { id: 'pdf-toolkit', name: 'PDF Toolkit', description: 'Small, sharp tools for the PDFs you touch every day.', price: '$3.99', icon: FileScan, iconColor: 'hsl(1 68% 54%)', iconBg: 'hsl(1 68% 54% / .12)' },
+  { id: 'file-organizer', name: 'File Organizer', description: 'A calmer way to sort, group, and find everything on your desktop.', price: 'FREE', icon: FolderCog, iconColor: 'hsl(164 48% 32%)', iconBg: 'hsl(164 48% 32% / .12)' },
+  { id: 'spreadsheet-cleaner', name: 'Spreadsheet Cleaner', description: 'Sweep out the clutter hiding between your rows and columns.', price: 'FREE', icon: TableProperties, iconColor: 'hsl(31 75% 43%)', iconBg: 'hsl(31 75% 43% / .13)' },
+  { id: 'pdf-toolkit', name: 'PDF Toolkit', description: 'Small, sharp tools for the PDFs you touch every day.', price: 'FREE', icon: FileScan, iconColor: 'hsl(1 68% 54%)', iconBg: 'hsl(1 68% 54% / .12)' },
   { id: 'bulk-file-renamer', name: 'Bulk File Renamer', description: 'Give a whole folder a thoughtful name in one quick pass.', price: 'FREE', icon: FileArchive, iconColor: 'hsl(226 45% 49%)', iconBg: 'hsl(226 45% 49% / .12)' },
   { id: 'duplicate-finder',   name: 'Duplicate Finder',  description: 'Spot the copies taking up space and keep the best version.', price: 'FREE', icon: Files,       iconColor: 'hsl(287 40% 47%)', iconBg: 'hsl(287 40% 47% / .12)' },
   { id: 'file-finder',        name: 'File Finder',       description: 'Find the file. Skip the folder archaeology.',                  price: 'FREE', icon: FolderSearch, iconColor: 'hsl(197 55% 38%)', iconBg: 'hsl(197 55% 38% / .12)' },
@@ -271,8 +271,11 @@ const PRODUCTS: Product[] = [
 ];
 
 const TOOL_ROUTES: Partial<Record<Product['id'], string>> = {
+  'file-organizer':      '/tool/file-organizer',
   'bulk-file-renamer':   '/tool/bulk-file-renamer',
   'spreadsheet-cleaner': '/tool/spreadsheet-cleaner',
+  'pdf-toolkit':         '/tool/pdf-toolkit',
+  'duplicate-finder':    '/tool/duplicate-finder',
   'file-finder':         '/tool/file-finder',
   'storage-explorer':    '/tool/storage-explorer',
   'image-converter':     '/tool/image-converter',
@@ -599,6 +602,54 @@ function PortableProvider({ children }: { children: ReactNode }) {
 
 // ─── App shell ────────────────────────────────────────────────────────────────
 
+// ─── Navigation history context ───────────────────────────────────────────────
+
+type NavCtxValue = { goBack: (fallback?: string) => void; canGoBack: boolean };
+const NavCtx = createContext<NavCtxValue>({ goBack: () => {}, canGoBack: false });
+const useNavBack = () => useContext(NavCtx);
+
+function NavProvider({ children }: { children: ReactNode }) {
+  const [location, navigate] = useLocation();
+  const stackRef = useRef<string[]>([]);
+  const skipRef  = useRef(false);
+  const [depth, setDepth] = useState(0);
+
+  useEffect(() => {
+    if (skipRef.current) { skipRef.current = false; return; }
+    const stack = stackRef.current;
+    if (stack[stack.length - 1] !== location) {
+      stackRef.current = [...stack, location];
+      setDepth(stackRef.current.length);
+    }
+  }, [location]);
+
+  const goBack = useCallback((fallback = '/') => {
+    const stack = stackRef.current;
+    if (stack.length > 1) {
+      const next = stack.slice(0, -1);
+      stackRef.current = next;
+      skipRef.current  = true;
+      setDepth(next.length);
+      navigate(next[next.length - 1]);
+    } else {
+      navigate(fallback);
+    }
+  }, [navigate]);
+
+  const value = useMemo(() => ({ goBack, canGoBack: depth > 1 }), [goBack, depth]);
+  return <NavCtx.Provider value={value}>{children}</NavCtx.Provider>;
+}
+
+function BackButton({ fallback = '/', label }: { fallback?: string; label?: string }) {
+  const { goBack, canGoBack } = useNavBack();
+  if (!canGoBack) return null;
+  return (
+    <button type="button" className="detail-back" onClick={() => goBack(fallback)} data-testid="btn-nav-back">
+      <ArrowLeft /> {label ?? 'Back'}
+    </button>
+  );
+}
+
 const CRUMB_MAP: Record<string, string> = {
   '/': 'Shelf / Home',
   '/store': 'Shelf / Store',
@@ -606,6 +657,7 @@ const CRUMB_MAP: Record<string, string> = {
   '/breakroom': 'Shelf / Breakroom',
   '/profile': 'Shelf / Profile',
   '/settings': 'Shelf / Settings',
+  '/tool/file-organizer':    'Shelf / File Organizer',
   '/tool/file-finder':       'Shelf / File Finder',
   '/tool/storage-explorer':  'Shelf / Storage Explorer',
   '/tool/image-converter':   'Shelf / Image Converter',
@@ -613,6 +665,8 @@ const CRUMB_MAP: Record<string, string> = {
   '/tool/startup-manager':   'Shelf / Startup Manager',
   '/tool/file-inspector':    'Shelf / File Inspector',
   '/tool/system-info':       'Shelf / System Info',
+  '/tool/pdf-toolkit':       'Shelf / PDF Toolkit',
+  '/tool/duplicate-finder':  'Shelf / Duplicate Finder',
 };
 
 function AppShell({ children, libraryCount }: { children: ReactNode; libraryCount: number }) {
@@ -805,21 +859,34 @@ function ProductCard({ product }: { product: Product }) {
 }
 
 function StorePage() {
+  const [query, setQuery] = useState('');
+  const filtered = useMemo(() => {
+    if (!query.trim()) return PRODUCTS;
+    const q = query.toLowerCase();
+    return PRODUCTS.filter((p) => p.name.toLowerCase().includes(q) || p.description.toLowerCase().includes(q));
+  }, [query]);
+
   return (
     <section>
+      <BackButton />
       <div className="page-intro">
         <div className="eyebrow">A small shelf of useful things</div>
         <h1 className="display-title mt-4">Tools worth<br /><em className="not-italic" style={{ color: 'hsl(var(--primary))' }}>keeping around.</em></h1>
         <p>Browse focused desktop tools made to do one thing well. Pick the ones that feel like you.</p>
       </div>
       <DisplacedWidgetBand />
-      <div className="mb-5 flex items-center justify-between">
+      <div className="mb-3 flex items-center justify-between">
         <span className="eyebrow" style={{ color: 'hsl(var(--muted-foreground))' }}>The current edit</span>
         <span className="library-count">{String(PRODUCTS.length).padStart(2, '0')} tools · no noise</span>
       </div>
-      <div className="product-grid" data-testid="product-catalog">
-        {PRODUCTS.map((product) => <ProductCard key={product.id} product={product} />)}
+      <div className="tool-search-bar mb-5">
+        <Search className="tool-search-icon" />
+        <input type="text" className="tool-search-input" placeholder="Search tools…" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search store tools" />
+        {query && <button type="button" className="tool-search-clear" onClick={() => setQuery('')} aria-label="Clear search"><X /></button>}
       </div>
+      {filtered.length === 0
+        ? <div className="tool-search-empty">No tools found for "{query}"</div>
+        : <div className="product-grid" data-testid="product-catalog">{filtered.map((product) => <ProductCard key={product.id} product={product} />)}</div>}
     </section>
   );
 }
@@ -841,7 +908,7 @@ function ProductDetail({ product, isAdded, onAdd, onOpen }: { product: Product; 
   const isFree = product.price === 'FREE';
   return (
     <section>
-      <Link href="/store" className="detail-back" data-testid="link-back-store"><ArrowLeft /> Back to store</Link>
+      <BackButton fallback="/store" label="Back to store" />
       <DisplacedWidgetBand />
       <div className="detail-layout">
         <div className="detail-copy">
@@ -882,8 +949,16 @@ function EmptyLibrary() {
 }
 
 function LibraryPage({ products, onOpen }: { products: Product[]; onOpen: (product: Product) => void }) {
+  const [query, setQuery] = useState('');
+  const filtered = useMemo(() => {
+    if (!query.trim()) return products;
+    const q = query.toLowerCase();
+    return products.filter((p) => p.name.toLowerCase().includes(q) || p.description.toLowerCase().includes(q));
+  }, [products, query]);
+
   return (
     <section>
+      <BackButton />
       <div className="library-head">
         <div className="page-intro !mb-0">
           <div className="eyebrow">Your chosen tools</div>
@@ -894,25 +969,36 @@ function LibraryPage({ products, onOpen }: { products: Product[]; onOpen: (produ
       </div>
       <DisplacedWidgetBand />
       {products.length === 0 ? <EmptyLibrary /> : (
-        <div className="library-list" data-testid="library-list">
-          {products.map((product, index) => {
-            const toolRoute = getToolRoute(product);
-            return (
-              <div className="library-row" style={{ animationDelay: `${index * 60}ms` }} key={product.id} data-testid={`row-library-${product.id}`}>
-                <ProductIcon product={product} />
-                <div className="library-row-main">
-                  <div className="library-row-name">{product.name}</div>
-                  <div className="library-row-description">{product.description}</div>
-                </div>
-                {toolRoute ? (
-                  <Link className="button-quiet" href={toolRoute} data-testid={`button-open-${product.id}`}>Open <ArrowRight className="ml-1 inline-block h-3 w-3" /></Link>
-                ) : (
-                  <button className="button-quiet" onClick={() => onOpen(product)} data-testid={`button-open-${product.id}`}>Open <ArrowRight className="ml-1 inline-block h-3 w-3" /></button>
-                )}
+        <>
+          <div className="tool-search-bar mb-4">
+            <Search className="tool-search-icon" />
+            <input type="text" className="tool-search-input" placeholder="Search your library…" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search library tools" />
+            {query && <button type="button" className="tool-search-clear" onClick={() => setQuery('')} aria-label="Clear search"><X /></button>}
+          </div>
+          {filtered.length === 0
+            ? <div className="tool-search-empty">No tools found for "{query}"</div>
+            : (
+              <div className="library-list" data-testid="library-list">
+                {filtered.map((product, index) => {
+                  const toolRoute = getToolRoute(product);
+                  return (
+                    <div className="library-row" style={{ animationDelay: `${index * 60}ms` }} key={product.id} data-testid={`row-library-${product.id}`}>
+                      <ProductIcon product={product} />
+                      <div className="library-row-main">
+                        <div className="library-row-name">{product.name}</div>
+                        <div className="library-row-description">{product.description}</div>
+                      </div>
+                      {toolRoute ? (
+                        <Link className="button-quiet" href={toolRoute} data-testid={`button-open-${product.id}`}>Open <ArrowRight className="ml-1 inline-block h-3 w-3" /></Link>
+                      ) : (
+                        <button className="button-quiet" onClick={() => onOpen(product)} data-testid={`button-open-${product.id}`}>Open <ArrowRight className="ml-1 inline-block h-3 w-3" /></button>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-            );
-          })}
-        </div>
+            )}
+        </>
       )}
     </section>
   );
@@ -2945,6 +3031,7 @@ function HomePage() {
 
   return (
     <div className="home-page" data-testid="home-page">
+      <BackButton />
       <div className="home-header-row">
         <div>
           <div className="eyebrow">Your workspace</div>
@@ -3352,7 +3439,7 @@ function BulkFileRenamer() {
 
   return (
     <section className="renamer-page" data-testid="bulk-file-renamer">
-      <Link href="/library" className="detail-back" data-testid="link-back-library"><ArrowLeft /> Back to library</Link>
+      <BackButton fallback="/library" label="Back to library" />
       <div className="tool-title-row">
         <div>
           <div className="eyebrow">Cubical tool · local prototype</div>
@@ -3519,7 +3606,7 @@ function SpreadsheetCleaner() {
 
   return (
     <section className="renamer-page spreadsheet-page" data-testid="spreadsheet-cleaner">
-      <Link href="/library" className="detail-back" data-testid="link-back-library"><ArrowLeft /> Back to library</Link>
+      <BackButton fallback="/library" label="Back to library" />
       <div className="tool-title-row">
         <div>
           <div className="eyebrow">Cubical tool · local prototype</div>
@@ -4789,6 +4876,7 @@ function BreakroomPage() {
 
   return (
     <div className="breakroom-page" data-testid="breakroom-page">
+      <BackButton />
       {/* Page header */}
       <div className="page-intro breakroom-intro">
         <div className="eyebrow">⏸ Take a breather</div>
@@ -5030,6 +5118,7 @@ function FileFinderPage() {
   if (!isDesktop) {
     return (
       <section className="ff-page">
+        <BackButton fallback="/library" label="Back to library" />
         <div className="page-intro">
           <div className="eyebrow">A focused little utility</div>
           <h1 className="display-title mt-4">File Finder.</h1>
@@ -5058,6 +5147,7 @@ function FileFinderPage() {
   // ── Full search UI ─────────────────────────────────────────────────────────
   return (
     <section className="ff-page">
+      <BackButton fallback="/library" label="Back to library" />
 
       {/* Header */}
       <div className="ff-header">
@@ -5297,6 +5387,7 @@ function ProfilePage() {
 
   return (
     <section className="profile-page">
+      <BackButton />
 
       {/* Banner + avatar */}
       <div className="profile-hero">
@@ -5472,6 +5563,7 @@ function SettingsPage() {
 
   return (
     <section className="settings-page">
+      <BackButton />
       <div className="page-intro">
         <div className="eyebrow">Make it yours</div>
         <h1 className="display-title mt-4">Settings.</h1>
@@ -5635,7 +5727,58 @@ function SettingsPage() {
 // ─── Storage Explorer ─────────────────────────────────────────────────────────
 
 function StorageExplorer() {
-  const isDesktop = !!(window.cubicalDesktop);
+  const hasApi    = typeof (window as any).showDirectoryPicker === 'function';
+  const [scanning, setScanning]   = useState(false);
+  const [entries, setEntries]     = useState<{ name: string; size: number; kind: string }[]>([]);
+  const [dirName, setDirName]     = useState<string | null>(null);
+  const [totalSize, setTotalSize] = useState(0);
+  const [error, setError]         = useState<string | null>(null);
+
+  const scanSubDir = async (handle: any, depth: number): Promise<number> => {
+    let total = 0;
+    try {
+      for await (const entry of handle.values()) {
+        if (entry.kind === 'file') {
+          try { total += (await entry.getFile()).size; } catch { /* locked */ }
+        } else if (depth < 2) {
+          total += await scanSubDir(entry, depth + 1);
+        }
+      }
+    } catch { /* skip inaccessible */ }
+    return total;
+  };
+
+  const handleScan = async () => {
+    setError(null);
+    try {
+      const dirHandle = await (window as any).showDirectoryPicker({ mode: 'read' });
+      setDirName(dirHandle.name);
+      setScanning(true);
+      setEntries([]);
+      const topEntries: { name: string; size: number; kind: string }[] = [];
+      let grand = 0;
+      for await (const entry of dirHandle.values()) {
+        let size = 0;
+        if (entry.kind === 'file') {
+          try { size = (await entry.getFile()).size; } catch { /* skip */ }
+        } else {
+          size = await scanSubDir(entry, 0);
+        }
+        grand += size;
+        topEntries.push({ name: entry.name, size, kind: entry.kind });
+      }
+      topEntries.sort((a, b) => b.size - a.size);
+      setEntries(topEntries.slice(0, 24));
+      setTotalSize(grand);
+    } catch (e: any) {
+      if ((e as any)?.name !== 'AbortError') setError('Could not read folder. Please try again.');
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  const maxSize = entries[0]?.size || 1;
+
   const previewEntries = [
     { name: 'Documents', size: '12.4 GB', pct: 62 },
     { name: 'Downloads', size: '6.7 GB',  pct: 34 },
@@ -5643,56 +5786,103 @@ function StorageExplorer() {
     { name: 'Videos',    size: '2.3 GB',  pct: 12 },
     { name: 'AppData',   size: '1.8 GB',  pct: 9  },
   ];
+
   return (
     <section className="renamer-page" data-testid="storage-explorer">
-      <Link href="/library" className="detail-back" data-testid="link-back-library"><ArrowLeft /> Back to library</Link>
+      <BackButton fallback="/library" label="Back to library" />
       <div className="tool-title-row">
         <div>
-          <div className="eyebrow">Cubical tool · local prototype</div>
+          <div className="eyebrow">Cubical tool · {hasApi ? 'works in browser' : 'local prototype'}</div>
           <div className="tool-title-with-icon">
             <span className="renamer-tool-icon" style={{ color: 'hsl(215 60% 43%)', background: 'hsl(215 60% 43% / .12)' }}><HardDrive /></span>
             <div><h1>Storage Explorer.</h1><p>See exactly what's taking up space on your PC.</p></div>
           </div>
         </div>
-        <span className="tool-status"><i className="status-dot" /> Preview mode</span>
+        <span className="tool-status"><i className="status-dot" /> {hasApi ? (scanning ? 'Scanning…' : dirName ? 'Scanned' : 'Ready') : 'Preview mode'}</span>
       </div>
       <DisplacedWidgetBand />
-      <div className="renamer-notice">
-        <HardDrive />
-        <div>
-          <strong>{isDesktop ? 'Choose a folder to scan' : 'Desktop access required'}</strong>
-          <span>{isDesktop ? 'Select a drive or folder and Storage Explorer will visualise what is taking up space.' : 'Storage Explorer needs direct filesystem access. It will be fully functional in the Cubical desktop app for Windows.'}</span>
-        </div>
-      </div>
-      <div className="storage-explorer-workspace">
-        <div className="storage-drive-card">
-          <div className="storage-drive-header">
-            <HardDrive className="storage-drive-icon" />
-            <div className="storage-drive-meta-wrap">
-              <div className="storage-drive-name">C:\ — Local Drive</div>
-              <div className="storage-drive-meta">19.8 GB used of 59.5 GB · {isDesktop ? 'Live data' : 'Preview'}</div>
+      {hasApi ? (
+        <>
+          <div className="renamer-notice">
+            <HardDrive />
+            <div>
+              <strong>{dirName ? `Showing: ${dirName}` : 'Choose a folder to scan'}</strong>
+              <span>Select any folder and Storage Explorer will measure what is taking up space. Nothing is moved or changed.</span>
             </div>
-            <button type="button" className="button-primary" disabled={!isDesktop} style={{ fontSize: 11, minHeight: 34, padding: '0 14px' }}>Scan folder</button>
+            <button type="button" className="button-primary" onClick={handleScan} disabled={scanning} style={{ flexShrink: 0, fontSize: 12, minHeight: 36, padding: '0 16px' }}>
+              {scanning ? 'Scanning…' : dirName ? 'Scan another' : 'Select folder'}
+            </button>
           </div>
-          <div className="storage-bar-track"><div className="storage-bar-fill" style={{ width: '33%' }} /></div>
-        </div>
-        <div className="storage-folder-list">
-          <div className="renamer-section-heading">
-            <span className="eyebrow">Largest folders</span>
-            <span className="library-count" style={{ opacity: .55 }}>Preview data</span>
-          </div>
-          {previewEntries.map((e) => (
-            <div className="storage-folder-row" key={e.name}>
-              <FolderOpen className="storage-folder-row-icon" />
-              <span className="storage-folder-name">{e.name}</span>
-              <div className="storage-row-bar-track"><div className="storage-row-bar-fill" style={{ width: `${e.pct}%` }} /></div>
-              <span className="storage-folder-size">{e.size}</span>
-              <button type="button" className="button-quiet" disabled={!isDesktop} style={{ fontSize: 10, minHeight: 28, padding: '0 10px' }}>Open</button>
+          {error && <p style={{ color: 'hsl(0 65% 50%)', fontSize: 13, margin: '8px 0' }}>{error}</p>}
+          {(entries.length > 0 || scanning) && (
+            <div className="storage-explorer-workspace">
+              <div className="storage-drive-card">
+                <div className="storage-drive-header">
+                  <HardDrive className="storage-drive-icon" />
+                  <div className="storage-drive-meta-wrap">
+                    <div className="storage-drive-name">{dirName}</div>
+                    <div className="storage-drive-meta">{scanning ? 'Scanning…' : `${formatFileBytes(totalSize)} total · ${entries.length} items shown`}</div>
+                  </div>
+                </div>
+                <div className="storage-bar-track"><div className="storage-bar-fill" style={{ width: scanning ? '60%' : '100%' }} /></div>
+              </div>
+              {entries.length > 0 && (
+                <div className="storage-folder-list">
+                  <div className="renamer-section-heading">
+                    <span className="eyebrow">Largest items</span>
+                    <span className="library-count" style={{ opacity: .55 }}>{entries.length} shown</span>
+                  </div>
+                  {entries.map((e) => (
+                    <div className="storage-folder-row" key={e.name}>
+                      <FolderOpen className="storage-folder-row-icon" />
+                      <span className="storage-folder-name">{e.name}</span>
+                      <div className="storage-row-bar-track"><div className="storage-row-bar-fill" style={{ width: `${Math.round(e.size / maxSize * 100)}%` }} /></div>
+                      <span className="storage-folder-size">{formatFileBytes(e.size)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-          ))}
-        </div>
-      </div>
-      <div className="desktop-note"><Sparkles /><p><strong>Requires Cubical for Windows.</strong> Folder scanning, drill-down, and file-type breakdowns connect to the local filesystem. The layout above shows what Storage Explorer will look like.</p></div>
+          )}
+        </>
+      ) : (
+        <>
+          <div className="renamer-notice">
+            <HardDrive />
+            <div>
+              <strong>Desktop access required</strong>
+              <span>Storage Explorer needs direct filesystem access. It will be fully functional in the Cubical desktop app for Windows.</span>
+            </div>
+          </div>
+          <div className="storage-explorer-workspace">
+            <div className="storage-drive-card">
+              <div className="storage-drive-header">
+                <HardDrive className="storage-drive-icon" />
+                <div className="storage-drive-meta-wrap">
+                  <div className="storage-drive-name">C:\ — Local Drive</div>
+                  <div className="storage-drive-meta">19.8 GB used of 59.5 GB · Preview</div>
+                </div>
+              </div>
+              <div className="storage-bar-track"><div className="storage-bar-fill" style={{ width: '33%' }} /></div>
+            </div>
+            <div className="storage-folder-list">
+              <div className="renamer-section-heading">
+                <span className="eyebrow">Largest folders</span>
+                <span className="library-count" style={{ opacity: .55 }}>Preview data</span>
+              </div>
+              {previewEntries.map((e) => (
+                <div className="storage-folder-row" key={e.name}>
+                  <FolderOpen className="storage-folder-row-icon" />
+                  <span className="storage-folder-name">{e.name}</span>
+                  <div className="storage-row-bar-track"><div className="storage-row-bar-fill" style={{ width: `${e.pct}%` }} /></div>
+                  <span className="storage-folder-size">{e.size}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="desktop-note"><Sparkles /><p><strong>Requires Cubical for Windows.</strong> Folder scanning, drill-down, and file-type breakdowns connect to the local filesystem. The layout above shows what Storage Explorer will look like.</p></div>
+        </>
+      )}
     </section>
   );
 }
@@ -5746,7 +5936,7 @@ function ImageConverter() {
 
   return (
     <section className="renamer-page" data-testid="image-converter">
-      <Link href="/library" className="detail-back" data-testid="link-back-library"><ArrowLeft /> Back to library</Link>
+      <BackButton fallback="/library" label="Back to library" />
       <div className="tool-title-row">
         <div>
           <div className="eyebrow">Cubical tool · works in browser</div>
@@ -5978,7 +6168,7 @@ function FileToolbox() {
 
   return (
     <section className="renamer-page" data-testid="file-toolbox">
-      <Link href="/library" className="detail-back" data-testid="link-back-library"><ArrowLeft /> Back to library</Link>
+      <BackButton fallback="/library" label="Back to library" />
       <div className="tool-title-row">
         <div>
           <div className="eyebrow">Cubical tool · works in browser</div>
@@ -6056,7 +6246,7 @@ function StartupManager() {
   ];
   return (
     <section className="renamer-page" data-testid="startup-manager">
-      <Link href="/library" className="detail-back" data-testid="link-back-library"><ArrowLeft /> Back to library</Link>
+      <BackButton fallback="/library" label="Back to library" />
       <div className="tool-title-row">
         <div>
           <div className="eyebrow">Cubical tool · local prototype</div>
@@ -6134,7 +6324,7 @@ function FileInspector() {
 
   return (
     <section className="renamer-page" data-testid="file-inspector">
-      <Link href="/library" className="detail-back" data-testid="link-back-library"><ArrowLeft /> Back to library</Link>
+      <BackButton fallback="/library" label="Back to library" />
       <div className="tool-title-row">
         <div>
           <div className="eyebrow">Cubical tool · works in browser</div>
@@ -6195,35 +6385,67 @@ function FileInspector() {
 
 function SystemInfoPage() {
   const isDesktop = !!(window.cubicalDesktop);
-  const cards: { label: string; value: string; detail: string; Icon: typeof Monitor }[] = [
-    { label: 'Operating System', value: 'Windows 11 Pro',          detail: 'Version 23H2 · Build 22631',              Icon: Monitor      },
-    { label: 'Processor',        value: 'Intel Core i7-13700K',    detail: '16 cores / 24 threads · 3.40 GHz base',   Icon: Zap          },
-    { label: 'Memory',           value: '32 GB DDR5',              detail: '4800 MHz · 2 slots used of 4',            Icon: Hash         },
-    { label: 'Storage',          value: '1 TB NVMe SSD',           detail: 'Samsung 980 Pro · C:\\ primary drive',    Icon: HardDrive    },
-    { label: 'Display',          value: '2560 × 1440',             detail: '27 in · 144 Hz · HDR400',                 Icon: Monitor      },
-    { label: 'Architecture',     value: 'x64 (64-bit)',            detail: 'AMD64 compatible',                        Icon: Globe        },
+
+  // Read real browser/environment data
+  const cores    = navigator.hardwareConcurrency ?? null;
+  const memGb    = (navigator as any).deviceMemory as number | undefined;
+  const ua       = navigator.userAgent;
+  const uaData   = (navigator as any).userAgentData as { platform?: string; architecture?: string } | undefined;
+  const osPlatform = uaData?.platform ?? navigator.platform ?? '';
+  const osName   = osPlatform || (ua.includes('Windows') ? 'Windows' : ua.includes('Mac') ? 'macOS' : ua.includes('Linux') ? 'Linux' : 'Unknown');
+  const screenW  = screen.width;
+  const screenH  = screen.height;
+  const dpr      = window.devicePixelRatio ?? 1;
+  const physW    = Math.round(screenW * dpr);
+  const physH    = Math.round(screenH * dpr);
+  const elMatch  = ua.match(/Electron\/([\d.]+)/);
+  const crMatch  = ua.match(/Chrome\/([\d.]+)/);
+  const shellVal = elMatch ? `Electron ${elMatch[1]}` : crMatch ? `Chromium ${crMatch[1]}` : 'Browser';
+  const archVal  = uaData?.architecture ?? (ua.includes('x86_64') || ua.includes('Win64') || ua.includes('x64') ? 'x64 (64-bit)' : '—');
+
+  const liveCards: { label: string; value: string; detail: string; Icon: typeof Monitor }[] = [
+    { label: 'Platform',          value: osName || '—',                    detail: elMatch ? 'Running in Electron (desktop shell)' : 'Running in web browser',        Icon: Monitor   },
+    { label: 'Logical CPU cores', value: cores !== null ? `${cores}` : '—', detail: cores !== null ? 'navigator.hardwareConcurrency' : 'Not reported by this environment', Icon: Zap   },
+    { label: 'Device memory',     value: memGb !== undefined ? `≥ ${memGb} GB` : '—', detail: memGb !== undefined ? 'Rounded by browser privacy spec' : 'Not exposed in this browser', Icon: Hash },
+    { label: 'Display (logical)', value: `${screenW} × ${screenH}`,       detail: `Physical: ${physW} × ${physH} · ${dpr}× pixel ratio`,                            Icon: Monitor   },
+    { label: 'Architecture',      value: archVal,                           detail: uaData ? 'From UA-CH client hints' : 'Inferred from user-agent string',           Icon: Globe     },
+    { label: 'Shell / Runtime',   value: shellVal,                          detail: (crMatch ? `Chrome ${crMatch[1]}` : ua).slice(0, 70),                             Icon: Globe     },
   ];
+
+  const desktopCards: { label: string; value: string; detail: string; Icon: typeof Monitor }[] = [
+    { label: 'Operating System', value: 'Windows 11 Pro',       detail: 'Version 23H2 · Build 22631',            Icon: Monitor   },
+    { label: 'Processor',        value: 'Intel Core i7-13700K', detail: '16 cores / 24 threads · 3.40 GHz base', Icon: Zap       },
+    { label: 'Memory',           value: '32 GB DDR5',           detail: '4800 MHz · 2 slots used of 4',          Icon: Hash      },
+    { label: 'Storage',          value: '1 TB NVMe SSD',        detail: 'Samsung 980 Pro · C:\\ primary drive',  Icon: HardDrive },
+    { label: 'Display',          value: '2560 × 1440',          detail: '27 in · 144 Hz · HDR400',               Icon: Monitor   },
+    { label: 'Architecture',     value: 'x64 (64-bit)',         detail: 'AMD64 compatible',                      Icon: Globe     },
+  ];
+
+  const cards = isDesktop ? desktopCards : liveCards;
+
   return (
     <section className="renamer-page" data-testid="system-info">
-      <Link href="/library" className="detail-back" data-testid="link-back-library"><ArrowLeft /> Back to library</Link>
+      <BackButton fallback="/library" label="Back to library" />
       <div className="tool-title-row">
         <div>
-          <div className="eyebrow">Cubical tool · local prototype</div>
+          <div className="eyebrow">Cubical tool · {isDesktop ? 'local prototype' : 'works in browser'}</div>
           <div className="tool-title-with-icon">
             <span className="renamer-tool-icon" style={{ color: 'hsl(45 68% 40%)', background: 'hsl(45 68% 40% / .12)' }}><Monitor /></span>
             <div><h1>System Info.</h1><p>A clean overview of your PC and hardware.</p></div>
           </div>
         </div>
-        <span className="tool-status"><i className="status-dot" /> Preview mode</span>
+        <span className="tool-status"><i className="status-dot" /> {isDesktop ? 'Preview mode' : 'Live data'}</span>
       </div>
       <DisplacedWidgetBand />
-      <div className="renamer-notice">
-        <Monitor />
-        <div>
-          <strong>{isDesktop ? 'Reading system information' : 'Desktop access required'}</strong>
-          <span>{isDesktop ? 'System Info is gathering your hardware and OS details.' : 'Live hardware data requires the Cubical desktop app. The cards below show what your System Info dashboard will look like.'}</span>
+      {isDesktop && (
+        <div className="renamer-notice">
+          <Monitor />
+          <div>
+            <strong>Reading system information</strong>
+            <span>System Info is gathering your hardware and OS details from the desktop bridge.</span>
+          </div>
         </div>
-      </div>
+      )}
       <div className="system-info-grid">
         {cards.map(({ label, value, detail, Icon }) => (
           <div className="system-info-card" key={label}>
@@ -6231,12 +6453,276 @@ function SystemInfoPage() {
               <Icon className="system-info-icon" />
               <span className="system-info-label">{label}</span>
             </div>
-            <div className="system-info-value">{isDesktop ? value : '—'}</div>
-            <div className="system-info-detail">{isDesktop ? detail : 'Available in Cubical for Windows'}</div>
+            <div className="system-info-value">{value}</div>
+            <div className="system-info-detail">{detail}</div>
           </div>
         ))}
       </div>
-      <div className="desktop-note"><Sparkles /><p><strong>Requires Cubical for Windows.</strong> CPU, RAM, GPU, storage, display, and network details are read directly from your system when running as a desktop app.</p></div>
+      {isDesktop && <div className="desktop-note"><Sparkles /><p><strong>Requires Cubical for Windows.</strong> CPU, RAM, GPU, storage, display, and network details are read directly from your system when running as a desktop app.</p></div>}
+    </section>
+  );
+}
+
+// ─── File Organizer ───────────────────────────────────────────────────────────
+
+function FileOrganizerPage() {
+  const [files, setFiles] = useState<File[]>([]);
+
+  const handleFiles = (e: ChangeEvent<HTMLInputElement>) => {
+    const picked = Array.from(e.target.files ?? []);
+    setFiles((prev) => {
+      const existing = new Set(prev.map((f) => f.name + f.size));
+      return [...prev, ...picked.filter((f) => !existing.has(f.name + f.size))];
+    });
+    e.target.value = '';
+  };
+
+  const groups = useMemo(() => {
+    const map: Record<string, File[]> = {};
+    for (const f of files) {
+      const cat = mimeCategory(f.type);
+      if (!map[cat]) map[cat] = [];
+      map[cat].push(f);
+    }
+    return Object.entries(map).sort((a, b) => b[1].length - a[1].length);
+  }, [files]);
+
+  const totalSize = files.reduce((s, f) => s + f.size, 0);
+
+  return (
+    <section className="renamer-page" data-testid="file-organizer">
+      <BackButton fallback="/library" label="Back to library" />
+      <div className="tool-title-row">
+        <div>
+          <div className="eyebrow">Cubical tool · works in browser</div>
+          <div className="tool-title-with-icon">
+            <span className="renamer-tool-icon" style={{ color: 'hsl(164 48% 32%)', background: 'hsl(164 48% 32% / .12)' }}><FolderCog /></span>
+            <div><h1>File Organizer.</h1><p>Sort, group, and make sense of your files in one pass.</p></div>
+          </div>
+        </div>
+        <span className="tool-status"><i className="status-dot" /> Files stay on your computer</span>
+      </div>
+      <DisplacedWidgetBand />
+      <div className="renamer-notice">
+        <FolderCog />
+        <div>
+          <strong>Group files by type</strong>
+          <span>Select files to see how they'd be organized by category. Nothing is moved — this is a preview only.</span>
+        </div>
+      </div>
+      <div className="renamer-workspace">
+        <div className="renamer-controls">
+          <div className="renamer-section-heading"><span className="eyebrow">01 · Select files</span><span className="library-count">{files.length} selected</span></div>
+          <label className="file-picker"><FilePlus2 /><span>Select files</span><input type="file" multiple onChange={handleFiles} /></label>
+          {files.length > 0 && (
+            <div style={{ marginTop: 10 }}>
+              <p style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>{formatFileBytes(totalSize)} total</p>
+              <button type="button" className="text-button" style={{ marginTop: 6 }} onClick={() => setFiles([])}><RotateCcw /> Clear</button>
+            </div>
+          )}
+        </div>
+        <div className="renamer-preview">
+          <div className="renamer-section-heading"><span className="eyebrow">02 · Organized by type</span></div>
+          {files.length === 0 ? (
+            <div className="renamer-empty"><FolderOpen style={{ width: 32, height: 32, opacity: .35, marginBottom: 10 }} /><p>Select files to see how they would be grouped.</p></div>
+          ) : (
+            <div className="storage-folder-list">
+              {groups.map(([cat, catFiles]) => (
+                <div key={cat}>
+                  <div className="renamer-section-heading" style={{ marginTop: 12 }}>
+                    <span className="eyebrow">{cat}</span>
+                    <span className="library-count" style={{ opacity: .7 }}>{catFiles.length} file{catFiles.length !== 1 ? 's' : ''} · {formatFileBytes(catFiles.reduce((s, f) => s + f.size, 0))}</span>
+                  </div>
+                  {catFiles.map((f) => (
+                    <div className="storage-folder-row" key={f.name + f.size}>
+                      <File className="storage-folder-row-icon" />
+                      <span className="storage-folder-name" style={{ flex: 1, minWidth: 'auto', fontSize: 12 }}>{f.name}</span>
+                      <span className="storage-folder-size">{formatFileBytes(f.size)}</span>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ─── Duplicate Finder ─────────────────────────────────────────────────────────
+
+function DuplicateFinderPage() {
+  const [files, setFiles] = useState<File[]>([]);
+
+  const handleFiles = (e: ChangeEvent<HTMLInputElement>) => {
+    setFiles((prev) => [...prev, ...Array.from(e.target.files ?? [])]);
+    e.target.value = '';
+  };
+
+  const groups = useMemo(() => {
+    const map = new Map<string, File[]>();
+    for (const f of files) {
+      const key = `${f.name}__${f.size}`;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(f);
+    }
+    return [...map.values()].filter((g) => g.length > 1);
+  }, [files]);
+
+  const wastedBytes = groups.reduce((sum, g) => sum + g.slice(1).reduce((s, f) => s + f.size, 0), 0);
+
+  return (
+    <section className="renamer-page" data-testid="duplicate-finder">
+      <BackButton fallback="/library" label="Back to library" />
+      <div className="tool-title-row">
+        <div>
+          <div className="eyebrow">Cubical tool · works in browser</div>
+          <div className="tool-title-with-icon">
+            <span className="renamer-tool-icon" style={{ color: 'hsl(287 40% 47%)', background: 'hsl(287 40% 47% / .12)' }}><Files /></span>
+            <div><h1>Duplicate Finder.</h1><p>Spot the copies taking up space and keep the best version.</p></div>
+          </div>
+        </div>
+        <span className="tool-status"><i className="status-dot" /> Nothing is deleted</span>
+      </div>
+      <DisplacedWidgetBand />
+      <div className="renamer-notice">
+        <Files />
+        <div>
+          <strong>Find duplicate files</strong>
+          <span>Select files to scan. Duplicates are detected by matching name and size. Nothing is deleted automatically.</span>
+        </div>
+      </div>
+      <div className="renamer-workspace">
+        <div className="renamer-controls">
+          <div className="renamer-section-heading"><span className="eyebrow">01 · Select files</span><span className="library-count">{files.length} selected</span></div>
+          <label className="file-picker"><FilePlus2 /><span>Select files</span><input type="file" multiple onChange={handleFiles} /></label>
+          {files.length > 0 && <button type="button" className="text-button" style={{ marginTop: 8 }} onClick={() => setFiles([])}><RotateCcw /> Clear</button>}
+        </div>
+        <div className="renamer-preview">
+          <div className="renamer-section-heading">
+            <span className="eyebrow">02 · Duplicates found</span>
+            {groups.length > 0 && <span className="library-count" style={{ opacity: .7 }}>{groups.length} group{groups.length !== 1 ? 's' : ''} · {formatFileBytes(wastedBytes)} wasted</span>}
+          </div>
+          {files.length === 0 ? (
+            <div className="renamer-empty"><Files style={{ width: 32, height: 32, opacity: .35, marginBottom: 10 }} /><p>Select files to scan for duplicates.</p></div>
+          ) : groups.length === 0 ? (
+            <div className="renamer-empty"><Check style={{ width: 28, height: 28, color: 'hsl(140 50% 40%)', marginBottom: 10 }} /><p>No duplicates found in the selected files.</p></div>
+          ) : (
+            <div className="storage-folder-list">
+              {groups.map((group, i) => (
+                <div key={i}>
+                  <div className="renamer-section-heading" style={{ marginTop: 12 }}>
+                    <span className="eyebrow">"{group[0].name}"</span>
+                    <span className="library-count" style={{ color: 'hsl(0 65% 50%)', opacity: 1 }}>{group.length}× · {formatFileBytes(group[0].size)} each</span>
+                  </div>
+                  {group.map((f, j) => (
+                    <div className="storage-folder-row" key={j} style={{ opacity: j === 0 ? 1 : 0.6 }}>
+                      <File className="storage-folder-row-icon" />
+                      <span className="storage-folder-name" style={{ flex: 1, minWidth: 'auto', fontSize: 12 }}>{j === 0 ? '✓ Keep' : '⚠ Duplicate'} — {f.name}</span>
+                      <span className="storage-folder-size">{formatFileBytes(f.size)}</span>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ─── PDF Toolkit ──────────────────────────────────────────────────────────────
+
+async function getPdfPageCount(file: File): Promise<number> {
+  try {
+    const buf  = await file.arrayBuffer();
+    const text = new TextDecoder('latin1').decode(new Uint8Array(buf));
+    // Count /Type /Page entries (not /Type /Pages which is the parent object)
+    const direct = (text.match(/\/Type\s*\/Page[^s]/g) ?? []).length;
+    if (direct > 0) return direct;
+    // Fallback: first /Count N in the Pages dict
+    const m = text.match(/\/Count\s+(\d+)/);
+    return m ? parseInt(m[1], 10) : 0;
+  } catch { return 0; }
+}
+
+function PdfToolkitPage() {
+  const [file, setFile]           = useState<File | null>(null);
+  const [pageCount, setPageCount] = useState<number | null>(null);
+  const [objUrl, setObjUrl]       = useState<string | null>(null);
+  const [loading, setLoading]     = useState(false);
+
+  useEffect(() => () => { if (objUrl) URL.revokeObjectURL(objUrl); }, []);
+
+  const loadFile = async (f: File) => {
+    setLoading(true);
+    setFile(f);
+    if (objUrl) URL.revokeObjectURL(objUrl);
+    const url = URL.createObjectURL(f);
+    setObjUrl(url);
+    const count = await getPdfPageCount(f);
+    setPageCount(count);
+    setLoading(false);
+  };
+
+  const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (f) loadFile(f);
+    e.target.value = '';
+  };
+
+  const reset = () => {
+    if (objUrl) URL.revokeObjectURL(objUrl);
+    setFile(null); setObjUrl(null); setPageCount(null);
+  };
+
+  return (
+    <section className="renamer-page" data-testid="pdf-toolkit">
+      <BackButton fallback="/library" label="Back to library" />
+      <div className="tool-title-row">
+        <div>
+          <div className="eyebrow">Cubical tool · works in browser</div>
+          <div className="tool-title-with-icon">
+            <span className="renamer-tool-icon" style={{ color: 'hsl(1 68% 54%)', background: 'hsl(1 68% 54% / .12)' }}><FileScan /></span>
+            <div><h1>PDF Toolkit.</h1><p>Small, sharp tools for the PDFs you touch every day.</p></div>
+          </div>
+        </div>
+        <span className="tool-status"><i className="status-dot" /> Local only</span>
+      </div>
+      <DisplacedWidgetBand />
+      <div className="renamer-workspace">
+        <div className="renamer-controls">
+          <div className="renamer-section-heading"><span className="eyebrow">01 · Open a PDF</span></div>
+          <label className="file-picker">
+            <FileScan /><span>Select PDF</span>
+            <input type="file" accept=".pdf,application/pdf" onChange={handleChange} />
+          </label>
+          {file && <button type="button" className="text-button" style={{ marginTop: 8 }} onClick={reset}><RotateCcw /> Clear</button>}
+          {loading && <p className="toolbox-loading" style={{ marginTop: 14 }}>Reading PDF…</p>}
+          {file && !loading && (
+            <div className="toolbox-info-grid" style={{ marginTop: 16 }}>
+              <span className="toolbox-info-label">File name</span>
+              <span className="toolbox-info-value" style={{ fontSize: 12, wordBreak: 'break-all' }}>{file.name}</span>
+              <span className="toolbox-info-label">File size</span>
+              <span className="toolbox-info-value">{formatFileBytes(file.size)}</span>
+              <span className="toolbox-info-label">Pages</span>
+              <span className="toolbox-info-value">{pageCount !== null ? (pageCount > 0 ? pageCount : 'Unknown') : '—'}</span>
+              <span className="toolbox-info-label">Type</span>
+              <span className="toolbox-info-value">PDF Document</span>
+            </div>
+          )}
+        </div>
+        <div className="renamer-preview">
+          <div className="renamer-section-heading"><span className="eyebrow">02 · Preview</span></div>
+          {objUrl ? (
+            <embed src={objUrl} type="application/pdf" style={{ width: '100%', minHeight: 500, borderRadius: 12, border: '1px solid hsl(var(--border))' }} />
+          ) : (
+            <div className="renamer-empty"><FileScan style={{ width: 32, height: 32, opacity: .35, marginBottom: 10 }} /><p>Select a PDF to preview it here.</p></div>
+          )}
+        </div>
+      </div>
     </section>
   );
 }
@@ -6307,32 +6793,37 @@ function App() {
   return (
     <PortableProvider>
       <Router hook={useHashLocation}>
-        <AppShell libraryCount={libraryProducts.length}>
-          <Switch>
-            <Route path="/"><HomePage /></Route>
-            <Route path="/store"><StorePage /></Route>
-            <Route path="/product/:id">{(params) => {
-              const product = PRODUCTS.find((item) => item.id === params.id);
-              if (!product) return <NotFound />;
-              return <ProductDetail product={product} isAdded={libraryIds.includes(product.id)} onAdd={() => addToLibrary(product)} onOpen={() => openProduct(product)} />;
-            }}</Route>
-            <Route path="/library"><LibraryPage products={libraryProducts} onOpen={openProduct} /></Route>
-            <Route path="/breakroom"><BreakroomPage /></Route>
-            <Route path="/tool/bulk-file-renamer"><BulkFileRenamer /></Route>
-            <Route path="/tool/spreadsheet-cleaner"><SpreadsheetCleaner /></Route>
-            <Route path="/tool/file-finder"><FileFinderPage /></Route>
-            <Route path="/tool/storage-explorer"><StorageExplorer /></Route>
-            <Route path="/tool/image-converter"><ImageConverter /></Route>
-            <Route path="/tool/file-toolbox"><FileToolbox /></Route>
-            <Route path="/tool/startup-manager"><StartupManager /></Route>
-            <Route path="/tool/file-inspector"><FileInspector /></Route>
-            <Route path="/tool/system-info"><SystemInfoPage /></Route>
-            <Route path="/profile"><ProfilePage /></Route>
-            <Route path="/settings"><SettingsPage /></Route>
-            <Route><NotFound /></Route>
-          </Switch>
-          {toast && <div className="toast-message" role="status" data-testid="status-toast"><Check /> {toast}</div>}
-        </AppShell>
+        <NavProvider>
+          <AppShell libraryCount={libraryProducts.length}>
+            <Switch>
+              <Route path="/"><HomePage /></Route>
+              <Route path="/store"><StorePage /></Route>
+              <Route path="/product/:id">{(params) => {
+                const product = PRODUCTS.find((item) => item.id === params.id);
+                if (!product) return <NotFound />;
+                return <ProductDetail product={product} isAdded={libraryIds.includes(product.id)} onAdd={() => addToLibrary(product)} onOpen={() => openProduct(product)} />;
+              }}</Route>
+              <Route path="/library"><LibraryPage products={libraryProducts} onOpen={openProduct} /></Route>
+              <Route path="/breakroom"><BreakroomPage /></Route>
+              <Route path="/tool/file-organizer"><FileOrganizerPage /></Route>
+              <Route path="/tool/bulk-file-renamer"><BulkFileRenamer /></Route>
+              <Route path="/tool/spreadsheet-cleaner"><SpreadsheetCleaner /></Route>
+              <Route path="/tool/pdf-toolkit"><PdfToolkitPage /></Route>
+              <Route path="/tool/duplicate-finder"><DuplicateFinderPage /></Route>
+              <Route path="/tool/file-finder"><FileFinderPage /></Route>
+              <Route path="/tool/storage-explorer"><StorageExplorer /></Route>
+              <Route path="/tool/image-converter"><ImageConverter /></Route>
+              <Route path="/tool/file-toolbox"><FileToolbox /></Route>
+              <Route path="/tool/startup-manager"><StartupManager /></Route>
+              <Route path="/tool/file-inspector"><FileInspector /></Route>
+              <Route path="/tool/system-info"><SystemInfoPage /></Route>
+              <Route path="/profile"><ProfilePage /></Route>
+              <Route path="/settings"><SettingsPage /></Route>
+              <Route><NotFound /></Route>
+            </Switch>
+            {toast && <div className="toast-message" role="status" data-testid="status-toast"><Check /> {toast}</div>}
+          </AppShell>
+        </NavProvider>
       </Router>
     </PortableProvider>
   );

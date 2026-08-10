@@ -1,0 +1,227 @@
+Do a Store, Library, and navigation cleanup pass across Cubical.
+
+GOALS:
+
+Every Tool in the Store should display as FREE
+Every Tool in the Store should actually work and be usable
+Add search bars to both Library and Store
+Add a back button to every tab/page
+Preserve Cubical's existing style and architecture
+
+IMPORTANT:
+These changes are for full Tools and tab/page navigation. Do not convert anything into widgets.
+
+Please inspect the current Store, Library, Tool registration, Tool installation, Tool launching, and tab navigation architecture before making changes.
+
+MAKE ALL STORE TOOLS DISPLAY AS FREE
+
+Every Tool currently listed in the Store should display a FREE price tag.
+
+Use the exact same FREE styling already used by existing free Store items.
+
+Requirements:
+
+All Tool cards in the Store show FREE
+No Tool should display a paid price
+Keep any non-Tool Store content unchanged unless it is already intended to be free
+Use one consistent FREE label style across all Tool cards
+Do not create duplicate price UI systems
+
+If price information is driven by data/configuration, update the underlying Tool data rather than hardcoding visual overrides on individual cards.
+
+MAKE EVERY STORE TOOL FUNCTIONAL
+
+Audit every Tool currently visible in the Store.
+
+Each Tool should:
+
+Install correctly
+Persist its installed state
+Appear in Library after installation
+Launch correctly
+Have a usable interface
+Perform its advertised core function
+Not open to an empty page, placeholder-only screen, broken route, or dead button
+
+This includes existing Tools and the newer Tools such as:
+
+File Finder
+Bulk File Organizer
+Storage Explorer
+Image Converter
+File Toolbox
+Startup Manager
+File Inspector
+System Info
+Any other Tool currently listed in the Store
+
+For Tools that are only partially implemented, complete the minimum viable core functionality needed for them to genuinely work.
+
+Prioritize reliable basic functionality over advanced features.
+
+Examples:
+
+Storage Explorer should actually scan a selected folder/drive and show size usage.
+Image Converter should actually accept an image and convert/save it.
+File Inspector should actually inspect a selected file.
+System Info should actually read and display real system information.
+File Finder should actually search.
+Bulk File Organizer should actually perform its supported organization operations.
+Startup Manager should actually read startup entries and safely support intended enable/disable behavior where the current architecture allows it.
+File Toolbox should provide real actions for at least the file types currently advertised.
+
+Do not fake functionality with mock data.
+
+Keep file operations local whenever possible.
+
+Avoid destructive actions unless explicitly initiated by the user.
+
+ADD A SEARCH BAR TO LIBRARY
+
+Add a search bar to the Library page.
+
+PLACEMENT:
+
+It should sit BELOW the existing top/header/content area
+It should sit DIRECTLY ABOVE the Tools section/grid/list
+It should not replace or interfere with existing Library content above it
+
+Behavior:
+
+Search installed Tools by name
+Search by description if available
+Filter results live as the user types
+Case-insensitive
+Clear button when text is entered
+If nothing matches, show a clean "No tools found" empty state
+Clearing the search restores all installed Tools
+
+The search should only filter the Tool area unless the Library already has a broader content model that makes global Library search more appropriate.
+
+Match the existing Cubical input styling.
+
+ADD A SEARCH BAR TO STORE
+
+Add a matching search bar to the Store page.
+
+PLACEMENT:
+
+BELOW the existing Store header/top content/categories/featured area
+DIRECTLY ABOVE the Tool cards/grid
+Do not move or remove the existing content above it
+
+Behavior:
+
+Search Store Tools by name
+Search descriptions
+Filter live
+Case-insensitive
+Clear button
+Clean "No tools found" state
+Clearing restores all Tool listings
+
+The Store and Library search bars should look and behave consistently.
+
+Reuse a shared search component if that fits the current architecture cleanly.
+
+IMPORTANT SEARCH BAR PLACEMENT:
+
+For BOTH the Library and Store pages, the search bar must be placed BELOW the entire Widgets section.
+
+The page order should be:
+
+Existing page header/top content
+Existing Widgets section and all Widget cards/content
+Search bar
+Tools section and Tool cards
+
+The search bar is specifically for searching/filtering TOOLS, not Widgets.
+
+Do not place the search bar:
+
+Above the Widgets section
+Inside the Widgets section
+At the top of the page
+Between Widget content
+
+It should appear immediately after the complete Widgets section and immediately before the Tools section.
+
+The intended visual hierarchy is:
+
+HEADER
+↓
+WIDGETS
+↓
+SEARCH TOOLS
+↓
+TOOLS
+
+Apply this exact hierarchy to both Library and Store.
+
+ADD A BACK BUTTON TO EVERY TAB/PAGE
+
+Each main Cubical tab/page should have a back button in the upper-left area of the page content.
+
+Requirements:
+
+Back button appears consistently across tabs/pages
+Position it in the upper-left without conflicting with the main sidebar/navigation
+Use Cubical's existing visual language
+A simple left-arrow icon is preferred
+It should take the user back to the previous Cubical page/tab
+It should NOT reload the entire application
+It should NOT default to Home unless Home is actually the previous page
+It should use Cubical's internal navigation/history state
+It should preserve widget state and other persistent UI state
+No white flash or full-page reload
+
+If the user enters a Tool from Library or Store:
+
+Back should return them to where they came from
+Example: Library -> Storage Explorer -> Back -> Library
+Example: Store -> File Inspector -> Back -> Store
+
+If there is no meaningful internal history, use a sensible fallback such as Home.
+
+Do not use browser-level navigation if it causes Electron renderer reloads or resets.
+
+QUALITY / REGRESSION REQUIREMENTS
+
+Do not redesign Cubical.
+
+Preserve:
+
+Existing widgets
+Widget cross-tab behavior
+Installed Tool state
+Existing Store layout
+Existing Library layout
+Sidebar/navigation
+Existing themes/styles
+Electron behavior
+Current persistence systems
+
+Check specifically for:
+
+Broken routes
+Dead buttons
+Tools that install but do not launch
+Tools that launch but contain placeholder content
+Search filtering bugs
+Back button history loops
+Back navigation causing reloads
+Store/Library state resetting
+Existing Tool cards losing metadata or icons
+
+Use the smallest clean architectural changes possible.
+
+If multiple Tools share broken registration/launch logic, fix the shared system rather than patching each Tool individually.
+
+When finished, verify every Tool currently displayed in the Store by:
+
+Confirming it shows FREE
+Installing it
+Confirming it appears in Library
+Launching it
+Testing its primary advertised function
+Returning using the new back button

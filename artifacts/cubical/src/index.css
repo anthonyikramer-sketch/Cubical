@@ -3382,6 +3382,69 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
   transition: background 0.15s, color 0.15s, border 0.15s;
 }
 
+/* ─── Tool search bar (Store + Library) ─────────────────────────────────────── */
+
+.tool-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  height: 40px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 12px;
+  background: hsl(var(--card));
+  margin-bottom: 18px;
+  transition: border-color .15s;
+}
+.tool-search-bar:focus-within { border-color: hsl(var(--primary) / .45); }
+
+.tool-search-icon {
+  width: 14px; height: 14px;
+  color: hsl(var(--muted-foreground));
+  flex-shrink: 0;
+}
+.tool-search-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  color: hsl(var(--fg));
+  outline: none;
+  font-family: inherit;
+}
+.tool-search-input::placeholder { color: hsl(var(--muted-foreground)); }
+.tool-search-clear {
+  display: flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px;
+  border: none; background: transparent; cursor: pointer; padding: 0;
+  color: hsl(var(--muted-foreground));
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.tool-search-clear:hover { color: hsl(var(--fg)); background: hsl(var(--secondary)); }
+.tool-search-clear svg { width: 13px; height: 13px; }
+
+.tool-search-empty {
+  text-align: center;
+  padding: 48px 0;
+  color: hsl(var(--muted-foreground));
+  font-size: 13.5px;
+}
+
+/* ─── Shared renamer-empty state (used by new tool pages) ────────────────────── */
+
+.renamer-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  color: hsl(var(--muted-foreground));
+  font-size: 13px;
+  text-align: center;
+  gap: 4px;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    NEW TOOL PAGES — Storage Explorer · Image Converter · File Toolbox
                      Startup Manager · File Inspector · System Info
