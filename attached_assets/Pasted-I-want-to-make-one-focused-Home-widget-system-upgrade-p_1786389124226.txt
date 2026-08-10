@@ -1,0 +1,667 @@
+I want to make one focused Home/widget-system upgrade pass in Cubical.
+
+This task includes:
+
+1. Fixing the collapsed sidebar.
+2. Adding portable widgets + Recall Widgets.
+3. Upgrading Notepad into a richer lightweight document editor.
+4. Adding Timer + Alarm functionality inside the existing Clock widget.
+5. Adding three new widgets:
+   - Link Shelf
+   - Decision Maker
+   - Calculator
+
+IMPORTANT:
+
+Do NOT redesign the Sakura background.
+Do NOT change the current Sakura artwork.
+Do NOT change the existing Sakura decorative sprites unless necessary for compatibility.
+Do NOT redesign Store, Library, Profile, Settings, or Breakroom.
+Do NOT change existing Calendar behavior.
+Preserve all existing local persistence.
+
+--------------------------------------------------
+1. FIX THE COLLAPSED SIDEBAR
+--------------------------------------------------
+
+The current collapsed sidebar is visually broken.
+
+When the sidebar collapses, some navigation icons are partially cut off because the collapsed rail is too narrow / positioned incorrectly.
+
+Fix this.
+
+When COLLAPSED:
+
+- The sidebar should shrink to a narrow icon-only rail.
+- Every navigation icon must remain FULLY visible.
+- No icon may be clipped, cut off, or partially hidden.
+- Icons should be horizontally centered inside the collapsed rail.
+- Maintain comfortable clickable hit areas around every icon.
+- Keep consistent vertical spacing.
+- Preserve the current Sakura-specific sidebar styling.
+- Tooltips should identify icons when hovered if they already exist or can be added cleanly.
+
+When EXPANDED:
+
+- Preserve the current full sidebar.
+- Labels remain visible.
+- "Your shelf" and "Yourself" remain intact.
+- Navigation remains unchanged.
+
+When the sidebar collapses:
+
+- The Home workspace should expand horizontally into the newly freed space.
+- The Sakura full-bleed background should expand with the workspace.
+- Do not leave a large empty column where the expanded sidebar used to be.
+
+Keep the existing smooth collapse/expand animation and pin behavior.
+
+--------------------------------------------------
+2. PORTABLE WIDGETS
+--------------------------------------------------
+
+Home is the permanent/canonical home of widgets.
+
+Allow portable widgets to be temporarily dragged from Home onto another main Cubical page using the sidebar as the drop target.
+
+Initial portable widgets:
+
+- Notepad
+- Link Shelf
+- Decision Maker
+- Calculator
+- Calendar if compatible
+
+The Clock does NOT need to be portable for now.
+
+Interaction:
+
+When dragging a portable widget from Home toward a sidebar destination such as:
+
+- Store
+- Library
+- Profile
+- Settings
+- Breakroom
+
+that destination should subtly highlight as a valid drop target.
+
+If the user drops the widget on that destination:
+
+- Navigate to that page.
+- Bring the SAME widget instance with them.
+- Display it as a usable floating/docked widget on that page.
+- Preserve its data and state.
+- Do not create a duplicate widget.
+
+The widget should remember its original Home:
+
+- position
+- size
+- orientation/state
+
+The temporary page position may be stored separately.
+
+Home remains its permanent location.
+
+Do NOT create independent permanent widget layouts for Store, Library, Profile, Settings, etc.
+
+Other pages are temporary work surfaces only.
+
+--------------------------------------------------
+3. INDIVIDUAL RECALL
+--------------------------------------------------
+
+Any widget temporarily moved away from Home should have a small:
+
+"Recall"
+
+control.
+
+Recall should:
+
+- Remove that widget from the temporary page.
+- Return it to Home.
+- Restore its saved Home position.
+- Restore its saved Home size.
+- Restore its normal Sakura decoration if Sakura is equipped.
+- Preserve all widget data.
+
+Do not confuse Recall with removing a widget through Edit Widgets.
+
+Recall = return widget Home.
+Remove = hide widget from Home through widget management.
+
+--------------------------------------------------
+4. GLOBAL "RECALL WIDGETS" CONTROL
+--------------------------------------------------
+
+On Home, place a secondary action directly UNDER the existing:
+
+"Edit Widgets"
+
+button.
+
+Label:
+
+"Recall Widgets"
+
+This must visually be a SUB-ACTION of Edit Widgets.
+
+It should NOT look like another equally prominent primary button.
+
+Desired visual hierarchy:
+
+[ Edit Widgets ]
+  ↶ Recall Widgets (2)
+
+Use:
+
+- smaller text
+- smaller overall size
+- lighter visual weight
+- subtle background or no strong border
+- restrained skin accent
+- hover state
+
+If widgets are currently away from Home, display the count:
+
+Recall Widgets (1)
+Recall Widgets (2)
+etc.
+
+Clicking Recall Widgets should return ALL currently displaced portable widgets to their saved Home positions and sizes.
+
+When there are no displaced widgets:
+
+- Keep Recall Widgets visible but muted/disabled.
+- Do not hide it completely.
+
+Recall Widgets must work WITHOUT entering Edit Widgets mode.
+
+--------------------------------------------------
+5. UPGRADE NOTEPAD
+--------------------------------------------------
+
+Do NOT create a separate To-Do widget.
+
+Instead, upgrade the existing Notepad into a lightweight rich-text document editor.
+
+Keep it intentionally lighter than Google Docs or Microsoft Word, but useful enough for everyday notes.
+
+Add formatting controls for:
+
+- Bold
+- Italic
+- Underline
+- Headings
+- Bulleted lists
+- Numbered lists
+- Checkboxes / task lists
+- Hyperlinks
+- Text alignment:
+  - left
+  - center
+  - right
+
+Keep the interface compact.
+
+Do not permanently show a huge toolbar if the widget is small.
+
+The toolbar may:
+
+- collapse
+- simplify
+- move into a small formatting menu
+
+depending on widget size.
+
+Notepad content must persist locally.
+
+Removing Notepad from Home must NOT delete its document contents.
+
+Moving Notepad to another page must preserve its content.
+
+Recalling it must restore the same document.
+
+When Sakura is equipped, existing Sakura decorations must remain attached to Notepad and travel with it.
+
+--------------------------------------------------
+6. CLOCK: ADD TIMER + ALARM
+--------------------------------------------------
+
+Do NOT create separate Timer or Alarm widgets.
+
+Expand the existing Clock widget.
+
+Clicking/interacting with Clock should provide modes such as:
+
+Clock
+Timer
+Alarm
+
+CLOCK MODE:
+
+Keep the existing current-time behavior.
+
+TIMER MODE:
+
+Allow user to set a countdown using:
+
+- hours
+- minutes
+- seconds
+
+Controls:
+
+- Start
+- Pause
+- Resume
+- Cancel / Reset
+
+When a timer is active, the Clock widget may return to its normal compact view and display a small countdown indicator.
+
+Example:
+
+12:15 PM
+⏱ 08:42 remaining
+
+When timer reaches zero:
+
+- Show a visual notification/state.
+- NO AUDIO for now.
+- No operating-system notifications are required yet.
+
+ALARM MODE:
+
+Allow user to create simple alarms with:
+
+- time
+- optional label
+- optional repeat days
+
+Example:
+
+7:30 AM
+Leave for work
+M T W T F
+
+Alarm state should persist locally.
+
+When an alarm time is reached:
+
+- Show a visible in-app alert/state.
+- NO AUDIO for now.
+
+Allow alarms to be:
+
+- enabled
+- disabled
+- edited
+- deleted
+
+Keep the Clock widget compact and readable.
+
+--------------------------------------------------
+7. NEW WIDGET: LINK SHELF
+--------------------------------------------------
+
+Add a new Home widget:
+
+Link Shelf
+
+Purpose:
+
+Give users quick visual access to frequently used websites.
+
+The user can add a link containing:
+
+- Display name
+- URL
+- Icon
+
+For icon behavior:
+
+- Use known/common site icons if easy and reliable.
+- Otherwise use a generic link/globe icon.
+- Allow future custom icons, but do not overbuild this now.
+
+Example links:
+
+Gmail
+YouTube
+Replit
+Google Drive
+Work Portal
+Reddit
+
+Clicking a saved link should open it in the user's normal browser when running in the desktop application.
+
+If browser preview limitations exist, provide safe prototype behavior without breaking the interface.
+
+The Link Shelf must be resizable.
+
+Small size:
+- primarily icons
+
+Medium size:
+- icons + names
+
+Large size:
+- clean grid/list of links
+
+Allow:
+
+- add
+- edit
+- delete
+- reorder if practical
+
+Persist links locally.
+
+Link Shelf must register with the existing Edit Widgets system automatically.
+
+When removed from Home:
+
+- saved links remain intact.
+
+When re-added:
+
+- restore saved links.
+
+Link Shelf should be portable to other Cubical pages.
+
+--------------------------------------------------
+8. NEW WIDGET: DECISION MAKER
+--------------------------------------------------
+
+Add a new Home widget:
+
+Decision Maker
+
+One widget containing selectable modes:
+
+- Coin Flip
+- Dice
+- Random Number
+- Random Item From List
+- Yes / No
+- Wheel Spinner
+
+Do NOT create separate widgets for each mode.
+
+COIN:
+Return Heads or Tails.
+
+DICE:
+Allow common dice options such as:
+D4
+D6
+D8
+D10
+D12
+D20
+
+RANDOM NUMBER:
+Allow minimum and maximum values.
+
+LIST:
+User enters multiple choices and Cubical selects one randomly.
+
+YES / NO:
+Return Yes or No.
+
+WHEEL:
+Allow list entries and provide a simple visual spin/result experience.
+
+Keep the widget compact.
+
+It should adapt its UI based on selected mode.
+
+Persist useful configuration locally where appropriate.
+
+Decision Maker should register automatically with Edit Widgets.
+
+It should be portable to other Cubical pages.
+
+Sakura may use the existing skin system to decorate it, but do not create new Sakura artwork during this task.
+
+--------------------------------------------------
+9. NEW WIDGET: CALCULATOR
+--------------------------------------------------
+
+Add a new basic Calculator widget to Home.
+
+This is the lightweight companion to a future/full Scientific Calculator Tool.
+
+The Home Calculator should focus on quick everyday arithmetic.
+
+Support:
+
+- addition
+- subtraction
+- multiplication
+- division
+- decimal input
+- parentheses if practical
+- clear
+- backspace
+- equals
+- keyboard input if straightforward
+
+Do NOT turn the Home widget into a full scientific calculator.
+
+The full scientific calculator belongs in Tools.
+
+Keep the Calculator widget:
+
+- compact
+- resizable
+- fast
+- simple
+
+Persist recent state only if useful.
+
+Calculator should register automatically with Edit Widgets.
+
+It should be portable to other Cubical pages.
+
+--------------------------------------------------
+10. WIDGET REGISTRY INTEGRATION
+--------------------------------------------------
+
+Use the existing/new widget registry system.
+
+Add:
+
+- Link Shelf
+- Decision Maker
+- Calculator
+
+to that registry.
+
+They should automatically participate in:
+
+- Add Widget dropdown
+- active/inactive state
+- remove behavior
+- local persistence
+- dragging
+- resizing
+- snapping
+- portable widget system where allowed
+- skin decoration system
+
+Do not hardcode separate Add Widget logic for each new widget.
+
+--------------------------------------------------
+11. EDIT WIDGETS COMPATIBILITY
+--------------------------------------------------
+
+Preserve the existing Edit Widgets behavior.
+
+When editing is active:
+
+- active widgets show their X/remove controls
+- Add Widget dropdown appears
+- dragging/resizing remains available
+
+When editing is inactive:
+
+- X controls disappear
+- Add Widget disappears
+- normal Home remains clean
+
+New widgets must behave exactly like existing widgets in this system.
+
+--------------------------------------------------
+12. SAKURA COMPATIBILITY
+--------------------------------------------------
+
+Do not redesign Sakura.
+
+Preserve:
+
+- full-bleed Sakura background
+- Sakura sidebar palette
+- Sakura widget surfaces
+- Sakura text colors
+- existing attached decorative sprites
+
+Existing widget decorations must:
+
+- remain attached while dragging
+- travel with portable widgets
+- disappear if that widget is removed
+- return correctly if widget is recalled or re-added
+
+For new widgets:
+
+Use the current Sakura surface styling automatically.
+
+Do NOT invent new pixel-art decorations for Link Shelf, Decision Maker, or Calculator during this task.
+
+--------------------------------------------------
+13. PERSISTENCE
+--------------------------------------------------
+
+Persist locally:
+
+- active widgets
+- widget Home positions
+- widget Home sizes
+- temporary page locations
+- displaced/portable widget state
+- Notepad rich-text contents
+- Clock timers
+- Clock alarms
+- Link Shelf links
+- Decision Maker configuration where useful
+- Calculator state where useful
+
+Refreshing/reopening Cubical should not unexpectedly reset these systems.
+
+--------------------------------------------------
+14. DO NOT CHANGE
+--------------------------------------------------
+
+Do not change:
+
+- Sakura artwork
+- Sakura background fitting
+- existing decorative artwork
+- Store functionality
+- Library functionality
+- Profile functionality
+- Settings functionality
+- Breakroom functionality
+- Calendar event system
+- overall navigation structure
+
+Do not add audio.
+Do not add cloud sync.
+Do not add accounts.
+Do not add payments.
+Do not add unrelated features.
+
+--------------------------------------------------
+15. VERIFY BEFORE FINISHING
+--------------------------------------------------
+
+SIDEBAR:
+1. Collapse sidebar.
+2. Every icon remains fully visible.
+3. No icons are clipped.
+4. Icons remain centered.
+5. Workspace expands into freed space.
+6. Sakura artwork expands with workspace.
+7. Expand sidebar again.
+8. Full sidebar still works.
+
+RECALL:
+9. Move Notepad to Library.
+10. Notepad appears in Library.
+11. Individual Recall returns it Home.
+12. Home position/size are restored.
+13. Move multiple widgets away.
+14. Recall Widgets shows correct count.
+15. Recall Widgets returns all of them.
+16. Recall Widgets works outside Edit Widgets mode.
+
+NOTEPAD:
+17. Bold works.
+18. Italic works.
+19. Underline works.
+20. Headings work.
+21. Bullets work.
+22. Numbered lists work.
+23. Checkboxes work.
+24. Links work.
+25. Alignment works.
+26. Rich formatting survives refresh.
+27. Formatting survives moving/recalling Notepad.
+
+CLOCK:
+28. Timer starts.
+29. Timer pauses/resumes.
+30. Timer completes visually.
+31. No audio plays.
+32. Alarm can be created.
+33. Alarm can be edited/deleted.
+34. Alarm triggers visually.
+35. Alarm/timer state persists where appropriate.
+
+LINK SHELF:
+36. Add link.
+37. Edit link.
+38. Delete link.
+39. Link data persists.
+40. Resizing behaves appropriately.
+41. Removing and re-adding preserves links.
+42. Portable behavior works.
+
+DECISION MAKER:
+43. Coin works.
+44. Dice works.
+45. Random number works.
+46. List picker works.
+47. Yes/No works.
+48. Wheel works.
+49. Widget resizes correctly.
+50. Portable behavior works.
+
+CALCULATOR:
+51. Basic arithmetic works.
+52. Keyboard input works if implemented.
+53. Widget resizes correctly.
+54. Portable behavior works.
+
+GENERAL:
+55. Existing Calendar still works.
+56. Sakura still works.
+57. Default skin still works.
+58. Existing Sakura decorations remain attached.
+59. Edit Widgets still works.
+60. Active widget selection survives refresh.
+
+Do not make unrelated changes.
