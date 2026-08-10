@@ -2575,17 +2575,22 @@ function HomeWorkspace({
 
       if (!dragging) return; // tap/click — do nothing, let child onClick fire normally
 
-      // After a drag, the browser synthesises a click event on the release target.
-      // Suppress it at the capture phase before it reaches any child onClick handler.
-      const suppressClick = (ce: MouseEvent) => {
-        ce.stopPropagation();
-        document.removeEventListener('click', suppressClick, true);
-      };
-      document.addEventListener('click', suppressClick, true);
-
       setPortalDragItem(null); // unmount ghost
 
       const dropPage = inSidebar ? hoverPageRef.current : null;
+
+      // After a workspace drag (not a sidebar drop) the browser synthesises a click on the
+      // release target. Suppress it so widget controls don't fire accidentally.
+      // We skip this for sidebar drops: the cursor is over a nav link, not a widget, so
+      // there is nothing to suppress — and swallowing that click would block the user from
+      // immediately navigating to the destination tab.
+      if (!inSidebar) {
+        const suppressClick = (ce: MouseEvent) => {
+          ce.stopPropagation();
+          document.removeEventListener('click', suppressClick, true);
+        };
+        document.addEventListener('click', suppressClick, true);
+      }
 
       // Invalid cross-tab drop (sidebar hover but no valid nav target, e.g. Profile/Settings):
       // return widget to its exact drag origin — no transfer, no navigation.
@@ -3048,14 +3053,11 @@ function DisplacedWidgetBand() {
         return;
       }
 
-      // Suppress synthesised click so widget controls don't fire after drag
-      const suppressClick = (ce: MouseEvent) => {
-        ce.stopPropagation();
-        document.removeEventListener('click', suppressClick, true);
-      };
-      document.addEventListener('click', suppressClick, true);
-
       if (crossTab) {
+        // Cross-tab drop lands over the sidebar — do NOT suppress the next click.
+        // The cursor is over a nav link, not a widget control, so there is nothing
+        // to suppress. Eating that click would prevent the user from navigating to
+        // the destination tab immediately after the transfer.
         setPortalInfo(null);
         setDragId(null);
         const dropPage = inSidebar ? hoverPageRef.current : null;
