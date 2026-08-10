@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Cubical"
+description = "A friendly desktop-style marketplace prototype for discovering productivity tools, viewing product details, and adding tools to a personal library without accounts or payments."
+version = "1.0.0"
+id = "artifacts/cubical"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 20263
+
+[services.development]
+run = "pnpm --filter @workspace/cubical run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/cubical", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/cubical/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "20263"
+BASE_PATH = "/"

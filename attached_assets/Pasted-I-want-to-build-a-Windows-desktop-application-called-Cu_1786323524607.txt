@@ -1,0 +1,95 @@
+I want to build a Windows desktop application called "Cubical."
+
+Cubical is a free hub for discovering, purchasing, and launching small productivity tools and software.
+
+For this first prototype, ONLY build the basic application interface and navigation. Do not add payments, user accounts, cloud storage, company features, games, achievements, subscriptions, or automatic updating yet.
+
+The application should have a modern desktop-software appearance.
+
+LAYOUT:
+
+Create a permanent vertical navigation sidebar on the left.
+
+At the top, display the name "Cubical."
+
+The sidebar should currently contain:
+
+1. Store
+2. Library
+
+At the bottom of the sidebar, include:
+- Profile
+- Settings
+
+STORE:
+
+The Store should display productivity tools as cards in a clean marketplace-style layout.
+
+Each tool card should contain:
+- Tool icon
+- Tool name
+- Short description
+- Price
+- Button to view the tool
+
+Create 5 placeholder products:
+
+1. File Organizer — $1.99
+Automatically organizes files using customizable rules.
+
+2. Spreadsheet Cleaner — $2.99
+Cleans and reformats spreadsheet data.
+
+3. PDF Toolkit — $3.99
+Simple utilities for working with PDF files.
+
+4. Bulk File Renamer — $0.99
+Rename large numbers of files using customizable patterns.
+
+5. Duplicate Finder — FREE
+Find duplicate files in a selected folder.
+
+When a product is opened, show a product page containing:
+- Name
+- Description
+- Price
+- Placeholder area for screenshots
+- "Add to Library" button
+
+For this prototype, Add to Library should NOT process a real payment. Clicking it should simply add that tool to the user's Library.
+
+LIBRARY:
+
+The Library should display every tool the user has added.
+
+Each Library item should show:
+- Icon
+- Name
+- Short description
+- Open button
+
+The Open button does not need to launch real external software yet. It can display a message saying the tool would launch here.
+
+DESIGN:
+
+I want the interface to feel friendly, polished, and consumer-oriented rather than like traditional enterprise software.
+
+Take inspiration from the usability of software marketplaces and game launchers, but do not copy any specific company's branding, layout, or assets.
+
+Use rounded cards, clear typography, good spacing, subtle animations, and a clean interface.
+
+Use placeholder icons where necessary.
+
+IMPORTANT:
+
+Keep the code modular and organized because this application will eventually expand significantly.
+
+Store products should use a reusable data structure so that adding a new product later is easy.
+
+Navigation should use reusable components.
+
+Do not implement features I have not requested.
+
+Before making major architectural assumptions, prefer the simplest solution appropriate for a prototype.
+
+Build the application and make sure Store → Product Page → Add to Library → Library works correctly.
