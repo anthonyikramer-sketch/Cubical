@@ -302,6 +302,7 @@ const LINK_SHELF_KEY        = 'cubical-link-shelf';
 const DECISION_MAKER_KEY    = 'cubical-decision-maker';
 const DISPLACED_WIDGETS_KEY = 'cubical-displaced-widgets';
 
+const SNAP_GRID_KEY         = 'cubical-snap-grid';
 function isStringArray(v: unknown): v is string[] {
   return Array.isArray(v) && v.every((x) => typeof x === 'string');
 }
@@ -2231,10 +2232,12 @@ function HomeWorkspace({
   isEditing,
   activeWidgets,
   onRemoveWidget,
+  snapEnabled,
 }: {
   isEditing: boolean;
   activeWidgets: WidgetId[];
   onRemoveWidget: (id: WidgetId) => void;
+  snapEnabled: boolean;
 }) {
   const containerRef   = useRef<HTMLDivElement>(null);
   const canvasWRef     = useRef(950);
@@ -2365,8 +2368,9 @@ function HomeWorkspace({
         setDragId(null);
       }
 
-      // Track logical position via ref only (no re-render per frame; widget is hidden)
-      activeItemRef.current = { ...item, x: origX + dx, y: origY + dy };
+      // Track logical position via ref — apply snap if enabled
+      const rawProposed: LayoutItem = { ...item, x: origX + dx, y: origY + dy };
+      activeItemRef.current = snapEnabled ? snapItem(rawProposed) : rawProposed;
     };
 
     const onUp = () => {
@@ -2440,8 +2444,10 @@ function HomeWorkspace({
       const cw = canvasWRef.current;
       const dx = ev.clientX - startMX;
       const dy = ev.clientY - startMY;
-      const newW = Math.max(min.w, Math.min(cw - item.x, origW + dx));
-      const newH = Math.max(min.h, origH + dy);
+      const rawW = Math.max(min.w, Math.min(cw - item.x, origW + dx));
+      const rawH = Math.max(min.h, origH + dy);
+      const newW = snapEnabled ? Math.max(min.w, snapVal(rawW)) : rawW;
+      const newH = snapEnabled ? Math.max(min.h, snapVal(rawH)) : rawH;
       const proposed: LayoutItem = { ...item, w: newW, h: newH };
       setActiveItem(proposed);
       activeItemRef.current = proposed;
@@ -2519,7 +2525,18 @@ function HomeWorkspace({
 function HomePage() {
   const [isEditing, setIsEditing] = useState(false);
   const [addOpen, setAddOpen]     = useState(false);
+  const [snapEnabled, setSnapEnabled] = useState<boolean>(() => {
+    try { return window.localStorage.getItem(SNAP_GRID_KEY) === 'true'; } catch { return false; }
+  });
   const isSakura = readEquippedSkin() === 'sakura';
+
+  const toggleSnap = () => {
+    setSnapEnabled((prev) => {
+      const next = !prev;
+      try { window.localStorage.setItem(SNAP_GRID_KEY, String(next)); } catch {}
+      return next;
+    });
+  };
 
   const { activeWidgets, displaced, addWidget, removeWidget, recallAll } = usePortable();
   const displacedCount = displaced.length;
@@ -2591,6 +2608,16 @@ function HomePage() {
 
       <button
         type="button"
+        className={`home-edit-btn home-snap-btn${snapEnabled ? ' is-snap-on' : ''}`}
+        onClick={toggleSnap}
+        title={snapEnabled ? 'Snap to grid: on (click to disable)' : 'Snap to grid: off (click to enable)'}
+        data-testid="button-snap-toggle"
+      >
+        <Grid2X2 /> Snap{snapEnabled ? ' ✓' : ''}
+      </button>
+
+      <button
+        type="button"
         className="home-edit-btn home-edit-btn-done"
         onClick={exitEditing}
         data-testid="button-done-editing"
@@ -2609,7 +2636,7 @@ function HomePage() {
   );
 
   const workspace = (
-    <HomeWorkspace isEditing={isEditing} activeWidgets={activeWidgets} onRemoveWidget={handleRemove} />
+    <HomeWorkspace isEditing={isEditing} activeWidgets={activeWidgets} onRemoveWidget={handleRemove} snapEnabled={snapEnabled} />
   );
 
   // ── Sakura layout ──────────────────────────────────────────────────────────
@@ -5294,3 +5321,11 @@ const MEMORY_EMOJIS = ['📎', '🖇️', '📝', '✏️', '📌', '🗂️', '
 function storeBaselineWidth(w: number) {
   try { window.localStorage.setItem(LAYOUT_BASELINE_KEY, String(Math.round(w))); } catch {}
 }
+
+function snapVal(v: number): number { return Math.round(v / SNAP_GRID) * SNAP_GRID; }
+
+function snapItem(item: LayoutItem): LayoutItem {
+  return { ...item, x: snapVal(item.x), y: snapVal(item.y), w: snapVal(item.w), h: snapVal(item.h) };
+}
+
+const SNAP_GRID = 40; // px — soft grid cell size
