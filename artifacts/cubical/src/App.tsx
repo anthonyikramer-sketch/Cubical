@@ -2177,12 +2177,13 @@ function SakuraWidgetDecoration({ widgetId }: { widgetId: WidgetId }) {
 }
 
 function GridWidget({
-  item, isEditing, isActive,
+  item, isEditing, isActive, isDragging,
   onDragStart, onResizeStart, onRemoveWidget,
 }: {
   item: LayoutItem;
   isEditing: boolean;
   isActive: boolean;
+  isDragging: boolean;
   onDragStart: (e: React.PointerEvent) => void;
   onResizeStart: (e: React.PointerEvent) => void;
   onRemoveWidget?: (id: WidgetId) => void;
@@ -2198,7 +2199,7 @@ function GridWidget({
     // Transition eases boundary-correction settle; disabled while dragging (is-active-outer).
     // onPointerDown is always active — startDrag uses a 6px dead-zone so content clicks pass through.
     <div
-      className={`grid-widget-outer${isActive ? ' is-active-outer' : ''}`}
+      className={`grid-widget-outer${isActive ? ' is-active-outer' : ''}${isDragging ? ' is-dragging-outer' : ''}`}
       style={{ left: item.x, top: item.y, width: item.w, height: item.h }}
       data-testid={`grid-widget-${item.id}`}
       onPointerDown={onDragStart}
@@ -2332,7 +2333,14 @@ function HomeWorkspace({
   const portalInitPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
   const { setDragId, hoverPageRef, displace } = usePortable();
-  const [, navigate] = useLocation();
+
+  // Transfer feedback toast — shown when user sends a widget to another tab
+  const [transferToast, setTransferToast] = useState<string | null>(null);
+  useEffect(() => {
+    if (!transferToast) return;
+    const t = setTimeout(() => setTransferToast(null), 2600);
+    return () => clearTimeout(t);
+  }, [transferToast]);
 
   // Track canvas pixel width and keep stored positions within bounds.
   // Runs on every ResizeObserver callback (sidebar pin/unpin, window resize)
@@ -2406,6 +2414,18 @@ function HomeWorkspace({
     let dragging = false;
     let inSidebar = false;
 
+    // Per-axis snap hysteresis — prevents rubber-banding near grid lines.
+    // Snap engages when within SNAP_ENTER px of a grid line; releases only when
+    // the cursor moves more than SNAP_EXIT px away, avoiding oscillation.
+    let snapX = false, snapY = false;
+    const SNAP_ENTER = 10, SNAP_EXIT = 18;
+    const applySnapAxis = (raw: number, wasSnapped: boolean): { val: number; snapped: boolean } => {
+      const nearest = Math.round(raw / SNAP_GRID) * SNAP_GRID;
+      const dist    = Math.abs(raw - nearest);
+      const nowSnapped = wasSnapped ? dist < SNAP_EXIT : dist <= SNAP_ENTER;
+      return { val: nowSnapped ? nearest : raw, snapped: nowSnapped };
+    };
+
     const onMove = (ev: PointerEvent) => {
       const dx = ev.clientX - startMX;
       const dy = ev.clientY - startMY;
@@ -2444,9 +2464,15 @@ function HomeWorkspace({
         setDragId(null);
       }
 
-      // Track logical position via ref — apply snap if enabled
-      const rawProposed: LayoutItem = { ...item, x: origX + dx, y: origY + dy };
-      activeItemRef.current = snapEnabled ? snapItem(rawProposed) : rawProposed;
+      // Track logical position via ref — snap with hysteresis if enabled
+      const rawX = origX + dx, rawY = origY + dy;
+      if (snapEnabled) {
+        const rx = applySnapAxis(rawX, snapX); snapX = rx.snapped;
+        const ry = applySnapAxis(rawY, snapY); snapY = ry.snapped;
+        activeItemRef.current = { ...item, x: rx.val, y: ry.val };
+      } else {
+        activeItemRef.current = { ...item, x: rawX, y: rawY };
+      }
     };
 
     const onUp = () => {
@@ -2465,11 +2491,32 @@ function HomeWorkspace({
 
       setPortalDragItem(null); // unmount ghost
 
-      // Portable drop: displace into sidebar destination and navigate
       const dropPage = inSidebar ? hoverPageRef.current : null;
+
+      // Invalid cross-tab drop (sidebar hover but no valid nav target, e.g. Profile/Settings):
+      // return widget to its exact drag origin — no transfer, no navigation.
+      if (inSidebar && !dropPage) {
+        setDragId(null);
+        setLayout((prev) => {
+          const next = prev.map((l) => l.id === id ? { ...l, x: origX, y: origY } : l);
+          storeLayout(next);
+          storeBaselineWidth(canvasWRef.current);
+          return next;
+        });
+        setActiveItem(null);
+        activeItemRef.current = null;
+        setActiveMode(null);
+        activeModeRef.current = null;
+        return;
+      }
+
+      // Valid cross-tab drop: transfer widget, stay on current page, show toast.
       if (dropPage) {
+        const PAGE_LABEL: Record<string, string> = {
+          '/store': 'Store', '/library': 'Library', '/breakroom': 'Breakroom',
+        };
         displace(id, dropPage);
-        navigate(dropPage);
+        setTransferToast(`${WIDGET_LABELS[id]} moved to ${PAGE_LABEL[dropPage] ?? dropPage}`);
         setDragId(null);
         setActiveItem(null);
         activeItemRef.current = null;
@@ -2554,19 +2601,27 @@ function HomeWorkspace({
       data-testid="home-workspace"
     >
       {displayLayout.map((item) => {
-        const isActive = activeItem?.id === item.id && activeMode !== null;
+        const isActive   = activeItem?.id === item.id && activeMode !== null;
+        const isDragging = activeItem?.id === item.id && activeMode === 'drag';
         return (
           <GridWidget
             key={item.id}
             item={item}
             isEditing={isEditing}
             isActive={isActive}
+            isDragging={isDragging}
             onDragStart={(e) => startDrag(item.id, e)}
             onResizeStart={(e) => startResize(item.id, e)}
             onRemoveWidget={onRemoveWidget}
           />
         );
       })}
+
+      {transferToast && (
+        <div className="toast-message" role="status" data-testid="transfer-toast">
+          <Check /> {transferToast}
+        </div>
+      )}
 
       {/* Drag ghost portal — renders at document.body so it sits above every stacking
           context including the sidebar. pointer-events:none keeps sidebar drop-targets

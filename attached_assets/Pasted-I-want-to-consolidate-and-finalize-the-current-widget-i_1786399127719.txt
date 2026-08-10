@@ -1,0 +1,1093 @@
+I want to consolidate and finalize the current widget interaction system.
+
+The existing implementation is close, so DO NOT redesign the application or replace working systems unnecessarily.
+
+Preserve all existing functionality that is already working.
+
+This prompt should be treated as the current source of truth for widget behavior.
+
+==================================================
+1. GLOBAL RULE: WIDGETS ARE ALWAYS MOVABLE
+==================================================
+
+Widgets must be draggable during NORMAL Cubical use.
+
+The user must NOT need to enter Edit Widgets mode to move widgets.
+
+This applies to:
+
+- Home
+- Store
+- Library
+- Breakroom
+- nested tool views belonging to Store/Library/Breakroom
+
+NORMAL MODE:
+
+- widgets can be dragged
+- widgets can be moved around Home
+- portable widgets can be transferred between valid tabs
+- transported widgets can be reordered
+
+EDIT WIDGETS MODE:
+
+Widgets remain draggable exactly as they are during normal use.
+
+Edit Widgets exists for management functionality such as:
+
+- Add Widget
+- Remove Widget / X
+- resize controls where appropriate
+
+Edit Widgets does NOT enable dragging.
+
+Dragging is an always-on widget behavior.
+
+==================================================
+2. VALID WIDGET DESTINATIONS
+==================================================
+
+Portable widgets may exist in and move directly between:
+
+- Home
+- Store
+- Library
+- Breakroom
+
+They may NOT be transported into:
+
+- Profile
+- Settings
+
+A widget does NOT need to return Home before being transferred somewhere else.
+
+Examples:
+
+Home -> Library
+Library -> Store
+Store -> Breakroom
+Breakroom -> Library
+Library -> Home
+
+All should work directly.
+
+==================================================
+3. CROSS-TAB DRAGGING FROM ANY LOCATION
+==================================================
+
+A portable widget should be draggable to another valid main tab regardless of where it currently exists.
+
+This includes widgets currently located:
+
+- freely on Home
+- in Store's transported-widget area
+- in Library's transported-widget area
+- in Breakroom's transported-widget area
+- inside a nested tool view belonging to one of those tabs
+
+During cross-tab dragging:
+
+- lift the widget visually out of its current layout
+- attach it naturally to the cursor
+- render it above normal page content
+- render it ABOVE the sidebar
+- preserve full widget visibility
+- allow valid sidebar destinations underneath it to remain detectable
+
+Use the same shared drag system regardless of origin.
+
+==================================================
+4. DRAGGED WIDGETS MUST RENDER ABOVE SIDEBAR
+==================================================
+
+This is important.
+
+During active drag:
+
+DRAGGED WIDGET
+must visually render ABOVE
+SIDEBAR
+
+The entire widget must remain visible as it crosses the sidebar.
+
+Do not allow the sidebar to cover or clip the widget.
+
+Do not assume z-index alone is sufficient.
+
+Inspect:
+
+- stacking contexts
+- transformed ancestors
+- overflow clipping
+- portal structure
+- drag overlays
+
+If necessary, render the active dragged widget through a top-level drag overlay / React portal near the application root/body.
+
+The visual result must be:
+
+widget floating above sidebar
+
+while sidebar destinations underneath remain detectable.
+
+==================================================
+5. REMEMBER EXACT DRAG ORIGIN
+==================================================
+
+Whenever dragging begins, record the widget's exact origin.
+
+For Home remember:
+
+- X
+- Y
+- width
+- height
+- widget state
+
+For transported tabs remember:
+
+- tab
+- row
+- order/index
+- transported size/state
+
+Do NOT permanently update the saved location until a valid drop succeeds.
+
+==================================================
+6. VALID DROP
+==================================================
+
+If the widget is released over a valid main-tab destination:
+
+- transfer the SAME widget
+- do not duplicate it
+- update its current section
+- preserve its data/state
+- preserve skin decorations
+- preserve its canonical Home position and Home dimensions
+
+Valid destinations:
+
+- Home
+- Store
+- Library
+- Breakroom
+
+==================================================
+7. SUCCESSFUL TRANSFER MUST NOT NAVIGATE THE USER
+==================================================
+
+When I send a widget to another tab:
+
+MOVE THE WIDGET.
+
+DO NOT MOVE ME.
+
+Example:
+
+I am on Home.
+
+I drag Notepad onto Library.
+
+Result:
+
+- Notepad transfers to Library
+- Notepad disappears from Home
+- Library now contains Notepad
+- I REMAIN ON HOME
+
+When I later manually open Library, Notepad is already there.
+
+Another example:
+
+I am in Library.
+
+I drag Calculator onto Breakroom.
+
+Result:
+
+- Calculator transfers to Breakroom
+- Calculator disappears from Library
+- I REMAIN IN LIBRARY
+
+Do NOT automatically navigate to Breakroom.
+
+This applies to ALL successful widget transfers.
+
+==================================================
+8. SUBTLE TRANSFER FEEDBACK
+==================================================
+
+Because the user remains on the current page after transferring a widget, provide subtle confirmation.
+
+For example:
+
+"Notepad moved to Library"
+
+Keep this:
+
+- brief
+- non-blocking
+- visually restrained
+- consistent with Cubical styling
+
+Do not use a modal.
+
+==================================================
+9. INVALID DROP = RETURN TO EXACT ORIGIN
+==================================================
+
+If a widget is released somewhere invalid:
+
+- do not transfer it
+- do not save the invalid location
+- do not navigate
+- return it to EXACTLY where the drag began
+
+For Home:
+
+restore exact original X/Y and size.
+
+For Store/Library/Breakroom:
+
+restore exact original row/order position.
+
+Invalid destinations include:
+
+- Profile
+- Settings
+- empty sidebar regions
+- unsupported page areas
+- outside the application
+- any other invalid destination
+
+Use a quick smooth return if desired.
+
+Do not use an exaggerated bounce.
+
+==================================================
+10. HOME MOVEMENT VS INVALID CROSS-TAB DROP
+==================================================
+
+Preserve free movement on Home.
+
+If the user is simply repositioning a Home widget and releases near an unusable boundary:
+
+Cubical may gently keep it within usable workspace.
+
+However, if the user is clearly attempting a cross-tab transfer and releases over an invalid destination:
+
+Return the widget to its drag origin.
+
+Do not confuse normal Home positioning with cross-tab transfer behavior.
+
+==================================================
+11. FREE MOVEMENT + SOFT SNAP
+==================================================
+
+KEEP the current free movement system.
+
+I like that widgets can move freely without being locked to a rigid grid.
+
+Also KEEP the subtle soft-snap/alignment assistance.
+
+However, the current soft snap has too much RUBBER-BANDING.
+
+Fix this.
+
+The snap should behave like a gentle magnetic alignment assist.
+
+It should:
+
+- activate only when reasonably close to a useful alignment point
+- provide subtle positional assistance
+- release immediately when the cursor moves away
+- never fight against intentional cursor movement
+- never oscillate between snapped and unsnapped positions
+- never repeatedly pull the widget backward
+- never visibly tug the widget toward an old snap target
+- never create a bungee-cord/rubber-band feeling
+
+THE USER'S CURSOR MUST REMAIN AUTHORITATIVE AT ALL TIMES.
+
+Think:
+
+gentle magnetic guide
+
+NOT:
+
+spring-loaded attachment.
+
+==================================================
+12. SNAP HYSTERESIS / STABILITY
+==================================================
+
+Prevent rapid snap/un-snap oscillation.
+
+If necessary, use separate thresholds:
+
+- a small threshold to ENTER a snap
+- a slightly larger threshold to LEAVE the snap
+
+But the release distance must remain small enough that the user never feels trapped.
+
+Do not continuously recalculate competing snap targets in a way that causes jitter.
+
+Once the cursor clearly moves away from a snap target:
+
+release it immediately and resume completely free movement.
+
+==================================================
+13. CLICK VS DRAG MUST BE DISTINGUISHED
+==================================================
+
+Dragging a widget must NOT activate that widget when released.
+
+There is currently/previously an issue where dragging Calendar can also cause Calendar to open afterward.
+
+Fix this at the SHARED widget interaction level.
+
+Use a small drag threshold.
+
+Conceptually:
+
+pointer down
+-> record position
+
+little/no movement
+-> pointer up
+-> CLICK
+
+movement exceeds approximately 4–6 CSS pixels
+-> interaction becomes DRAG
+
+pointer up after drag
+-> DROP ONLY
+
+Once an interaction becomes a drag:
+
+SUPPRESS click activation on release.
+
+==================================================
+14. APPLY CLICK VS DRAG TO ALL WIDGETS
+==================================================
+
+Do not make this a Calendar-only patch.
+
+Current and future widgets should inherit this.
+
+Examples:
+
+Dragging Calendar:
+must not open Calendar.
+
+Dragging Link Shelf:
+must not open a link.
+
+Dragging Clock:
+must not activate Timer/Alarm.
+
+Dragging Calculator:
+must not press calculator buttons.
+
+Dragging Decision Maker:
+must not trigger a decision.
+
+Normal clicks must continue working.
+
+==================================================
+15. INTERACTIVE CHILD CONTROLS MUST STILL WORK
+==================================================
+
+Do not break controls inside widgets.
+
+Examples:
+
+- Notepad formatting toolbar
+- Notepad Clear
+- Clock Timer
+- Clock Alarm
+- Calendar controls
+- Calculator buttons
+- Decision Maker controls
+- Link Shelf links
+- Recall
+
+Clicking these controls should operate the control.
+
+Do not accidentally start dragging the whole widget when interacting with a button/input/control.
+
+==================================================
+16. CALENDAR COMPACT STATE
+==================================================
+
+Calendar should have a compact presentation when it is too small for a useful monthly calendar.
+
+Compact Calendar displays ONLY:
+
+MONTH
+DAY NUMBER
+DAY OF WEEK
+
+Example:
+
+AUG
+10
+MONDAY
+
+No full month grid should appear while the Calendar is small.
+
+The compact card should hug this information closely.
+
+==================================================
+17. CALENDAR FULL STATE
+==================================================
+
+Only when Calendar is resized LARGE ENOUGH should it automatically transition into the full monthly Calendar.
+
+Use actual available width AND height.
+
+Do not switch to full Calendar prematurely.
+
+There must genuinely be enough room to display the monthly interface comfortably.
+
+Behavior:
+
+small
+-> compact
+
+slightly larger
+-> still compact
+
+large enough
+-> full month Calendar
+
+shrink again
+-> compact
+
+No manual toggle should be necessary.
+
+==================================================
+18. CALENDAR MUST REMAIN VISIBLE DURING RESIZE
+==================================================
+
+CURRENT BUG:
+
+When I actively drag the Calendar resize control, the Calendar disappears while resizing and only reappears when I release the pointer.
+
+THIS MUST BE FIXED.
+
+Calendar must remain continuously visible throughout the ENTIRE resize gesture.
+
+Behavior should be:
+
+resize starts
+-> Calendar remains visible
+
+pointer moves
+-> Calendar continuously changes dimensions on screen
+
+cross compact/full threshold
+-> Calendar updates presentation appropriately while remaining visible
+
+pointer continues moving
+-> Calendar remains visible
+
+pointer released
+-> final size is saved
+
+At NO point during active resize should Calendar disappear.
+
+==================================================
+19. DO NOT UNMOUNT CALENDAR DURING RESIZE
+==================================================
+
+Inspect why Calendar disappears.
+
+Potential causes may include:
+
+- temporary unmount/remount
+- conditional rendering based on resize state
+- display:none
+- visibility:hidden
+- opacity changes
+- invalid intermediate width/height
+- resize overlay replacing the widget
+- stale dimension state
+- key changes causing React remount
+- drag/resize library ghost behavior
+
+Fix the actual cause.
+
+Do NOT hide Calendar during resizing as a performance optimization.
+
+The actual Calendar card/content must remain rendered.
+
+==================================================
+20. CALENDAR COMPACT/FULL TRANSITION DURING RESIZE
+==================================================
+
+Calendar may transition between compact and full layouts WHILE the resize is happening.
+
+But this must not cause flickering or disappearance.
+
+If the user crosses the threshold:
+
+compact
+-> full
+
+or:
+
+full
+-> compact
+
+the content should transition cleanly within the continuously visible widget.
+
+Avoid rapid oscillation near the threshold.
+
+If necessary, use slightly different enter/exit thresholds so hovering exactly on the breakpoint does not repeatedly flip layouts.
+
+==================================================
+21. REDUCE CALENDAR EMPTY CARD SPACE
+==================================================
+
+Calendar currently has excessive unused card space in some states.
+
+Its outer card should closely fit the useful content.
+
+Compact Calendar especially should be tight.
+
+Use:
+
+content
++ modest padding
++ border
+
+not:
+
+content
++ huge empty region
++ border
+
+==================================================
+22. CLOCK SHOULD HUG ITS CONTENT
+==================================================
+
+Clock also currently has too much unused dark/gray card space.
+
+Its smallest state should closely fit:
+
+- current time
+- AM/PM
+- Timer control/state
+- Alarm control/state
+- other compact indicators
+
+The border should sit only slightly outside the contents.
+
+Do not preserve a large minimum height simply because Clock previously occupied a larger card.
+
+The smallest Clock should feel like a compact digital desk clock.
+
+==================================================
+23. TRANSPORTED WIDGET LOCATION
+==================================================
+
+When widgets are transported into Store, Library, or Breakroom:
+
+Place them:
+
+BELOW the page/tool title
+
+and
+
+ABOVE the actual page/tool content.
+
+For example:
+
+Bulk File Renamer title
+
+[ PORTABLE WIDGET ROW ]
+
+Bulk File Renamer interface
+
+This rule also applies inside nested tool views.
+
+Widgets should NEVER appear above the title.
+
+==================================================
+24. TRANSPORTED NOTEPAD MUST BE WIDER THAN TALL
+==================================================
+
+When Notepad is NOT on Home:
+
+Make it clearly WIDER than it is TALL.
+
+The current transported Notepad consumes too much vertical space.
+
+Reduce its current transported height substantially.
+
+Increase its width slightly to compensate for SOME of the removed height.
+
+Do not preserve the same area mathematically.
+
+The visual goal is a horizontal utility panel.
+
+HOME NOTEPAD:
+
+Preserve normal Home dimensions/free positioning.
+
+TRANSPORTED NOTEPAD:
+
+shorter
++
+wider
++
+internally scrollable
+
+==================================================
+25. TRANSPORTED NOTEPAD CONTENT
+==================================================
+
+Do not remove Notepad functionality to make it shorter.
+
+Preserve:
+
+- bold
+- italic
+- underline
+- headings
+- links
+- alignment
+- bullets
+- numbered lists
+- checkboxes
+- existing text/content
+- character information
+- existing Notepad features
+
+If the note requires more vertical room:
+
+SCROLL THE CONTENT INSIDE THE NOTEPAD.
+
+Do NOT increase the entire transported widget's height.
+
+==================================================
+26. TRANSPORTED ROW HEIGHT
+==================================================
+
+When Notepad exists in a transported widget row:
+
+Use transported Notepad's height as the shared outer height for widgets beside it.
+
+Example:
+
+[ NOTEPAD ][ CLOCK ][ CALENDAR ][ CALCULATOR ]
+
+All should share the same outer height.
+
+However:
+
+WIDTHS MAY DIFFER.
+
+Notepad:
+wide
+
+Clock:
+narrow
+
+Calendar:
+appropriate width
+
+Calculator:
+appropriate width
+
+Decision Maker:
+appropriate width
+
+Link Shelf:
+appropriate width
+
+The row should look intentionally aligned.
+
+==================================================
+27. DO NOT CREATE EMPTY SPACE JUST TO MATCH HEIGHT
+==================================================
+
+Matching outer height should NOT result in giant blank interiors.
+
+Arrange each widget's content intelligently inside the shared row height.
+
+The cards should remain visually balanced.
+
+==================================================
+28. TRANSPORTED WIDGET ROWS
+==================================================
+
+Keep widgets on ONE horizontal row whenever sufficient width exists.
+
+Users should be able to drag them left/right to reorder.
+
+When reordering:
+
+- create room between neighboring widgets
+- show where the widget will land
+- preserve each widget's width
+- maintain shared row height
+
+Only create a second row if horizontal space genuinely requires it.
+
+Do not wrap prematurely.
+
+==================================================
+29. RECALL = RETURN WIDGET HOME
+==================================================
+
+Recall must return an individual transported widget to HOME.
+
+Recall does NOT mean:
+
+- return to previous tab
+- return to last position
+- return to parent tool
+
+It specifically means:
+
+RETURN THIS WIDGET HOME.
+
+When Recall is used:
+
+- remove widget from Store/Library/Breakroom
+- return it to Home
+- restore its canonical Home X/Y position
+- restore its canonical Home width/height
+- preserve widget data/state
+- preserve appropriate skin decorations
+
+The user does not need to follow the widget Home.
+
+==================================================
+30. RECALL WIDGETS = RETURN TRANSPORTED WIDGETS HOME
+==================================================
+
+The global Recall Widgets action should return transported widgets back to Home.
+
+Each widget should return to its own saved canonical Home:
+
+- position
+- dimensions
+- state
+
+Do not stack recalled widgets randomly.
+
+Do not reset their data.
+
+==================================================
+31. SIDEBAR MUST COLLAPSE IMMEDIATELY ON POINTER LEAVE
+==================================================
+
+The unpinned sidebar currently remains expanded for several seconds after the pointer leaves.
+
+Remove this delay.
+
+UNPINNED:
+
+pointer enters
+-> smooth expansion
+
+pointer remains
+-> remain expanded
+
+pointer leaves
+-> BEGIN smooth collapse IMMEDIATELY
+
+There should be ZERO intentional waiting period.
+
+==================================================
+32. REMOVE SIDEBAR DELAY LOGIC
+==================================================
+
+Inspect for:
+
+- setTimeout
+- inactivity timers
+- delayed mouseleave
+- hover timeout refs
+- old auto-collapse delays
+
+Remove/bypass whatever creates the delay.
+
+Do not merely reduce 5000ms to 500ms.
+
+I want no intentional delay.
+
+==================================================
+33. SIDEBAR COLLAPSE SHOULD STILL BE SMOOTH
+==================================================
+
+Immediate means:
+
+the animation STARTS immediately.
+
+It does NOT mean:
+
+snap shut instantly.
+
+Keep the actual collapse animation smooth and polished.
+
+==================================================
+34. PIN OVERRIDES COLLAPSE
+==================================================
+
+If sidebar is pinned:
+
+pointer leave does nothing.
+
+Sidebar remains expanded.
+
+If sidebar is unpinned:
+
+pointer leave immediately begins smooth collapse.
+
+==================================================
+35. HOME SIDEBAR COLLISION
+==================================================
+
+When simply moving widgets around Home:
+
+Widgets should remain within usable workspace.
+
+If released partially over the sidebar without actually performing a valid tab transfer:
+
+gently return/nudge the widget into usable Home space.
+
+Do not leave Home widgets permanently obscured beneath the sidebar.
+
+==================================================
+36. FUTURE WIDGET ARCHITECTURE
+==================================================
+
+These behaviors should be part of the shared widget architecture rather than individually patched into each widget.
+
+Future portable widgets should inherit:
+
+- normal-mode dragging
+- free Home movement
+- subtle stable soft snap
+- cross-tab transfer
+- transfer from any valid tab
+- transfer to any valid tab
+- top-level drag overlay
+- render above sidebar
+- invalid-drop snapback
+- no automatic navigation after transfer
+- click-vs-drag protection
+- transported row behavior
+- Recall
+- Recall Widgets
+- canonical Home preservation
+
+Do not require future widgets to individually reinvent these systems.
+
+==================================================
+37. VERIFY CALENDAR RESIZE VISIBILITY
+==================================================
+
+1. Put Calendar on Home.
+
+2. Enter the state required to resize it.
+
+3. Begin resizing Calendar.
+
+4. KEEP POINTER HELD DOWN.
+
+5. Move resize handle continuously.
+
+6. Verify Calendar remains visible during the entire gesture.
+
+7. Verify dimensions update live.
+
+8. Cross compact/full threshold while still holding pointer.
+
+9. Verify Calendar changes presentation without disappearing.
+
+10. Shrink back across threshold.
+
+11. Verify Calendar returns compact without disappearing.
+
+12. Release pointer.
+
+13. Verify final dimensions persist.
+
+==================================================
+38. VERIFY SOFT SNAP
+==================================================
+
+14. Drag a Home widget slowly near another widget/alignment target.
+
+15. Verify subtle alignment assistance appears.
+
+16. Move cursor away.
+
+17. Verify snap releases immediately.
+
+18. Verify widget follows cursor naturally.
+
+19. Move repeatedly near and away from target.
+
+20. Verify there is NO rubber-banding.
+
+21. Verify there is NO repeated tugging.
+
+22. Verify there is NO jitter/oscillation.
+
+23. Verify free movement remains intact.
+
+==================================================
+39. VERIFY CROSS-TAB TRANSFER
+==================================================
+
+24. With Edit Widgets OFF, drag Notepad from Home onto Library.
+
+25. Verify Notepad passes visually ABOVE sidebar.
+
+26. Verify Library detects the drop.
+
+27. Release.
+
+28. Verify Notepad transfers to Library.
+
+29. Verify YOU REMAIN ON HOME.
+
+30. Manually open Library.
+
+31. Verify Notepad is there.
+
+32. Drag Notepad directly from Library onto Breakroom.
+
+33. Verify it transfers.
+
+34. Verify YOU REMAIN IN LIBRARY.
+
+35. Manually open Breakroom.
+
+36. Verify Notepad is there.
+
+==================================================
+40. VERIFY INVALID DROP
+==================================================
+
+37. Drag Notepad from Breakroom toward Settings.
+
+38. Release over Settings.
+
+39. Verify no transfer occurs.
+
+40. Verify no navigation occurs.
+
+41. Verify Notepad returns to its exact previous Breakroom position/order.
+
+==================================================
+41. VERIFY RECALL
+==================================================
+
+42. With Notepad transported away from Home, press Recall.
+
+43. Verify Notepad leaves the current transported area.
+
+44. Verify Notepad returns HOME.
+
+45. Verify user remains on current page.
+
+46. Manually visit Home.
+
+47. Verify Notepad is restored to its canonical Home position and dimensions.
+
+==================================================
+42. VERIFY TRANSPORTED NOTEPAD
+==================================================
+
+48. Transport Notepad to Library.
+
+49. Open Library.
+
+50. Verify Notepad is clearly WIDER than TALL.
+
+51. Verify it consumes substantially less vertical space than before.
+
+52. Verify long note content scrolls internally.
+
+53. Add Calendar beside it.
+
+54. Verify Calendar shares Notepad's outer height.
+
+55. Add Clock beside it.
+
+56. Verify Clock shares Notepad's outer height.
+
+57. Verify Clock retains an appropriate narrower width.
+
+58. Verify all tops/bottoms align.
+
+==================================================
+43. VERIFY CLICK VS DRAG
+==================================================
+
+59. Make sure Edit Widgets is OFF.
+
+60. Click Calendar normally.
+
+61. Verify Calendar opens.
+
+62. Close it.
+
+63. Drag Calendar somewhere else.
+
+64. Release.
+
+65. Verify Calendar moves.
+
+66. Verify Calendar DOES NOT OPEN.
+
+67. Repeat with other interactive widgets.
+
+68. Verify dragging does not trigger their normal click actions.
+
+69. Verify normal clicking still works.
+
+==================================================
+44. FINAL REGRESSION CHECK
+==================================================
+
+Before finishing, verify all of the following:
+
+- Widgets move outside Edit Widgets mode.
+- Home remains freeform.
+- Soft snap remains present.
+- Soft snap no longer rubber-bands.
+- Cursor remains authoritative.
+- Calendar remains visible throughout resize.
+- Calendar compact/full transition works live.
+- Small Calendar shows month/day number/day of week.
+- Calendar does not open after being dragged.
+- Clock can become compact.
+- Clock card hugs its content.
+- Dragged widgets render ABOVE sidebar.
+- Widgets can transfer from any valid main tab to any other valid main tab.
+- Successful transfers do NOT navigate the user.
+- Invalid transfers return to exact drag origin.
+- Profile and Settings reject widget transfers.
+- Transported widgets appear below title and above content.
+- Transported Notepad is wider than tall.
+- Transported Notepad scrolls internally.
+- Widgets beside Notepad share its height but retain appropriate widths.
+- Widget rows remain single-row whenever possible.
+- Recall returns an individual widget HOME.
+- Recall Widgets returns transported widgets HOME.
+- Canonical Home positions and dimensions remain preserved.
+- Sidebar collapse begins immediately after pointer leave.
+- Pinned sidebar remains open.
+- Existing widget data and functionality remain intact.
+- Sakura styling remains unchanged.
+
+Do not make unrelated changes.

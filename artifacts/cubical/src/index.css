@@ -408,11 +408,15 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
   transition: left 120ms ease-out, top 120ms ease-out;
   will-change: left, top;
 }
-/* During drag the original widget is hidden — the portal ghost at document.body
-   renders instead and is guaranteed above all stacking contexts including sidebar. */
+/* During any active gesture disable smooth position transitions (avoids fighting
+   the pointer). For drag specifically the original is fully hidden — the portal
+   ghost at document.body replaces it visually above every stacking context.
+   For resize the widget must stay visible so the user sees it resize live. */
 .grid-widget-outer.is-active-outer {
-  opacity: 0;
   transition: none;
+}
+.grid-widget-outer.is-dragging-outer {
+  opacity: 0;
   pointer-events: none;
 }
 
@@ -3058,7 +3062,7 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
 .displaced-band-card.is-reorder-drag { opacity: .45; }
 
 /* Widget-specific widths */
-.displaced-band-card[data-widget="notepad"]        { flex: 0 0 380px; min-width: 260px; }
+.displaced-band-card[data-widget="notepad"]        { flex: 0 0 480px; min-width: 300px; }
 .displaced-band-card[data-widget="link-shelf"]     { flex: 0 0 280px; }
 .displaced-band-card[data-widget="decision-maker"] { flex: 0 0 260px; }
 .displaced-band-card[data-widget="clock"]          { flex: 0 0 180px; }
@@ -3095,14 +3099,13 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
   text-transform: uppercase;
 }
 
-/* ── Body: standard fixed height, overflow hidden (internal scroll for Notepad) */
+/* ── Body: shared row height; Notepad scrolls internally rather than growing ── */
 .displaced-band-body {
-  height: 190px;
+  height: 148px;
   overflow: hidden;
   position: relative;
   flex: 1 0 auto;
 }
-/* Notepad scrolls its content rather than growing the card */
 .displaced-band-card[data-widget="notepad"] .displaced-band-body {
   overflow-y: auto;
 }
@@ -3128,12 +3131,7 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
   border-color: hsl(var(--primary) / .6);
 }
 
-.displaced-band-body {
-  flex: 1;
-  min-height: 220px;
-  overflow: hidden;
-  position: relative;
-}
+/* (duplicate rule removed — body height is set above) */
 
 /* ─── Recall Widgets button (HomePage) ───────────────────────────────────── */
 
