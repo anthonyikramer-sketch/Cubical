@@ -1807,47 +1807,43 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
 /* ─── Sakura home: environment frame ─────────────────────────────────────── */
 
 .home-sakura {
-  padding-bottom: 0;
+  padding: 0;
+  /* Escape cubical-main's side padding so the image touches the sidebar and right edge */
+  margin-left: calc(-1 * clamp(22px, 4vw, 65px));
+  margin-right: calc(-1 * clamp(22px, 4vw, 65px));
+  /* Escape cubical-main's top padding and the topbar's bottom margin so the
+     image starts flush with the bottom of the breadcrumb bar */
+  margin-top: calc(-38px - 54px);
+  /* Escape cubical-main's bottom padding */
+  margin-bottom: -70px;
+  /* Fill from breadcrumb bar bottom to viewport bottom */
+  min-height: calc(100vh - 38px);
 }
 
-/* Outer shell: dark warm wood background, centers the square artwork */
+/* Full-bleed frame — no border-radius, no background, just a positioned container */
 .sakura-env-frame {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 22px;
-  overflow: hidden;
-  background: hsl(22 35% 18%);
-  /* Ensure enough vertical room; square will dictate actual height */
-  min-height: 480px;
-}
-
-/* Square container — 1:1, sized to the smaller of available width or viewport height.
-   The 80px offset accounts for the top bar + page padding so the whole square fits
-   on screen without scrolling. */
-.sakura-env-square {
-  aspect-ratio: 1 / 1;
-  width: min(100%, calc(100vh - 80px));
   position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: inherit;
   overflow: hidden;
-  border-radius: 18px;
 }
 
-/* The pixel-art image fills the square exactly — no gaps, no crop, no distortion.
-   The container is already square so object-fit: fill is equivalent to contain here. */
+/* Artwork covers the entire frame; centred crop preserves aspect ratio */
 .sakura-env-img {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: fill;
+  object-fit: cover;
+  object-position: center;
   image-rendering: pixelated;   /* preserve pixel-art crispness */
   pointer-events: none;         /* never intercept widget interactions */
   user-select: none;
   display: block;
 }
 
-/* Interactive UI layer — covers the square, widgets live here */
+/* Interactive UI layer — fills the frame; widgets live here above the artwork */
 .sakura-env-ui {
   position: absolute;
   inset: 0;

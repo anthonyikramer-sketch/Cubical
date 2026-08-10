@@ -1304,25 +1304,22 @@ function HomePage() {
   if (isSakura) {
     return (
       <div className="home-page home-sakura" data-testid="home-page">
-        {/* Outer frame: dark wood bg + flex centering for the square */}
+        {/* Full-bleed frame — stretches edge-to-edge of the content area */}
         <div className="sakura-env-frame">
-          {/* Square constrained to the smaller of available width / viewport height */}
-          <div className="sakura-env-square">
-            {/* Environment artwork — decorative, non-interactive */}
-            <img src="/sakura-env.png" className="sakura-env-img" alt="" aria-hidden draggable={false} />
-            {/* Interactive UI layer floats above the artwork, scoped to the square */}
-            <div className="sakura-env-ui">
-              <div className="sakura-top-bar">
-                <span className="sakura-greeting">✦ Your workspace</span>
-                {editBtn}
-              </div>
-              {isEditing && (
-                <p className="home-edit-hint sakura-edit-hint">
-                  Drag widgets to reposition · drag the corner ↘ to resize · widgets snap to the grid
-                </p>
-              )}
-              <HomeWorkspace isEditing={isEditing} />
+          {/* Environment artwork — covers the full frame, centred crop */}
+          <img src="/sakura-env.png" className="sakura-env-img" alt="" aria-hidden draggable={false} />
+          {/* Interactive UI layer — fills the same frame, widgets live here */}
+          <div className="sakura-env-ui">
+            <div className="sakura-top-bar">
+              <span className="sakura-greeting">✦ Your workspace</span>
+              {editBtn}
             </div>
+            {isEditing && (
+              <p className="home-edit-hint sakura-edit-hint">
+                Drag widgets to reposition · drag the corner ↘ to resize · widgets snap to the grid
+              </p>
+            )}
+            <HomeWorkspace isEditing={isEditing} />
           </div>
         </div>
       </div>

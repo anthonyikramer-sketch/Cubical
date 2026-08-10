@@ -1,0 +1,117 @@
+Change ONLY the Sakura Home environment sizing/layout.
+
+I no longer want the Sakura image displayed as a centered square with empty space around it.
+
+Instead, I want the Sakura artwork to become the ENTIRE Home workspace background.
+
+The Sakura artwork should fill ALL available workspace space:
+
+- Start immediately at the right edge of the sidebar.
+- Extend all the way to the right edge of the application.
+- Extend all the way to the top edge of the Home workspace.
+- Extend all the way to the bottom edge of the Home workspace.
+- There should be NO brown margins, padding, gutters, frame area, or empty background surrounding the Sakura image.
+
+In other words:
+
+SIDEBAR | SAKURA IMAGE
+SIDEBAR | SAKURA IMAGE
+SIDEBAR | SAKURA IMAGE
+
+The Sakura image should occupy 100% width and 100% height of the Home content area beside the sidebar.
+
+--------------------------------------------------
+IMAGE FITTING
+--------------------------------------------------
+
+Use the Sakura artwork as a full-bleed background.
+
+Use background-size: cover, object-fit: cover, or equivalent behavior.
+
+Preserve the image's aspect ratio.
+
+Do NOT stretch or distort the artwork.
+
+It is acceptable for portions of the outer edges of the Sakura image to be cropped when necessary to completely fill the available workspace.
+
+Center the image when calculating the crop.
+
+Prefer cropping the outer wooden border before cropping important central artwork.
+
+There must NEVER be empty space around the image.
+
+Do NOT use:
+- object-fit: contain
+- letterboxing
+- brown filler backgrounds
+- a second blurred copy of the image
+- a centered square container
+- margins around the environment
+- padding around the environment
+
+The Sakura artwork itself should fill the entire Home workspace.
+
+--------------------------------------------------
+REMOVE THE CURRENT SQUARE CONTAINER
+--------------------------------------------------
+
+The current implementation appears to treat the Sakura environment as a square workspace/container inside the Home page.
+
+Remove that constraint.
+
+The Sakura environment should instead use the full dimensions of the Home content area.
+
+Do not constrain the environment to:
+- aspect-ratio: 1 / 1
+- max-width based on height
+- max-height based on width
+- a centered square wrapper
+
+The Home environment container itself should be:
+
+width: 100%
+height: 100%
+
+and should occupy all available space beside the sidebar.
+
+--------------------------------------------------
+WIDGETS
+--------------------------------------------------
+
+Calendar, Clock, Notepad, "Your workspace", and Edit Layout should remain ABOVE the Sakura background.
+
+Preserve all existing:
+- dragging
+- resizing
+- snapping
+- compact modes
+- saved widget positions
+- saved widget sizes
+- widget data
+- Edit Layout functionality
+
+Update the widget coordinate system if necessary so widgets use the FULL Sakura Home workspace as their draggable area rather than the old centered square.
+
+Widgets should not be allowed to disappear behind the sidebar.
+
+--------------------------------------------------
+IMPORTANT
+--------------------------------------------------
+
+Do not redesign the Sakura artwork.
+
+Do not change the Sakura color palette.
+
+Do not change the sidebar.
+
+Do not change Profile, Store, Library, Settings, or other skins.
+
+Do not add new features.
+
+This task is ONLY to make the Sakura Home environment full-bleed across the entire available Home workspace.
+
+Final desired result:
+
+When I open Sakura Home, I should see NO normal page background beside or around the Sakura artwork.
+
+From the sidebar to the right edge, and from the top edge to the bottom edge, the workspace should visually be Sakura.
