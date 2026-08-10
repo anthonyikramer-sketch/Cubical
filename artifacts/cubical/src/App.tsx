@@ -340,13 +340,13 @@ function rectsOverlap(a: LayoutItem, b: LayoutItem): boolean {
 // ─── App shell ────────────────────────────────────────────────────────────────
 
 const CRUMB_MAP: Record<string, string> = {
-  '/': 'SHELF / HOME',
-  '/store': 'SHELF / STORE',
-  '/library': 'SHELF / LIBRARY',
-  '/breakroom': 'SHELF / BREAKROOM',
-  '/profile': 'SHELF / PROFILE',
-  '/settings': 'SHELF / SETTINGS',
-  '/tool/file-finder': 'SHELF / FILE FINDER',
+  '/': 'Shelf / Home',
+  '/store': 'Shelf / Store',
+  '/library': 'Shelf / Library',
+  '/breakroom': 'Shelf / Breakroom',
+  '/profile': 'Shelf / Profile',
+  '/settings': 'Shelf / Settings',
+  '/tool/file-finder': 'Shelf / File Finder',
 };
 
 function AppShell({ children, libraryCount }: { children: ReactNode; libraryCount: number }) {
@@ -420,7 +420,7 @@ function AppShell({ children, libraryCount }: { children: ReactNode; libraryCoun
     { href: '/settings', label: 'Settings', icon: Settings        },
   ];
 
-  const crumb = CRUMB_MAP[location] ?? `SHELF / ${location.slice(1).toUpperCase().replace(/\//g, ' / ')}`;
+  const crumb = CRUMB_MAP[location] ?? `Shelf / ${location.slice(1).split('/').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' / ')}`;
   const isActive = (href: string) => {
     if (href === '/library') return location === '/library' || location.startsWith('/tool/');
     return location === href;

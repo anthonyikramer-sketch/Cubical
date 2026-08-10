@@ -1,0 +1,260 @@
+I want to do a focused typography and visual-style pass across Cubical.
+
+Do NOT change functionality, navigation structure, widget behavior, widget positions, Profile functionality, Settings functionality, Store functionality, Library functionality, or existing persistence.
+
+This pass is ONLY about typography and visual styling.
+
+GOAL:
+
+Cubical should feel like a comfortable personal desktop workspace rather than a developer dashboard, SaaS admin panel, or corporate productivity suite.
+
+The design should be:
+
+- warm
+- soft
+- approachable
+- clean
+- professional
+- slightly playful
+- comfortable enough to leave open all day
+
+It should NOT feel:
+
+- futuristic
+- overly technical
+- cyberpunk
+- gamer-oriented
+- sterile
+- corporate
+- excessively minimalist
+- overly colorful
+- childish
+
+--------------------------------------------------
+TYPOGRAPHY
+--------------------------------------------------
+
+Replace the current overly technical typography direction.
+
+Use a friendly modern sans-serif as the primary UI font.
+
+Prefer something in the character of:
+
+- DM Sans
+- Manrope
+- Nunito Sans
+
+Choose whichever integrates most cleanly.
+
+Use ONE primary font family throughout most of Cubical.
+
+Create clear typography hierarchy:
+
+Large page greetings/titles:
+- friendly
+- substantial
+- slightly rounded/soft character
+- strong without feeling aggressive
+
+Section headings:
+- medium weight
+- readable
+- avoid excessive uppercase
+
+Navigation:
+- comfortable medium weight
+- slightly larger and easier to read than tiny dashboard navigation
+
+Body text:
+- highly readable
+- relaxed spacing
+- avoid tiny text
+
+Small metadata:
+- use normal sans-serif text
+- eliminate the terminal/code aesthetic wherever it is unnecessary
+
+REMOVE OR REDUCE:
+- excessive monospace
+- excessive ALL CAPS
+- excessive letter spacing
+- tiny technical labels
+- developer-dashboard styling
+
+For example, labels such as:
+
+"YOUR WORKSPACE"
+
+can become:
+
+"Your workspace"
+
+Small breadcrumb text may remain subtle, but should not look like terminal output.
+
+--------------------------------------------------
+VISUAL LANGUAGE
+--------------------------------------------------
+
+Soften the entire default Cubical interface.
+
+Use slightly warmer background tones rather than extremely cold or pure backgrounds.
+
+Dark mode should use a warm charcoal/navy direction rather than pure black.
+
+Light mode should use warm off-white rather than stark white.
+
+Cards/widgets should feel like physical little objects sitting on the workspace.
+
+Use:
+- subtle borders
+- very subtle shadows
+- moderate rounded corners
+- comfortable internal padding
+- gentle hover feedback
+
+Avoid:
+- strong glow effects
+- neon
+- dramatic gradients
+- glassmorphism
+- giant shadows
+- excessive borders
+- excessive rounding
+
+Widgets should have enough separation from the background to feel tangible without looking like floating web-dashboard cards.
+
+--------------------------------------------------
+BUTTONS
+--------------------------------------------------
+
+Soften button styling.
+
+Buttons should feel tactile and friendly.
+
+Use:
+- moderate rounding
+- clear hover state
+- subtle pressed state
+- readable labels
+
+Avoid overly thin technical outlines everywhere.
+
+Primary actions can use the Cubical accent color.
+
+Secondary actions should remain restrained.
+
+--------------------------------------------------
+SIDEBAR
+--------------------------------------------------
+
+Keep the existing sidebar structure and collapse behavior.
+
+Visually soften it.
+
+Navigation items should feel more like items on a personal shelf and less like SaaS navigation.
+
+Keep:
+
+YOUR SHELF -> change visually to "Your Shelf"
+YOURSELF -> change visually to "Yourself"
+
+Do not change the actual meaning or organization.
+
+Make selected navigation states obvious but gentle.
+
+Keep icons simple and consistent.
+
+Make the Pin control visually integrate with the sidebar instead of appearing like loose text.
+
+--------------------------------------------------
+HOME
+--------------------------------------------------
+
+Preserve the Home layout system completely.
+
+The Clock, Calendar, and Notepad should feel like coordinated desktop objects rather than generic dashboard widgets.
+
+Do NOT make them heavily stylized because future skins will change their appearance.
+
+The DEFAULT appearance should be intentionally attractive but neutral.
+
+Think of the default theme as the clean wooden desk before someone decorates it.
+
+--------------------------------------------------
+COLOR
+--------------------------------------------------
+
+Keep the current Cubical identity restrained.
+
+Use one primary accent color and neutral supporting colors.
+
+Avoid using many unrelated accent colors.
+
+The current blue can be refined if necessary, but do not completely recolor the product.
+
+Color should guide attention rather than decorate everything.
+
+Future skins will provide dramatic color/environment changes.
+
+--------------------------------------------------
+MICRO-INTERACTIONS
+--------------------------------------------------
+
+Where appropriate, add very subtle transitions for:
+
+- button hover
+- navigation hover
+- widget hover
+- sidebar expansion/collapse
+- selected states
+
+Animations should generally be around 150-250ms and feel smooth.
+
+Nothing should bounce, flash, glow, or dramatically animate.
+
+Cubical should feel responsive rather than animated.
+
+--------------------------------------------------
+IMPORTANT DESIGN PRINCIPLE
+--------------------------------------------------
+
+Cubical is eventually going to support visual skins and environments.
+
+Therefore:
+
+The DEFAULT UI should be beautiful but neutral.
+
+Do not bake strong visual themes directly into core components.
+
+Keep styling structured so skins can later override:
+
+- workspace background
+- sidebar appearance
+- widget surfaces
+- accent colors
+- borders
+- shadows
+- potentially typography
+
+without rewriting the components themselves.
+
+--------------------------------------------------
+FINAL CHECK
+--------------------------------------------------
+
+Before finishing:
+
+- Verify no functionality changed.
+- Verify Home widgets still move and resize.
+- Verify widget layouts still persist.
+- Verify notes and calendar data remain.
+- Verify sidebar collapse still works.
+- Verify Profile still works.
+- Verify Settings still works.
+- Verify Store and Library still work.
+- Verify both light and dark mode remain readable.
+- Check for leftover monospace/technical styling and remove it where it is not necessary.
+- Check that the Pin control is properly styled and positioned.
+- Check that typography is consistent across every main page.
+
+Do not add any new features during this pass.
