@@ -1542,6 +1542,8 @@ function NotepadWidget({ compact = false }: { compact?: boolean }) {
   const [toolbarVisible, setToolbarVisible] = useState(true);
   const [confirmClear,   setConfirmClear]   = useState(false);
   const [importPending,  setImportPending]  = useState<string | null>(null);
+  const [importedFile,   setImportedFile]   = useState<string | null>(null);
+  const importFileNameRef = useRef<string>('');
   // Increment to re-render toolbar active-states on every selection / transaction
   const [tick, setTick] = useState(0);
 
@@ -1690,6 +1692,12 @@ function NotepadWidget({ compact = false }: { compact?: boolean }) {
       window.localStorage.setItem(NOTEPAD_HTML_KEY, safe);
     } catch {}
     setImportPending(null);
+    // Show fleeting confirmation toast
+    const fname = importFileNameRef.current;
+    if (fname) {
+      setImportedFile(fname);
+      window.setTimeout(() => setImportedFile(null), 2000);
+    }
   }, []);
 
   const handleImportFile = useCallback((e: ChangeEvent<HTMLInputElement>) => {
@@ -1698,6 +1706,7 @@ function NotepadWidget({ compact = false }: { compact?: boolean }) {
     // Reset so the same file can be re-imported
     fileInputRef.current.value = '';
     if (!file) return;
+    importFileNameRef.current = file.name;
 
     const reader = new FileReader();
     reader.onload = () => {
@@ -1871,6 +1880,13 @@ function NotepadWidget({ compact = false }: { compact?: boolean }) {
         </>
         )}
       </div>
+
+      {importedFile && (
+        <div className="toast-message" role="status">
+          <Check />
+          Imported {importedFile}
+        </div>
+      )}
     </div>
   );
 }
