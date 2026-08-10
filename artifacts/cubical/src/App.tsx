@@ -296,6 +296,8 @@ const CLOCK_SECONDS_KEY     = 'cubical-clock-seconds';
 const CLOCK_TIMER_KEY       = 'cubical-clock-timer';
 const CLOCK_ALARMS_KEY      = 'cubical-clock-alarms';
 const LAYOUT_STORAGE_KEY    = 'cubical-home-layout';
+
+const LAYOUT_BASELINE_KEY   = 'cubical-home-layout-baseline';
 const LINK_SHELF_KEY        = 'cubical-link-shelf';
 const DECISION_MAKER_KEY    = 'cubical-decision-maker';
 const DISPLACED_WIDGETS_KEY = 'cubical-displaced-widgets';
@@ -445,8 +447,14 @@ function getStoredLayout(): LayoutItem[] {
 }
 function storeLayout(layout: LayoutItem[]) { writeLocal(LAYOUT_STORAGE_KEY, layout); }
 
-// ─── Portable widget system ───────────────────────────────────────────────────
-
+function getStoredBaselineWidth(): number | null {
+  try {
+    const raw = window.localStorage.getItem(LAYOUT_BASELINE_KEY);
+    if (!raw) return null;
+    const v = parseFloat(raw);
+    return isNaN(v) || v <= 0 ? null : v;
+  } catch { return null; }
+}
 type DisplacedWidget = { id: WidgetId; page: string };
 
 interface PortableCtxShape {
@@ -2224,9 +2232,10 @@ function HomeWorkspace({
   activeWidgets: WidgetId[];
   onRemoveWidget: (id: WidgetId) => void;
 }) {
-  const containerRef  = useRef<HTMLDivElement>(null);
-  const canvasWRef    = useRef(950);
-  const activeItemRef = useRef<LayoutItem | null>(null);
+  const containerRef   = useRef<HTMLDivElement>(null);
+  const canvasWRef     = useRef(950);
+  const activeItemRef  = useRef<LayoutItem | null>(null);
+  const activeModeRef  = useRef<'drag' | 'resize' | null>(null);
 
   const [layout, setLayout]         = useState<LayoutItem[]>(() => getStoredLayout());
   const [activeItem, setActiveItem] = useState<LayoutItem | null>(null);
@@ -2235,11 +2244,52 @@ function HomeWorkspace({
   const { setDragId, hoverPageRef, displace } = usePortable();
   const [, navigate] = useLocation();
 
-  // Track canvas pixel width for boundary correction on drag/resize release
+  // Track canvas pixel width and keep stored positions within bounds.
+  // Runs on every ResizeObserver callback (sidebar pin/unpin, window resize)
+  // so positions stay clamped whenever the canvas geometry changes.
+  // Skips correction during an active drag or resize to avoid fighting the gesture.
+  // On the very first measurement also attempts a proportional rescale when the
+  // canvas is more than 30% narrower than the stored baseline (e.g. loading on
+  // a much smaller screen).
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    const measure = () => { canvasWRef.current = el.getBoundingClientRect().width || 950; };
+    let isFirstMeasure = true;
+    const measure = () => {
+      const cw = el.getBoundingClientRect().width || 950;
+      canvasWRef.current = cw;
+      // Don't touch positions while the user is dragging or resizing a widget
+      if (activeModeRef.current !== null) return;
+      setLayout((prev) => {
+        let next = prev;
+        // On the very first measurement: proportional rescale if canvas shrank >30%
+        if (isFirstMeasure) {
+          isFirstMeasure = false;
+          const baseline = getStoredBaselineWidth();
+          if (baseline && (baseline - cw) / baseline > 0.30) {
+            const scale = cw / baseline;
+            next = next.map((item) => {
+              const min = WIDGET_MIN[item.id];
+              const newW = Math.max(min.w, Math.round(item.w * scale));
+              const newX = Math.max(0, Math.round(item.x * scale));
+              return { ...item, w: newW, x: Math.min(Math.max(0, cw - newW), newX) };
+            });
+          }
+        }
+        // Every resize: clamp any widget whose right edge overflows the canvas
+        next = next.map((item) => {
+          if (item.x + item.w <= cw) return item;
+          const min = WIDGET_MIN[item.id];
+          const clampedW = Math.max(min.w, Math.min(item.w, cw));
+          const clampedX = Math.max(0, Math.min(cw - clampedW, item.x));
+          return { ...item, x: clampedX, w: clampedW };
+        });
+        if (next !== prev) storeLayout(next);
+        // Always keep baseline current so the next session starts from real geometry
+        storeBaselineWidth(cw);
+        return next;
+      });
+    };
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el);
@@ -2252,10 +2302,10 @@ function HomeWorkspace({
     .map((item) => (activeItem?.id === item.id ? activeItem : item));
 
   // ── Drag ──────────────────────────────────────────────────────────────────
+  // Drag is ALWAYS enabled — no isEditing guard.
+  // A 6 px dead-zone prevents accidental drags from widget-content taps.
 
   const startDrag = (id: WidgetId, e: React.PointerEvent) => {
-    // Drag is ALWAYS enabled — no isEditing guard.
-    // A 6 px dead-zone prevents accidental drags from widget-content taps.
     const item = layout.find((l) => l.id === id);
     if (!item) return;
 
@@ -2277,6 +2327,7 @@ function HomeWorkspace({
         setActiveItem({ ...item });
         activeItemRef.current = { ...item };
         setActiveMode('drag');
+        activeModeRef.current = 'drag';
       }
 
       ev.preventDefault();
@@ -2313,6 +2364,7 @@ function HomeWorkspace({
         setActiveItem(null);
         activeItemRef.current = null;
         setActiveMode(null);
+        activeModeRef.current = null;
         return;
       }
 
@@ -2327,11 +2379,12 @@ function HomeWorkspace({
           x: Math.max(0, Math.min(cw - finalItem.w, finalItem.x)),
           y: Math.max(0, finalItem.y),
         };
-        setLayout((prev) => { const next = prev.map((l) => (l.id === corrected.id ? corrected : l)); storeLayout(next); return next; });
+        setLayout((prev) => { const next = prev.map((l) => (l.id === corrected.id ? corrected : l)); storeLayout(next); storeBaselineWidth(cw); return next; });
       }
       setActiveItem(null);
       activeItemRef.current = null;
       setActiveMode(null);
+      activeModeRef.current = null;
     };
 
     document.addEventListener('pointermove', onMove);
@@ -2353,6 +2406,7 @@ function HomeWorkspace({
     setActiveItem({ ...item });
     activeItemRef.current = { ...item };
     setActiveMode('resize');
+    activeModeRef.current = 'resize';
 
     const onMove = (ev: PointerEvent) => {
       const cw = canvasWRef.current;
@@ -2370,11 +2424,13 @@ function HomeWorkspace({
       document.removeEventListener('pointerup', onUp);
       const finalItem = activeItemRef.current;
       if (finalItem) {
-        setLayout((prev) => { const next = prev.map((l) => (l.id === finalItem.id ? finalItem : l)); storeLayout(next); return next; });
+        const cw = canvasWRef.current;
+        setLayout((prev) => { const next = prev.map((l) => (l.id === finalItem.id ? finalItem : l)); storeLayout(next); storeBaselineWidth(cw); return next; });
       }
       setActiveItem(null);
       activeItemRef.current = null;
       setActiveMode(null);
+      activeModeRef.current = null;
     };
 
     document.addEventListener('pointermove', onMove);
@@ -5181,3 +5237,7 @@ function makeMemoryCards(): MemoryCard[] {
 }
 
 const MEMORY_EMOJIS = ['📎', '🖇️', '📝', '✏️', '📌', '🗂️', '📋', '🖊️'];
+
+function storeBaselineWidth(w: number) {
+  try { window.localStorage.setItem(LAYOUT_BASELINE_KEY, String(Math.round(w))); } catch {}
+}
