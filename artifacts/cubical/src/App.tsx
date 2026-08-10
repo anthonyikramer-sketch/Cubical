@@ -1,5 +1,6 @@
 import { createPortal } from 'react-dom';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties, type ReactNode } from 'react';
+import ExifReader from 'exifreader';
 import { zipSync } from 'fflate';
 import {
   AlignCenter,
@@ -6061,6 +6062,20 @@ function ImageConverter() {
 
 // ─── File Toolbox ─────────────────────────────────────────────────────────────
 
+type ExifData = {
+  make:         string | null;
+  model:        string | null;
+  dateTaken:    string | null;
+  iso:          string | null;
+  shutterSpeed: string | null;
+  aperture:     string | null;
+  focalLength:  string | null;
+  flash:        string | null;
+  gpsLat:       string | null;
+  gpsLon:       string | null;
+  orientation:  string | null;
+};
+
 type ToolboxEntry = {
   file: File;
   hash: string | null;
@@ -6068,6 +6083,7 @@ type ToolboxEntry = {
   mediaDuration: number | null;
   videoDims: { w: number; h: number } | null;
   mediaCodec: string | null;
+  exif: ExifData | null;
 };
 
 function formatFileBytes(n: number) {
@@ -6146,6 +6162,51 @@ function formatDuration(secs: number): string {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
+function strTag(tags: Record<string, { description?: string; value?: unknown } | undefined>, key: string): string | null {
+  const t = tags[key];
+  if (!t) return null;
+  const v = t.description ?? String(t.value ?? '');
+  return v && v !== 'undefined' ? v.trim() || null : null;
+}
+
+async function extractExif(file: File): Promise<ExifData | null> {
+  try {
+    const buf = await file.arrayBuffer();
+    // expanded:true gives a structured result with a typed `gps` group for signed decimal coordinates
+    const expanded = ExifReader.load(buf, { expanded: true }) as {
+      exif?: Record<string, { description?: string; value?: unknown } | undefined>;
+      gps?:  { Latitude?: number; Longitude?: number };
+    };
+
+    const tags = expanded.exif ?? {};
+    const gps  = expanded.gps;
+
+    // Use signed decimal GPS from the expanded `gps` group — handles S/W hemispheres correctly
+    let gpsLat: string | null = null;
+    let gpsLon: string | null = null;
+    if (gps?.Latitude  != null) gpsLat = gps.Latitude.toFixed(6);
+    if (gps?.Longitude != null) gpsLon = gps.Longitude.toFixed(6);
+
+    const exif: ExifData = {
+      make:         strTag(tags, 'Make'),
+      model:        strTag(tags, 'Model'),
+      dateTaken:    strTag(tags, 'DateTimeOriginal') ?? strTag(tags, 'DateTime'),
+      iso:          strTag(tags, 'ISOSpeedRatings') ?? strTag(tags, 'ISO'),
+      shutterSpeed: strTag(tags, 'ExposureTime') ?? strTag(tags, 'ShutterSpeedValue'),
+      aperture:     strTag(tags, 'FNumber') ?? strTag(tags, 'ApertureValue'),
+      focalLength:  strTag(tags, 'FocalLength'),
+      flash:        strTag(tags, 'Flash'),
+      gpsLat,
+      gpsLon,
+      orientation:  strTag(tags, 'Orientation'),
+    };
+
+    // Return null if every field is null (no EXIF at all)
+    const hasAny = Object.values(exif).some((v) => v !== null);
+    return hasAny ? exif : null;
+  } catch { return null; }
+}
+
 async function buildToolboxEntry(file: File): Promise<ToolboxEntry> {
   let hash: string | null = null;
   let dims: { w: number; h: number } | null = null;
@@ -6187,7 +6248,8 @@ async function buildToolboxEntry(file: File): Promise<ToolboxEntry> {
   const mediaCodec = (file.type.startsWith('video/') || file.type.startsWith('audio/'))
     ? await detectMediaCodec(file)
     : null;
-  return { file, hash, dims, mediaDuration, videoDims, mediaCodec };
+  const exif = file.type.startsWith('image/') ? await extractExif(file) : null;
+  return { file, hash, dims, mediaDuration, videoDims, mediaCodec, exif };
 }
 
 function FileToolbox() {
@@ -6425,6 +6487,39 @@ function FileInspector() {
               {entry.mediaCodec && (<><span className="toolbox-info-label">Codec</span><span className="toolbox-info-value">{entry.mediaCodec}</span></>)}
               {entry.hash && (<><span className="toolbox-info-label">SHA-256</span><span className="toolbox-info-value toolbox-hash">{entry.hash}</span></>)}
             </div>
+            {entry.exif && (
+              <div className="inspector-exif-section">
+                <div className="inspector-exif-heading">Camera &amp; EXIF</div>
+                <div className="toolbox-info-grid">
+                  {(entry.exif.make || entry.exif.model) && (
+                    <><span className="toolbox-info-label">Camera</span>
+                    <span className="toolbox-info-value">
+                      {[entry.exif.make, entry.exif.model].filter(Boolean).join(' ')}
+                    </span></>
+                  )}
+                  {entry.exif.dateTaken && (<><span className="toolbox-info-label">Date taken</span><span className="toolbox-info-value">{entry.exif.dateTaken}</span></>)}
+                  {entry.exif.iso && (<><span className="toolbox-info-label">ISO</span><span className="toolbox-info-value">{entry.exif.iso}</span></>)}
+                  {entry.exif.shutterSpeed && (<><span className="toolbox-info-label">Shutter speed</span><span className="toolbox-info-value">{entry.exif.shutterSpeed}</span></>)}
+                  {entry.exif.aperture && (<><span className="toolbox-info-label">Aperture</span><span className="toolbox-info-value">{entry.exif.aperture}</span></>)}
+                  {entry.exif.focalLength && (<><span className="toolbox-info-label">Focal length</span><span className="toolbox-info-value">{entry.exif.focalLength}</span></>)}
+                  {entry.exif.flash && (<><span className="toolbox-info-label">Flash</span><span className="toolbox-info-value">{entry.exif.flash}</span></>)}
+                  {entry.exif.orientation && (<><span className="toolbox-info-label">Orientation</span><span className="toolbox-info-value">{entry.exif.orientation}</span></>)}
+                  {(entry.exif.gpsLat && entry.exif.gpsLon) && (
+                    <><span className="toolbox-info-label">GPS</span>
+                    <span className="toolbox-info-value">
+                      <a
+                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${entry.exif.gpsLat},${entry.exif.gpsLon}`)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inspector-gps-link"
+                      >
+                        {entry.exif.gpsLat}, {entry.exif.gpsLon} ↗
+                      </a>
+                    </span></>
+                  )}
+                </div>
+              </div>
+            )}
             {mediaUrl && isVideo && (
               <video
                 key={mediaUrl}
