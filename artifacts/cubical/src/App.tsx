@@ -2461,6 +2461,78 @@ function CosmeticCard({ cosmetic, isOwned, isEquipped, onAcquire, onEquip }: {
 
 // ── Breakroom page ─────────────────────────────────────────────────────────
 
+function BreakroomStatsPanel({ ownedGames, ownedCosmetics, equippedCosmetic }: {
+  ownedGames: string[];
+  ownedCosmetics: string[];
+  equippedCosmetic: string;
+}) {
+  const streak = useMemo(() => {
+    let count = 0;
+    const today = new Date();
+    for (let i = 0; i < 90; i++) {
+      const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - i);
+      const y = d.getFullYear(), m = d.getMonth() + 1, day = d.getDate();
+      const snakeKey  = `cubical-breakroom-played-snake-${y}-${m}-${day}`;
+      const memoryKey = `cubical-breakroom-played-memory-${y}-${m}-${day}`;
+      try {
+        const played = localStorage.getItem(snakeKey) === 'true' || localStorage.getItem(memoryKey) === 'true';
+        if (played) { count++; }
+        else if (i === 0) { /* today not played yet — still check yesterday */ }
+        else { break; }
+      } catch { break; }
+    }
+    return count;
+  }, []);
+
+  const equippedName = COSMETICS.find((c) => c.id === equippedCosmetic)?.name ?? 'Default';
+
+  const stats: { label: string; icon: string; value: string; suffix?: string }[] = [
+    {
+      label: 'Day streak',
+      icon: '🔥',
+      value: streak > 0 ? String(streak) : '—',
+      suffix: streak > 0 ? (streak === 1 ? 'day' : 'days') : undefined,
+    },
+    {
+      label: 'Games owned',
+      icon: '🎮',
+      value: String(ownedGames.length),
+      suffix: `of ${BREAK_GAMES.length}`,
+    },
+    {
+      label: 'Active theme',
+      icon: '🎨',
+      value: equippedName,
+    },
+    {
+      label: 'Cosmetics owned',
+      icon: '✨',
+      value: String(ownedCosmetics.length),
+      suffix: `of ${COSMETICS.length}`,
+    },
+  ];
+
+  return (
+    <div className="breakroom-stats-panel">
+      <div className="breakroom-stats-title">Your stats</div>
+      <div className="breakroom-stats-list">
+        {stats.map((s) => (
+          <div key={s.label} className="breakroom-stat-row">
+            <span className="breakroom-stat-icon" aria-hidden>{s.icon}</span>
+            <div className="breakroom-stat-body">
+              <span className="breakroom-stat-label">{s.label}</span>
+              <span className="breakroom-stat-value">
+                {s.value}
+                {s.suffix && <span className="breakroom-stat-suffix"> {s.suffix}</span>}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function BreakroomPage() {
   const [ownedGames, setOwnedGames]         = useState<string[]>(getOwnedGames);
   const [ownedCosmetics, setOwnedCosmetics] = useState<string[]>(getOwnedCosmetics);
@@ -2506,9 +2578,14 @@ function BreakroomPage() {
         <p>You've been working. This is the part where you stop for a moment.<br />Games, a daily challenge, and a small excuse to close the spreadsheet.</p>
       </div>
 
-      {/* Daily game */}
-      <div id="daily-game-section" className="mb-10">
+      {/* Daily game + stats */}
+      <div className="breakroom-top-row">
         <DailyGameCard />
+        <BreakroomStatsPanel
+          ownedGames={ownedGames}
+          ownedCosmetics={ownedCosmetics}
+          equippedCosmetic={equippedCosmetic}
+        />
       </div>
 
       {/* Your Games */}

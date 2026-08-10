@@ -520,8 +520,43 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
 .breakroom-page { animation: rise-in .45s both; }
 .breakroom-intro p { max-width: 540px; }
 
-/* Top row: Daily Game + Break Timer */
-.breakroom-top-row { display: grid; grid-template-columns: 1fr 280px; gap: 16px; align-items: start; margin-bottom: 40px; }
+/* Top row: Daily Game + Stats panel */
+.breakroom-top-row { display: grid; grid-template-columns: 1fr 272px; gap: 16px; align-items: start; margin-bottom: 40px; }
+
+/* Stats sidebar panel */
+.breakroom-stats-panel {
+  border: 1px solid hsl(var(--border));
+  border-radius: 22px;
+  background: hsl(var(--card));
+  box-shadow: 0 8px 28px hsl(var(--shadow-base) / .07);
+  padding: 22px;
+}
+.breakroom-stats-title {
+  font-family: var(--app-font-display);
+  font-size: 13px; font-weight: 700; letter-spacing: -.02em;
+  color: hsl(var(--muted-foreground));
+  text-transform: uppercase; letter-spacing: .06em;
+  font-size: 11px;
+  margin-bottom: 16px;
+}
+.breakroom-stats-list { display: flex; flex-direction: column; gap: 4px; }
+.breakroom-stat-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 11px 12px;
+  border-radius: 13px;
+  background: hsl(var(--secondary));
+  transition: background .15s;
+}
+.breakroom-stat-icon { font-size: 20px; line-height: 1; flex-shrink: 0; }
+.breakroom-stat-body { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.breakroom-stat-label { font-size: 10.5px; color: hsl(var(--muted-foreground)); font-weight: 600; }
+.breakroom-stat-value {
+  font-family: var(--app-font-display);
+  font-size: 16px; font-weight: 700; letter-spacing: -.03em;
+  color: hsl(var(--foreground));
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.breakroom-stat-suffix { font-size: 11px; font-weight: 500; color: hsl(var(--muted-foreground)); letter-spacing: 0; }
 
 /* Section headings */
 .breakroom-section { margin-bottom: 48px; }
