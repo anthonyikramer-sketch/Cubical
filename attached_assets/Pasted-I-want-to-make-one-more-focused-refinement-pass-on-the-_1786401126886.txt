@@ -1,0 +1,1068 @@
+I want to make one more focused refinement pass on the widget system.
+
+DO NOT redesign the widget system or remove working functionality.
+
+Preserve:
+- existing Sakura styling
+- widget decorations
+- widget data
+- Edit Widgets functionality
+- Recall behavior
+- Home free positioning
+- existing widget features
+- existing compact Calendar design
+- existing Calendar full-month view and click behavior
+
+The following changes are the new requirements.
+
+==================================================
+1. USE ONE SHARED COARSE WIDGET GRID
+==================================================
+
+I now want ALL widgets to use the SAME sizing and positioning grid.
+
+This applies at all times.
+
+All widgets should use shared increments for:
+
+- X position
+- Y position
+- width
+- height
+
+The goal is visual uniformity.
+
+Widgets with similar dimensions should naturally line up perfectly because they are using the same underlying grid.
+
+Do NOT give different widgets slightly different sizing increments.
+
+==================================================
+2. MAKE THE GRID COARSER
+==================================================
+
+The current snapping/grid is TOO FINE.
+
+It feels like there are many tiny "micro snaps."
+
+I do not want that.
+
+Increase the distance between grid positions substantially.
+
+Dragging/resizing should have fewer, more meaningful stopping positions.
+
+Think:
+
+clear modular increments
+
+NOT:
+
+near-pixel-level snapping.
+
+I should be able to visibly feel each grid step while resizing or positioning a widget.
+
+==================================================
+3. USE A CONSISTENT WIDGET GUTTER
+==================================================
+
+There must also be a consistent minimum gap between neighboring widgets.
+
+Use approximately the CURRENT visual distance between the Notepad and Calendar on Home as the target gutter.
+
+That distance should become the standard minimum widget-to-widget spacing.
+
+Widgets should never settle closer together than this.
+
+The grid/gutter system should naturally produce clean spacing such as:
+
+[ Widget ]  GAP  [ Widget ]
+
+rather than allowing widgets to nearly touch.
+
+==================================================
+4. NO RUBBER-BANDING
+==================================================
+
+Keep the improved snapping behavior from the previous implementation.
+
+The new coarse grid must NOT reintroduce rubber-banding.
+
+The cursor remains authoritative.
+
+Dragging should feel:
+
+free
+-> approach grid position
+-> clean snap
+
+NOT:
+
+free
+-> widget pulls backward
+-> cursor fights widget
+-> repeated snap/un-snap
+
+The grid should feel firm and predictable, not elastic.
+
+==================================================
+5. SHARED SIZE INCREMENTS
+==================================================
+
+Widget resizing must use the same coarse grid.
+
+For example, if one widget can have widths corresponding conceptually to:
+
+3 units
+4 units
+5 units
+6 units
+
+another widget should use those same units.
+
+This allows different widgets to naturally share identical:
+
+- heights
+- widths
+- edges
+- alignment
+
+when desired.
+
+Individual widgets may still have different MINIMUM dimensions based on their content.
+
+Do not force every widget to literally have identical dimensions.
+
+Instead, force every widget to use the SAME dimensional increments.
+
+==================================================
+6. COMPACT SIZE MUST PRESERVE FUNCTION
+==================================================
+
+A widget's minimum size must be the smallest grid-aligned size that can still display its compact functionality correctly.
+
+Do NOT make widgets smaller than their content can reasonably support.
+
+If a widget needs more room to expose its full functionality, that should be handled by the expansion system described below.
+
+==================================================
+7. FIX NOTEPAD BOLD DEFAULT STATE
+==================================================
+
+In the current Notepad toolbar, the "B" Bold button is highlighted pink by default.
+
+I do NOT want Bold enabled by default.
+
+When Notepad opens or initializes with no active bold formatting:
+
+- Bold button should NOT be highlighted
+- Bold should NOT be active
+- new text should begin as normal-weight text
+
+The Bold button should only become highlighted when:
+
+- the user explicitly enables Bold
+
+OR
+
+- the current cursor/selection is actually inside bold text
+
+Do not merely change the color.
+
+Fix the underlying toolbar state.
+
+==================================================
+8. FIX TAB RELOAD / FLASH AFTER WIDGET TRANSFER
+==================================================
+
+There is currently an annoying behavior after transferring a widget.
+
+Example:
+
+I drag a widget to Library.
+
+The transfer succeeds.
+
+I remain on my current page, which is correct.
+
+Then I manually click Library.
+
+When Library opens, it appears to reload, refresh, remount, flash, or otherwise reinitialize because the widget was transferred there.
+
+Fix this.
+
+Moving a widget into another tab should update application state without requiring that destination page to reload when I later visit it.
+
+Navigating to the destination should feel exactly like normal Cubical navigation.
+
+No:
+
+- page reload
+- visible refresh
+- unnecessary remount
+- layout flash
+- reset
+- duplicate initialization
+- navigation hack
+
+The transported widget should simply already exist there.
+
+==================================================
+9. CROSS-TAB DRAGGING IS STILL BROKEN
+==================================================
+
+IMPORTANT:
+
+I STILL cannot reliably drag a widget from one tab to another.
+
+This must actually be fixed.
+
+Portable widgets must be transferable directly between:
+
+- Home
+- Store
+- Library
+- Breakroom
+
+from ANY of those locations.
+
+Examples:
+
+Home -> Library
+Library -> Store
+Store -> Breakroom
+Breakroom -> Home
+Library -> Breakroom
+Store -> Home
+
+All must work.
+
+Profile and Settings remain invalid destinations.
+
+==================================================
+10. CROSS-TAB DRAG MUST WORK FROM TRANSPORTED ROWS
+==================================================
+
+A widget already located in Library, Store, or Breakroom must be draggable out of that location and onto another valid sidebar destination.
+
+It must NOT become trapped in the transported widget row.
+
+The transported row is a layout location, not a permanent container.
+
+During cross-tab drag:
+
+- visually lift the widget out of the row
+- use the global drag overlay
+- allow it to travel across the page
+- render it ABOVE the sidebar
+- detect valid sidebar destinations underneath it
+- transfer it on valid drop
+
+==================================================
+11. CROSS-TAB DRAG FROM NESTED TOOL VIEWS
+==================================================
+
+This must also work while inside a tool.
+
+Example:
+
+I am inside Bulk File Renamer.
+
+Notepad is in the transported widget row.
+
+I grab Notepad.
+
+I drag it across the sidebar to Breakroom.
+
+Breakroom highlights as a valid destination.
+
+I release.
+
+Notepad transfers to Breakroom.
+
+I remain inside Bulk File Renamer.
+
+This should work for ALL portable widgets.
+
+==================================================
+12. DO NOT NAVIGATE AFTER TRANSFER
+==================================================
+
+Preserve the existing rule:
+
+MOVE THE WIDGET.
+
+DO NOT MOVE THE USER.
+
+If I send Calculator from Library to Breakroom:
+
+Calculator moves.
+
+I remain in Library.
+
+When I later manually visit Breakroom, Calculator is already there.
+
+==================================================
+13. INVALID DROP RETURNS TO ORIGIN
+==================================================
+
+Preserve exact-origin snapback.
+
+If a cross-tab drag fails or lands somewhere invalid:
+
+return the widget to exactly where it came from.
+
+Do not lose it.
+
+Do not navigate.
+
+Do not randomly reposition it.
+
+==================================================
+14. TRANSPORTED WIDGETS GET CLICK-TO-EXPAND
+==================================================
+
+Add a new interaction for widgets when they are located somewhere OTHER THAN HOME.
+
+In:
+
+- Store
+- Library
+- Breakroom
+- nested tool views
+
+widgets should normally appear in their compact transported state.
+
+CLICKING a compact transported widget should smoothly EXPAND that widget into a larger, more usable state.
+
+This expansion is NOT navigation.
+
+It is an in-place enlargement of the widget.
+
+Calendar is the exception to this GENERIC expansion system because Calendar already has its own existing compact-to-full behavior described below.
+
+==================================================
+15. CALENDAR EXCEPTION: PRESERVE EXISTING CLICK BEHAVIOR
+==================================================
+
+IMPORTANT:
+
+Calendar is an exception to the NEW GENERIC transported-widget expansion system.
+
+It is NOT an exception to click functionality.
+
+DO NOT make Calendar clicks do nothing.
+
+Calendar already has an existing interaction that I like and want to KEEP.
+
+When Calendar is transported to:
+
+- Store
+- Library
+- Breakroom
+- nested tool views
+
+its normal compact representation should remain:
+
+MONTH
+DAY NUMBER
+DAY OF WEEK
+
+Example:
+
+AUG
+10
+MONDAY
+
+When the user CLICKS this compact transported Calendar:
+
+OPEN/EXPAND the EXISTING greater Calendar interface showing:
+
+- the full monthly Calendar
+- all days of the month
+- existing events
+- existing Calendar controls
+- all current full-Calendar functionality
+
+Preserve this existing interaction.
+
+The Calendar is only exempt from the NEW generic enlargement behavior because it ALREADY has its own meaningful compact-to-full interaction.
+
+Therefore:
+
+Calculator click
+-> generic widget enlargement
+
+Notepad click
+-> generic widget enlargement
+
+Link Shelf click
+-> generic widget enlargement
+
+Decision Maker click
+-> generic widget enlargement
+
+Clock click
+-> generic widget enlargement / existing Clock controls as appropriate
+
+Calendar click
+-> EXISTING FULL CALENDAR VIEW
+
+Do not replace Calendar's existing full Calendar with a generic enlarged version of its compact card.
+
+==================================================
+16. CALENDAR CLICK VS DRAG
+==================================================
+
+Preserve the shared click-vs-drag threshold for Calendar.
+
+Normal Calendar click:
+
+pointer down
+-> little/no movement
+-> pointer up
+-> open existing full Calendar
+
+Calendar drag:
+
+pointer down
+-> movement exceeds drag threshold
+-> drag/reorder/transfer Calendar
+-> pointer up
+-> DROP ONLY
+-> DO NOT open full Calendar
+
+Dragging Calendar must never accidentally trigger its full-Calendar view after release.
+
+Clicking Calendar normally must continue opening its full-Calendar view.
+
+==================================================
+17. EXPANSION SHOULD EXPOSE THE USEFUL INTERFACE
+==================================================
+
+For GENERIC expandable widgets, when a transported widget expands, make it large enough that its useful interface becomes comfortably usable.
+
+Examples:
+
+Calculator:
+
+Compact state may show only a reduced calculator presentation.
+
+Click Calculator.
+
+Calculator expands enough to show the ENTIRE usable calculator interface.
+
+No calculator controls should remain cut off.
+
+Notepad:
+
+Click Notepad.
+
+It expands into a more comfortable writing/editing area.
+
+Link Shelf:
+
+Click Link Shelf.
+
+It expands enough to comfortably view/use its saved links.
+
+Decision Maker:
+
+Click Decision Maker.
+
+It expands enough to expose its useful controls/options.
+
+Clock:
+
+Click Clock.
+
+It expands enough to comfortably expose its clock/timer/alarm functionality.
+
+Calendar does NOT use this generic system.
+
+Calendar continues using its existing compact -> full Calendar interaction.
+
+==================================================
+18. EXPANSION USES THE SAME GRID
+==================================================
+
+Expanded widgets must STILL obey the shared coarse widget grid.
+
+Do not introduce arbitrary dimensions for expanded states.
+
+Expansion should move from:
+
+compact grid size
+
+to
+
+larger grid size.
+
+This keeps the entire interface geometrically coherent.
+
+==================================================
+19. EXPANSION SHOULD PUSH NEIGHBORS AWAY
+==================================================
+
+When a transported widget expands, neighboring widgets should smoothly make room for it.
+
+I want this to feel slightly physical.
+
+Imagine weak magnets repelling each other.
+
+Example:
+
+[ Notepad ][ Calculator ][ Clock ]
+
+Click Calculator.
+
+Calculator expands.
+
+Notepad gently shifts left.
+
+Clock gently shifts right.
+
+The motion should be:
+
+- subtle
+- smooth
+- short
+- calm
+- predictable
+
+NOT:
+
+- bouncing
+- flying
+- springy
+- chaotic
+
+==================================================
+20. PRESERVE THE STANDARD GUTTER DURING EXPANSION
+==================================================
+
+When widgets move aside for an expanded widget, maintain the SAME standard widget gap.
+
+They should never overlap.
+
+They should never become packed closer than the normal gutter.
+
+Conceptually:
+
+[Widget] GAP [EXPANDED WIDGET] GAP [Widget]
+
+==================================================
+21. NEIGHBORING WIDGETS DO NOT RESIZE
+==================================================
+
+When one widget expands:
+
+neighboring widgets MOVE.
+
+They do NOT resize.
+
+Example:
+
+Calculator expands.
+
+Calendar remains its existing size.
+
+Notepad remains its existing size.
+
+Clock remains its existing size.
+
+They simply reposition enough to accommodate Calculator.
+
+==================================================
+22. MULTIPLE WIDGETS MAY BE EXPANDED
+==================================================
+
+Do NOT make this an accordion where only one widget may be expanded.
+
+Multiple widgets may be expanded simultaneously.
+
+Example:
+
+Click Calculator.
+
+Calculator expands.
+
+Then click Notepad.
+
+Notepad also expands.
+
+Both remain expanded.
+
+The surrounding layout should gently reflow to accommodate them.
+
+==================================================
+23. GENERIC EXPANDED WIDGETS CAN COLLAPSE
+==================================================
+
+For GENERIC expandable transported widgets:
+
+compact widget
+-> click
+-> expand
+
+expanded widget
+-> appropriate collapse interaction
+-> compact
+
+Do not make interaction with controls inside the widget accidentally collapse it.
+
+For example:
+
+clicking Calculator button "7"
+
+must NOT collapse Calculator.
+
+Clicking inside Notepad to type
+
+must NOT collapse Notepad.
+
+Use appropriate event handling.
+
+If needed, provide a subtle collapse control when expanded rather than treating every internal click as a collapse.
+
+Again:
+
+Calendar retains its own existing Calendar interaction and should not be forced into this generic toggle system.
+
+==================================================
+24. CLICK VS DRAG STILL APPLIES
+==================================================
+
+Do NOT let the new click-to-expand behavior break dragging.
+
+The existing click-vs-drag threshold remains essential.
+
+Pointer down + minimal movement + release:
+
+CLICK
+-> expand/collapse where appropriate.
+
+Pointer down + movement beyond drag threshold:
+
+DRAG
+-> move/reorder/transfer widget.
+
+After a drag:
+
+DO NOT expand the widget.
+
+For Calendar specifically:
+
+CLICK
+-> existing full Calendar
+
+DRAG
+-> move/reorder/transfer only
+
+==================================================
+25. TRANSPORTED WIDGET AREA HEIGHT
+==================================================
+
+The transported widget area should use only as much vertical space as necessary.
+
+Its default height should be based on the TALLEST COMPACT WIDGET currently present.
+
+But that tallest compact widget should itself be:
+
+the SMALLEST grid-aligned height that preserves full compact visibility and functionality.
+
+In other words:
+
+Do not create a giant widget strip because one widget has unnecessary empty space.
+
+First make each compact widget intelligently small.
+
+Then determine row height from the tallest legitimate compact widget.
+
+==================================================
+26. COMPACT ROW HEIGHT
+==================================================
+
+When no widgets are expanded:
+
+the widget area should be as short as reasonably possible.
+
+Determine:
+
+largest required compact widget height
+
+then use that as the row height.
+
+Other compact widgets may align within that height.
+
+Avoid giant blank cards.
+
+==================================================
+27. EXPANDED ROW HEIGHT
+==================================================
+
+When a widget expands:
+
+the widget area may temporarily become taller as needed.
+
+Do not clip the expanded widget.
+
+Other widgets remain their own size.
+
+The layout should smoothly create the necessary space.
+
+When expanded widgets collapse:
+
+the widget area should smoothly return toward the compact row height.
+
+==================================================
+28. ROW WRAPPING
+==================================================
+
+Continue preferring ONE row whenever the available horizontal space can support it.
+
+If expanded widgets make one row impossible:
+
+allow a second row.
+
+Do this only when genuinely necessary.
+
+Do not shrink widgets below their functional minimum just to avoid wrapping.
+
+==================================================
+29. EXPANSION ANIMATION
+==================================================
+
+Expansion should feel polished and gentle.
+
+Animate:
+
+- widget width
+- widget height
+- neighboring positions
+- row height if necessary
+
+Keep the animation relatively quick.
+
+Avoid:
+
+- large bounce
+- overshoot
+- rubber-band effects
+- dramatic spring physics
+
+The visual metaphor is:
+
+quiet magnetic repulsion.
+
+==================================================
+30. HOME DOES NOT USE GENERIC CLICK-TO-EXPAND
+==================================================
+
+The new GENERIC click-to-expand transported behavior applies outside Home.
+
+Do NOT change normal Home widget clicking into this generic expansion behavior.
+
+Home remains the freeform desktop/workspace.
+
+Home widgets continue using their existing normal interactions and resize system.
+
+==================================================
+31. HOME STILL USES THE SHARED GRID
+==================================================
+
+Although Home remains freeform, it now uses the SAME coarse grid for:
+
+- position
+- resizing
+- widget spacing
+
+"Freeform" means I choose where widgets go.
+
+It does NOT mean arbitrary pixel positioning.
+
+Think of Home as a modular invisible grid with fairly generous increments.
+
+==================================================
+32. PRESERVE WIDGET DECORATIONS
+==================================================
+
+Sakura decorations attached to widgets must continue moving with their widgets.
+
+They must remain correctly positioned during:
+
+- normal dragging
+- resizing
+- expansion
+- collapse
+- transported reordering
+- cross-tab dragging
+- Recall
+
+Do not detach the decorative sprites.
+
+==================================================
+33. FUTURE WIDGETS MUST INHERIT THIS
+==================================================
+
+Update the shared widget architecture so future portable widgets automatically inherit:
+
+- shared coarse grid
+- shared sizing increments
+- standard gutter
+- Home positioning
+- resizing
+- cross-tab transfer
+- drag above sidebar
+- transported row placement
+- click-vs-drag handling
+- transported click-to-expand behavior where appropriate
+- neighboring magnetic reflow
+- multiple simultaneous expanded widgets
+- Recall behavior
+- canonical Home state
+
+Do NOT require every future widget to independently implement these behaviors.
+
+Widgets should be able to opt out of generic expansion when they have a purpose-built interaction like Calendar.
+
+Calendar should explicitly preserve its existing compact -> full Calendar behavior.
+
+==================================================
+34. TEST THE GRID
+==================================================
+
+Verify:
+
+1. Put several widgets on Home.
+
+2. Move them around.
+
+3. Confirm snapping uses clearly noticeable increments.
+
+4. Confirm there are no micro-snaps.
+
+5. Place widgets beside one another.
+
+6. Confirm the minimum gutter approximately matches the current visual gap between Notepad and Calendar.
+
+7. Resize multiple widgets.
+
+8. Confirm they use identical sizing increments.
+
+9. Confirm matching dimensions align exactly.
+
+==================================================
+35. TEST NOTEPAD BOLD
+==================================================
+
+10. Reload/open Cubical.
+
+11. Inspect Notepad.
+
+12. Confirm Bold is NOT active by default.
+
+13. Type normal text.
+
+14. Confirm text is normal weight.
+
+15. Click Bold.
+
+16. Confirm Bold becomes highlighted.
+
+17. Confirm bold text works normally.
+
+==================================================
+36. TEST CROSS-TAB DRAGGING
+==================================================
+
+18. Move Notepad Home -> Library.
+
+19. Confirm transfer succeeds.
+
+20. Confirm user remains Home.
+
+21. Open Library manually.
+
+22. Confirm Notepad is already there WITHOUT a page reload/flash.
+
+23. Drag Notepad Library -> Store.
+
+24. Confirm it visually travels ABOVE sidebar.
+
+25. Confirm transfer succeeds.
+
+26. Confirm user remains Library.
+
+27. Test Store -> Breakroom.
+
+28. Test Breakroom -> Home.
+
+29. Repeat from inside at least one nested tool view.
+
+30. Confirm Profile and Settings reject drops.
+
+==================================================
+37. TEST GENERIC EXPANSION
+==================================================
+
+31. Put Calculator, Notepad, Clock, Link Shelf, and Decision Maker in Library.
+
+32. Open Library.
+
+33. Confirm they begin compact.
+
+34. Click Calculator.
+
+35. Confirm Calculator smoothly expands.
+
+36. Confirm ENTIRE calculator becomes usable.
+
+37. Confirm neighboring widgets gently move away.
+
+38. Confirm standard gutters remain.
+
+39. Confirm neighboring widgets do NOT resize.
+
+40. Click Notepad.
+
+41. Confirm Notepad ALSO expands.
+
+42. Confirm Calculator remains expanded.
+
+43. Confirm multiple expanded widgets coexist correctly.
+
+44. Collapse Calculator.
+
+45. Confirm surrounding widgets gently move back.
+
+46. Confirm Notepad remains expanded.
+
+==================================================
+38. TEST CALENDAR EXISTING BEHAVIOR
+==================================================
+
+47. Put Calendar in the same transported area.
+
+48. Confirm Calendar begins in its existing compact presentation:
+
+MONTH
+DAY NUMBER
+DAY OF WEEK
+
+49. Click Calendar normally.
+
+50. Confirm the EXISTING full Calendar opens.
+
+51. Confirm the full Calendar shows its month/day grid and existing functionality.
+
+52. Close/return from the full Calendar as currently designed.
+
+53. Confirm Calendar returns to its appropriate compact state.
+
+54. Drag Calendar without opening it.
+
+55. Confirm Calendar moves/reorders/transfers.
+
+56. Release after dragging.
+
+57. Confirm the full Calendar DOES NOT accidentally open.
+
+58. Click Calendar normally again.
+
+59. Confirm the full Calendar DOES open.
+
+The required distinction is:
+
+CLICK CALENDAR = FULL CALENDAR
+
+DRAG CALENDAR = MOVE CALENDAR
+
+==================================================
+39. TEST CLICK VS DRAG
+==================================================
+
+60. Click Calculator.
+
+61. Confirm it expands.
+
+62. Collapse it.
+
+63. Drag Calculator.
+
+64. Confirm it moves.
+
+65. Confirm it does NOT expand after the drag.
+
+66. Drag Notepad.
+
+67. Confirm it does not accidentally activate formatting or collapse/expand.
+
+68. Confirm controls inside expanded widgets remain independently clickable.
+
+69. Drag Calendar.
+
+70. Confirm Calendar does NOT open.
+
+71. Click Calendar.
+
+72. Confirm Calendar DOES open.
+
+==================================================
+40. FINAL GOAL
+==================================================
+
+The widget system should now feel intentionally modular.
+
+HOME:
+
+A free-positioned desktop using a visible-feeling but invisible coarse modular grid.
+
+TRANSPORTED WIDGETS:
+
+A compact utility strip that can temporarily expand individual tools when needed.
+
+CALENDAR:
+
+A purpose-built exception.
+
+Its compact card remains:
+
+MONTH
+DAY NUMBER
+DAY OF WEEK
+
+Clicking it continues opening the existing full Calendar.
+
+Dragging it moves it without opening it.
+
+MOVEMENT:
+
+Firm, predictable grid snapping without rubber-banding.
+
+SPACING:
+
+Consistent gutters between widgets.
+
+EXPANSION:
+
+Gentle magnetic reflow where neighboring widgets move aside but retain their own dimensions.
+
+TRANSFER:
+
+Widgets can actually travel between Home, Store, Library, and Breakroom from ANY valid origin without reloading pages or navigating the user.
+
+The overall feeling should be:
+
+physical
+modular
+calm
+predictable
+useful
+
+not:
+
+pixel-perfect fiddling
+micro-snapping
+elastic dragging
+dashboard rigidity
+
+Do not make unrelated visual or functional changes.

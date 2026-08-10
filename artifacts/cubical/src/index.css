@@ -3108,10 +3108,10 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
   align-items: stretch;
 }
 
-/* ── Card shell: default (compact widgets like Clock, Calendar, Calculator) ── */
+/* ── Card shell: width-based so CSS transitions animate smooth expansion ── */
 .displaced-band-card {
-  flex: 0 0 200px;
-  min-width: 160px;
+  flex: 0 0 auto;
+  width: 200px;
   border: 1px solid hsl(var(--border));
   border-radius: 16px;
   background: hsl(var(--card));
@@ -3120,8 +3120,10 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
   display: flex;
   flex-direction: column;
   user-select: none;
-  transition: opacity .15s;
+  cursor: grab;
+  transition: width 220ms ease-out, opacity .15s;
 }
+.displaced-band-card:active { cursor: grabbing; }
 .displaced-band-card.is-reorder-drag { opacity: .45; }
 
 /* Sakura decorations inside the band card.
@@ -3143,13 +3145,22 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
   top: 0; right: 4px;
 }
 
-/* Widget-specific widths */
-.displaced-band-card[data-widget="notepad"]        { flex: 0 0 480px; min-width: 300px; }
-.displaced-band-card[data-widget="link-shelf"]     { flex: 0 0 280px; }
-.displaced-band-card[data-widget="decision-maker"] { flex: 0 0 260px; }
-.displaced-band-card[data-widget="clock"]          { flex: 0 0 180px; }
+/* Compact widths (aligned to 80px grid) */
+.displaced-band-card[data-widget="notepad"]        { width: 480px; }
+.displaced-band-card[data-widget="link-shelf"]     { width: 240px; }
+.displaced-band-card[data-widget="decision-maker"] { width: 240px; }
+.displaced-band-card[data-widget="clock"]          { width: 160px; }
+.displaced-band-card[data-widget="calculator"]     { width: 200px; }
+.displaced-band-card[data-widget="calendar"]       { width: 160px; }
 
-/* ── Header: drag grip + widget label + Recall button ── */
+/* ── Expanded widths — neighbours shift smoothly via flexbox reflow ── */
+.displaced-band-card.is-expanded[data-widget="notepad"]        { width: 560px; }
+.displaced-band-card.is-expanded[data-widget="link-shelf"]     { width: 320px; }
+.displaced-band-card.is-expanded[data-widget="decision-maker"] { width: 320px; }
+.displaced-band-card.is-expanded[data-widget="clock"]          { width: 240px; }
+.displaced-band-card.is-expanded[data-widget="calculator"]     { width: 240px; }
+
+/* ── Header: grip label + actions (collapse + recall) ── */
 .displaced-band-header {
   display: flex;
   align-items: center;
@@ -3161,6 +3172,11 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
   cursor: grab;
 }
 .displaced-band-header:active { cursor: grabbing; }
+.displaced-band-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
 
 .displaced-grip {
   width: 13px;
@@ -3181,15 +3197,45 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
   text-transform: uppercase;
 }
 
-/* ── Body: shared row height; Notepad scrolls internally rather than growing ── */
+/* ── Body: compact shared height; expands per-widget on .is-expanded ── */
 .displaced-band-body {
   height: 148px;
   overflow: hidden;
   position: relative;
   flex: 1 0 auto;
+  transition: height 220ms ease-out;
 }
-.displaced-band-card[data-widget="notepad"] .displaced-band-body {
-  overflow-y: auto;
+.displaced-band-card[data-widget="notepad"] .displaced-band-body { overflow-y: auto; }
+/* In expanded state, body grows to expose full widget UI */
+.displaced-band-card.is-expanded .displaced-band-body                         { height: 320px; }
+.displaced-band-card.is-expanded[data-widget="calculator"] .displaced-band-body { height: 380px; }
+.displaced-band-card.is-expanded[data-widget="clock"]      .displaced-band-body { height: 220px; }
+.displaced-band-card.is-expanded[data-widget="notepad"]    .displaced-band-body { height: 300px; }
+.displaced-band-card.is-expanded[data-widget="link-shelf"] .displaced-band-body { height: 260px; overflow-y: auto; }
+.displaced-band-card.is-expanded[data-widget="decision-maker"] .displaced-band-body { height: 260px; }
+/* In expanded state body is interactive — body cursor reverts */
+.displaced-band-card.is-expanded .displaced-band-body { cursor: default; }
+
+/* Collapse button — appears on expanded cards beside Recall */
+.displaced-collapse-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 6px;
+  background: transparent;
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  transition: background .15s, border-color .15s, color .15s;
+  flex-shrink: 0;
+}
+.displaced-collapse-btn svg { width: 13px; height: 13px; }
+.displaced-collapse-btn:hover {
+  background: hsl(var(--secondary));
+  border-color: hsl(var(--border) / .8);
+  color: hsl(var(--fg));
 }
 
 .displaced-recall-btn {

@@ -1796,7 +1796,7 @@ function NotepadWidget({ compact = false }: { compact?: boolean }) {
             title="Toggle toolbar"
             onClick={() => setToolbarVisible((v) => !v)}
           >
-            <Bold />
+            <Pencil />
           </button>
           {charCount > 0 && (
             confirmClear ? (
@@ -2512,7 +2512,7 @@ function HomeWorkspace({
     // Snap engages when within SNAP_ENTER px of a grid line; releases only when
     // the cursor moves more than SNAP_EXIT px away, avoiding oscillation.
     let snapX = false, snapY = false;
-    const SNAP_ENTER = 10, SNAP_EXIT = 18;
+    const SNAP_ENTER = 16, SNAP_EXIT = 28;
     const applySnapAxis = (raw: number, wasSnapped: boolean): { val: number; snapped: boolean } => {
       const nearest = Math.round(raw / SNAP_GRID) * SNAP_GRID;
       const dist    = Math.abs(raw - nearest);
@@ -2917,18 +2917,37 @@ function isSectionMatch(location: string, page: string): boolean {
 
 function DisplacedWidgetBand() {
   const [location] = useLocation();
-  const { displaced, recall, reorderDisplaced } = usePortable();
+  const { displaced, recall, reorderDisplaced, setDragId, hoverPageRef, displace } = usePortable();
   const isSakura = readEquippedSkin() === 'sakura';
   const bandRef = useRef<HTMLDivElement>(null);
+
+  // Within-band reorder state
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [dropIdx, setDropIdx] = useState<number | null>(null);
+
+  // Click-to-expand state (Calendar is exempt — it has its own overlay)
+  const [expandedIds, setExpandedIds] = useState<Set<WidgetId>>(new Set());
+
+  // Cross-tab drag portal ghost
+  const [portalInfo, setPortalInfo] = useState<{ id: WidgetId; w: number; h: number } | null>(null);
+  const portalGhostRef  = useRef<HTMLDivElement | null>(null);
+  const portalOffsetRef = useRef({ dx: 0, dy: 0 });
+  const portalInitRef   = useRef({ x: 0, y: 0 });
+
+  // Transfer feedback
+  const [bandToast, setBandToast] = useState<string | null>(null);
+  useEffect(() => {
+    if (!bandToast) return;
+    const t = setTimeout(() => setBandToast(null), 2600);
+    return () => clearTimeout(t);
+  }, [bandToast]);
 
   const bandWidgets = displaced.filter((d) => isSectionMatch(location, d.page));
   if (bandWidgets.length === 0) return null;
 
   const sectionPage = bandWidgets[0]?.page ?? '';
 
-  // Live visual reorder preview while dragging
+  // Live reorder preview
   const displayWidgets = (() => {
     if (dragIdx === null || dropIdx === null || dragIdx === dropIdx) return bandWidgets;
     const arr = [...bandWidgets];
@@ -2937,32 +2956,133 @@ function DisplacedWidgetBand() {
     return arr;
   })();
 
-  const startReorder = (origIdx: number) => (e: React.PointerEvent) => {
+  const toggleExpand = (id: WidgetId) => {
+    if (id === 'calendar') return; // Calendar uses its own compact→full overlay
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  // Unified drag handler for the entire card.
+  // - Tiny movement (< 6 px): treated as a click → expand/collapse for non-Calendar widgets
+  // - Dragged within band bounds: within-row reorder
+  // - Dragged out of band toward sidebar: cross-tab portal drag
+  const startBandDrag = (origIdx: number, widgetId: WidgetId) => (e: React.PointerEvent) => {
     e.stopPropagation();
-    setDragIdx(origIdx);
-    setDropIdx(origIdx);
+    const startMX = e.clientX, startMY = e.clientY;
+    let dragging = false;
+    let crossTab  = false;
+    let inSidebar = false;
 
     const onMove = (ev: PointerEvent) => {
-      if (!bandRef.current) return;
-      const cards = Array.from(bandRef.current.querySelectorAll<HTMLElement>('.displaced-band-card'));
-      let newDrop = bandWidgets.length - 1;
-      for (let i = 0; i < cards.length; i++) {
-        const r = cards[i].getBoundingClientRect();
-        if (ev.clientX < r.left + r.width / 2) { newDrop = i; break; }
+      const dx = ev.clientX - startMX;
+      const dy = ev.clientY - startMY;
+
+      if (!dragging) {
+        if (Math.hypot(dx, dy) < 6) return;
+        dragging = true;
+        setDragIdx(origIdx);
+        setDropIdx(origIdx);
       }
-      setDropIdx(Math.max(0, Math.min(newDrop, bandWidgets.length - 1)));
+
+      // Sidebar edge = left of .cubical-main (right edge of the sidebar panel)
+      const mainLeft = (
+        bandRef.current?.closest('.cubical-main') ?? document.querySelector('.cubical-main')
+      )?.getBoundingClientRect().left ?? 260;
+
+      const bandRect = bandRef.current?.getBoundingClientRect();
+      const outsideBand = bandRect && (
+        ev.clientX < bandRect.left - 40 ||
+        ev.clientY < bandRect.top  - 60 ||
+        ev.clientY > bandRect.bottom + 60
+      );
+
+      if (!crossTab && outsideBand) {
+        // Switch to cross-tab mode — mount portal ghost above sidebar
+        crossTab = true;
+        setDragIdx(null);
+        setDropIdx(null);
+
+        const cardEl = bandRef.current?.querySelector(
+          `[data-testid="displaced-card-${widgetId}"]`
+        ) as HTMLElement | null;
+        const rect = cardEl?.getBoundingClientRect() ?? { left: 0, top: 0, width: 200, height: 184 };
+        portalOffsetRef.current = { dx: startMX - rect.left, dy: startMY - rect.top };
+        portalInitRef.current   = { x: ev.clientX - portalOffsetRef.current.dx, y: ev.clientY - portalOffsetRef.current.dy };
+        setPortalInfo({ id: widgetId, w: rect.width, h: rect.height });
+      }
+
+      if (crossTab) {
+        if (portalGhostRef.current) {
+          const { dx: pdx, dy: pdy } = portalOffsetRef.current;
+          portalGhostRef.current.style.transform = `translate(${ev.clientX - pdx}px,${ev.clientY - pdy}px)`;
+        }
+        if (ev.clientX < mainLeft) {
+          if (!inSidebar) { inSidebar = true; setDragId(widgetId); }
+        } else if (inSidebar) {
+          inSidebar = false;
+          setDragId(null);
+        }
+      } else {
+        // Within-band reorder
+        if (!bandRef.current) return;
+        const cards = Array.from(bandRef.current.querySelectorAll<HTMLElement>('.displaced-band-card'));
+        let newDrop = bandWidgets.length - 1;
+        for (let i = 0; i < cards.length; i++) {
+          const r = cards[i].getBoundingClientRect();
+          if (ev.clientX < r.left + r.width / 2) { newDrop = i; break; }
+        }
+        setDropIdx(Math.max(0, Math.min(newDrop, bandWidgets.length - 1)));
+      }
     };
 
     const onUp = () => {
       document.removeEventListener('pointermove', onMove);
       document.removeEventListener('pointerup', onUp);
-      setDragIdx((di) => {
-        setDropIdx((dt) => {
-          if (di !== null && dt !== null && di !== dt) reorderDisplaced(sectionPage, di, dt);
+
+      if (!dragging) {
+        // Pure click → expand/collapse (Calendar handles its own click)
+        toggleExpand(widgetId);
+        return;
+      }
+
+      // Suppress synthesised click so widget controls don't fire after drag
+      const suppressClick = (ce: MouseEvent) => {
+        ce.stopPropagation();
+        document.removeEventListener('click', suppressClick, true);
+      };
+      document.addEventListener('click', suppressClick, true);
+
+      if (crossTab) {
+        setPortalInfo(null);
+        setDragId(null);
+        const dropPage = inSidebar ? hoverPageRef.current : null;
+
+        if (dropPage === '/') {
+          // Dragged to Home nav → Recall
+          recall(widgetId);
+          setBandToast(`${WIDGET_LABELS[widgetId]} recalled to Home`);
+        } else if (dropPage && dropPage !== sectionPage) {
+          // Valid cross-tab transfer
+          const PAGE_LABEL: Record<string, string> = {
+            '/store': 'Store', '/library': 'Library', '/breakroom': 'Breakroom',
+          };
+          displace(widgetId, dropPage);
+          setBandToast(`${WIDGET_LABELS[widgetId]} moved to ${PAGE_LABEL[dropPage] ?? dropPage}`);
+        }
+        // inSidebar && !dropPage → widget stays put (invalid drop, no snapback needed for band)
+      } else {
+        // Commit reorder
+        setDragIdx((di) => {
+          setDropIdx((dt) => {
+            if (di !== null && dt !== null && di !== dt) reorderDisplaced(sectionPage, di, dt);
+            return null;
+          });
           return null;
         });
-        return null;
-      });
+      }
     };
 
     document.addEventListener('pointermove', onMove);
@@ -2972,41 +3092,87 @@ function DisplacedWidgetBand() {
   return (
     <div className="displaced-band" data-testid="displaced-band" ref={bandRef}>
       {displayWidgets.map((d) => {
-        const origIdx = bandWidgets.indexOf(d);
+        const origIdx    = bandWidgets.indexOf(d);
         const isDragging = origIdx === dragIdx;
+        const isExpanded = expandedIds.has(d.id);
+        const canExpand  = d.id !== 'calendar';
         return (
           <div
             key={d.id}
-            className={`displaced-band-card${isDragging ? ' is-reorder-drag' : ''}`}
+            className={`displaced-band-card${isDragging ? ' is-reorder-drag' : ''}${isExpanded ? ' is-expanded' : ''}`}
             data-widget={d.id}
             data-testid={`displaced-card-${d.id}`}
+            onPointerDown={startBandDrag(origIdx, d.id)}
           >
             {isSakura && <SakuraWidgetDecoration widgetId={d.id} />}
-            <div className="displaced-band-header" onPointerDown={startReorder(origIdx)}>
+            <div className="displaced-band-header">
               <span className="displaced-band-label">
                 <GripHorizontal className="displaced-grip" />
                 {WIDGET_LABELS[d.id]}
               </span>
-              <button
-                className="displaced-recall-btn"
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={() => recall(d.id)}
-                title="Send back to Home"
-              >
-                <CornerUpLeft /> Recall
-              </button>
+              <div className="displaced-band-header-actions">
+                {isExpanded && canExpand && (
+                  <button
+                    className="displaced-collapse-btn"
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={(e) => { e.stopPropagation(); toggleExpand(d.id); }}
+                    title="Collapse"
+                  >
+                    <ChevronDown />
+                  </button>
+                )}
+                <button
+                  className="displaced-recall-btn"
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => { e.stopPropagation(); recall(d.id); }}
+                  title="Send back to Home"
+                >
+                  <CornerUpLeft /> Recall
+                </button>
+              </div>
             </div>
-            <div className="displaced-band-body">
+            {/* In expanded mode, stop propagation on body so controls work without triggering card drag */}
+            <div
+              className="displaced-band-body"
+              onPointerDown={isExpanded ? (e) => e.stopPropagation() : undefined}
+            >
               {d.id === 'notepad'        && <NotepadWidget compact={false} />}
               {d.id === 'calendar'       && <CalendarWidget gridW={3} gridH={3} />}
-              {d.id === 'clock'          && <ClockWidget gridH={1} />}
-              {d.id === 'link-shelf'     && <LinkShelfWidget gridW={3} gridH={2} />}
-              {d.id === 'decision-maker' && <DecisionMakerWidget gridW={3} gridH={2} />}
+              {d.id === 'clock'          && <ClockWidget gridH={isExpanded ? 2 : 1} />}
+              {d.id === 'link-shelf'     && <LinkShelfWidget gridW={isExpanded ? 4 : 3} gridH={isExpanded ? 3 : 2} />}
+              {d.id === 'decision-maker' && <DecisionMakerWidget gridW={isExpanded ? 4 : 3} gridH={isExpanded ? 3 : 2} />}
               {d.id === 'calculator'     && <CalculatorWidget />}
             </div>
           </div>
         );
       })}
+
+      {/* Cross-tab drag portal ghost — floats above all stacking contexts incl. sidebar */}
+      {portalInfo && createPortal(
+        <div
+          ref={(el) => {
+            portalGhostRef.current = el;
+            if (el) el.style.transform = `translate(${portalInitRef.current.x}px,${portalInitRef.current.y}px)`;
+          }}
+          style={{
+            position: 'fixed', top: 0, left: 0,
+            width: portalInfo.w, height: portalInfo.h,
+            zIndex: 9999, pointerEvents: 'none', willChange: 'transform',
+          }}
+        >
+          <div className="grid-widget is-active drag-ghost-card">
+            <span className="drag-ghost-label">{WIDGET_LABELS[portalInfo.id]}</span>
+          </div>
+          {isSakura && <SakuraWidgetDecoration widgetId={portalInfo.id} />}
+        </div>,
+        document.body,
+      )}
+
+      {bandToast && (
+        <div className="toast-message" role="status" data-testid="band-transfer-toast">
+          <Check /> {bandToast}
+        </div>
+      )}
     </div>
   );
 }
@@ -5555,4 +5721,4 @@ function snapItem(item: LayoutItem): LayoutItem {
   return { ...item, x: snapVal(item.x), y: snapVal(item.y), w: snapVal(item.w), h: snapVal(item.h) };
 }
 
-const SNAP_GRID = 40; // px — soft grid cell size
+const SNAP_GRID = 80; // px — coarse modular grid (feels intentionally stepped, not pixel-level)

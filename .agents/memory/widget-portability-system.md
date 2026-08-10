@@ -1,6 +1,6 @@
 ---
 name: Widget portability system
-description: How Cubical's portable-widget system works — registry, drag, displaced band, section routing, portal ghost, snap hysteresis
+description: How Cubical's portable-widget system works — registry, drag, displaced band, section routing, portal ghost, snap, click-to-expand
 ---
 
 # Widget portability system
@@ -8,95 +8,108 @@ description: How Cubical's portable-widget system works — registry, drag, disp
 ## Portability default
 Widgets are portable by default — `isPortableWidget(id)` returns `true` for any widget in `WIDGET_REGISTRY` that does NOT have `portable: false`. Widgets absent from the registry (e.g. file-finder) are NOT portable.
 
-**Why:** Future widgets added to the registry automatically inherit portability without bespoke code.
-
 ## Drag is always-on (no isEditing guard)
-`startDrag` in `HomeWorkspace` runs regardless of `isEditing`. A **6px dead-zone** threshold prevents accidental drags from content taps. Only resize stays gated on `isEditing`. `onPointerDown={onDragStart}` is set on `.grid-widget-outer` unconditionally.
-
-**Why:** Spec rule — Edit Widgets mode must never be required for dragging.
+`startDrag` in `HomeWorkspace` runs regardless of `isEditing`. A **6px dead-zone** threshold prevents accidental drags from content taps. Only resize stays gated on `isEditing`.
 
 ## Portal drag ghost (above sidebar)
-During drag, a ghost div is rendered via `createPortal` at `document.body`. The original widget gets class `is-dragging-outer` (opacity:0, pointer-events:none). Position updates use direct DOM (`el.style.transform = translate(x,y)`) for 60fps performance — NOT setState per frame. Initial position is set synchronously in the ref callback to avoid one-frame flash at (0,0).
+During drag, a ghost div is rendered via `createPortal` at `document.body`. The original widget gets class `is-dragging-outer` (opacity:0, pointer-events:none). Position updates use direct DOM (`el.style.transform = translate(x,y)`) for 60fps performance. Initial position is set synchronously in the ref callback to avoid one-frame flash at (0,0).
 
 Key refs: `portalDragElRef`, `portalOffsetRef` (cursor-to-widget offset), `portalInitPosRef` (initial portal position).
 Ghost: `position:fixed; top:0; left:0; z-index:9999; pointer-events:none; willChange:transform`.
 
-**Why:** z-index on `.is-active-outer` alone failed because stacking context ancestors can confine it. Portal at body is above everything.
-
-**Sidebar detection still works:** Ghost has `pointer-events:none` so underlying nav links receive `pointerEnter` and set `hoverPageRef` normally.
+**Why:** z-index alone fails because stacking context ancestors confine it. Portal at body is above everything.
 
 ## is-active-outer vs is-dragging-outer — IMPORTANT SPLIT
 `.grid-widget-outer.is-active-outer` — ONLY disables CSS transitions (applies to both drag and resize).
 `.grid-widget-outer.is-dragging-outer` — applies opacity:0 + pointer-events:none (drag only; portal ghost replaces it).
 
 During RESIZE the widget must stay visible (no portal ghost exists). Do NOT add opacity:0 to `is-active-outer`.
-During DRAG: both classes applied → widget hidden, ghost visible.
 
 In `GridWidget`:
 ```tsx
 const isActive   = activeItem?.id === item.id && activeMode !== null;
 const isDragging = activeItem?.id === item.id && activeMode === 'drag';
-// ...
-className={`grid-widget-outer${isActive ? ' is-active-outer' : ''}${isDragging ? ' is-dragging-outer' : ''}`}
 ```
 
 ## Click vs drag suppression
-After a drag completes, a browser-synthesised `click` event fires on the release target. Prevent it with a one-shot capture-phase listener added in `onUp` ONLY when `dragging === true`:
+After any drag, a one-shot capture-phase `click` listener is added in `onUp` (only when `dragging === true`) that calls `stopPropagation()` and removes itself. Prevents Calendar open, calculator button press, etc. after drag.
 
-```typescript
-const suppressClick = (ce: MouseEvent) => {
-  ce.stopPropagation();
-  document.removeEventListener('click', suppressClick, true);
-};
-document.addEventListener('click', suppressClick, true);
-```
+## Coarse snap grid
+`SNAP_GRID = 80` — deliberately coarse for a felt "stepping" quality. Values 40 and below feel like micro-snapping.
 
-## Snap hysteresis (no rubber-banding)
-Per-axis hysteresis in the drag closure prevents oscillation near grid lines.
-- **SNAP_ENTER = 10px**: snap engages when cursor is within 10px of a grid line
-- **SNAP_EXIT = 18px**: snap releases only when cursor moves 18px+ away from that grid line
+Per-axis hysteresis prevents rubber-banding near grid lines:
+- **SNAP_ENTER = 16px**: snap engages when cursor is within 16px of a grid line
+- **SNAP_EXIT = 28px**: snap releases only when cursor moves 28px+ away
 - Each axis tracked independently (`snapX`, `snapY` closure vars, reset on each new drag)
-- The old `snapItem()` (pure rounding) is NOT used in drag — only in resize snap (acceptable there since resize is deliberate)
-
-**Why:** Pure rounding snaps/unsnaps at the same distance, causing oscillation near midpoints. Hysteresis prevents this.
 
 ## Cross-tab transfer — no auto-navigation
 After `displace(id, dropPage)`, user remains on the current page. No `navigate(dropPage)` call.
 A `transferToast` ("Notepad moved to Library") is shown via `useState<string|null>` in `HomeWorkspace`, auto-cleared after 2600ms.
+**Tab flash** (user sees page "reload" on navigation after transfer) was caused by this `navigate()` call; removing it also fixes the flash.
 
 ## Snapback on invalid cross-tab drop
 If `inSidebar && !hoverPageRef.current` (dropped over Profile, Settings, or empty sidebar region):
-- Restore widget to exact `origX, origY` — no clamp, no transfer, no navigation.
-- Distinguishes from normal Home repositioning (where clamping-to-canvas is appropriate).
+- HomeWorkspace: restore widget to exact `origX, origY`
+- DisplacedWidgetBand: widget stays put (no snapback needed — it stays in place in the band)
+
+## DisplacedWidgetBand — unified drag handler
+`startBandDrag(origIdx, widgetId)` is placed on the ENTIRE card (not just header). Behaviour by movement:
+- **< 6px movement**: treated as click → `toggleExpand(widgetId)` (Calendar exempt)
+- **Drag within band bounds**: within-row reorder (same as before)
+- **Drag outside band toward sidebar**: cross-tab portal drag (same portal ghost pattern as HomeWorkspace)
+
+Sidebar detection: `const mainLeft = (bandRef.current?.closest('.cubical-main') ?? document.querySelector('.cubical-main'))?.getBoundingClientRect().left ?? 260`
+
+Cross-tab drop outcomes from band:
+- `dropPage === '/'` → `recall(widgetId)` (returns to Home)
+- `dropPage && dropPage !== sectionPage` → `displace(widgetId, dropPage)` + toast
+- `inSidebar && !dropPage` → widget stays put (invalid drop)
+
+## Click-to-expand (transported widgets only)
+`expandedIds: Set<WidgetId>` in `DisplacedWidgetBand`. Calendar is EXEMPT — it already has its own compact→full overlay on click.
+
+Compact card: click anywhere → expand (body doesn't stopPropagation, so click bubbles to card's `startBandDrag` → click → `toggleExpand`)
+Expanded card: body has `onPointerDown={(e) => e.stopPropagation()}` so controls work independently; collapse button (ChevronDown) in header.
+
+CSS transitions: `width 220ms ease-out` on `.displaced-band-card`, `height 220ms ease-out` on `.displaced-band-body`.
+
+## Expanded card dimensions
+Compact body: 148px. Expanded body per widget:
+- Calculator: 380px, width 240px
+- Clock: 220px, width 240px
+- Notepad: 300px, width 560px
+- Link Shelf: 260px (overflow-y:auto), width 320px
+- Decision Maker: 260px, width 320px
+- Calendar: stays compact (own behavior), width 160px
 
 ## Sidebar collapse — immediate on pointer leave
-`handleSidebarLeave` directly calls `setSidebarCollapsed(true)` — no setTimeout. Guard: pinned sidebar and `window.innerWidth <= 800` are exempt. `readSettings().sidebarAutoCollapse` must be true (same gate as before).
+`handleSidebarLeave` directly calls `setSidebarCollapsed(true)` — no setTimeout.
 
 ## CalendarMode thresholds (approx grid units)
 ```
-tile   : w <= 4 || h <= 4   (≈ ≤ 328px wide or ≤ 368px tall)
-full   : w >= 6 && h >= 6   (≈ ≥ 492px wide and ≥ 552px tall)
+tile   : w <= 4 || h <= 4
+full   : w >= 6 && h >= 6
 compact: in between
 ```
 In DisplacedWidgetBand, Calendar is passed `gridW={3} gridH={3}` → tile (compact day-card) mode.
 
 ## WIDGET_MIN (minimum drag-resize bounds)
-- `calendar: { w: 120, h: 110 }` — allows tight tile day-card
-- `clock: { w: 140, h: 100 }` — compact desk clock at minimum
+- `calendar: { w: 120, h: 110 }`
+- `clock: { w: 140, h: 100 }`
 
-## DisplacedWidgetBand
-- One horizontal flex row (`flex-wrap: wrap`), body height **148px** (set once in `.displaced-band-body`)
-- Notepad card: `flex: 0 0 480px; min-width: 300px` (wider than tall — spec requirement)
-- Clock: `flex: 0 0 180px`, Calendar: `flex: 0 0 200px`, default: `flex: 0 0 200px`
-- Header (grip icon + label + Recall) is the drag handle for horizontal reordering
-- `reorderDisplaced(page, fromIdx, toIdx)` in PortableCtx reorders within a section
-- There was a duplicate `.displaced-band-body` rule (min-height:220px) that was removed — keep only the first rule at height:148px
+## Notepad toolbar toggle icon
+The toolbar visibility toggle button in the Notepad header uses `<Pencil />` icon (NOT `<Bold />`). Using Bold caused user confusion — the B icon highlights when toolbar is open, looking like bold formatting is active. Pencil is semantically clearer.
 
-## DisplacedWidgetBand placement rule
-Must appear AFTER the tool title/header block and BEFORE main content.
+## DisplacedWidgetBand portal for cross-tab drag
+Same pattern as HomeWorkspace: `createPortal` at `document.body`, `portalGhostRef`, `portalOffsetRef`, `portalInitRef`. Also has `bandToast` state for transfer feedback (same 2600ms auto-dismiss).
+
+## DisplacedWidgetBand CSS — width-based (not flex-basis) for transitions
+Use `flex: 0 0 auto; width: Xpx` (not `flex: 0 0 Xpx`) so CSS `transition: width` works reliably across browsers.
+There was a duplicate `.displaced-band-body` rule (min-height:220px) that was removed — keep only `height:148px` in the first rule.
 
 ## Section routing
 - `/store` → includes `/product/*`
 - `/library` → includes `/tool/*`
 - `/breakroom` → exact only
 - Profile and Settings remain invalid drop targets
+- Home `/` → handled via `recall()` (not `displace('/')`)
