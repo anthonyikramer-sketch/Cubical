@@ -1,0 +1,199 @@
+Add six new full TOOLS to Cubical and list them in the Store as FREE tools.
+
+IMPORTANT: These are NOT widgets.
+
+They should behave like the existing full-size tools such as File Finder and Bulk File Organizer. They should be installed/opened/launched through Cubical's existing Tool system and should have their own full Tool pages/interfaces.
+
+Please inspect the existing File Finder, Bulk File Organizer, Store, and tool installation/launch architecture before implementing anything. Reuse the existing architecture, components, styling, installation state, navigation behavior, and Store card design wherever possible.
+
+Add these six tools:
+
+Storage Explorer
+Purpose:
+Analyze drives and folders to show what is consuming storage space.
+
+Eventually this tool should support:
+
+Selecting a drive or folder to scan
+Folder sizes
+Largest folders
+Largest files
+File-type breakdowns
+Sort by size
+Drill down through folders
+Quickly open a file/folder in Windows Explorer
+A clean visual overview of storage usage
+Image Converter
+Purpose:
+A simple local image conversion and processing tool.
+
+Eventually support:
+
+Drag/drop or browse for images
+PNG
+JPG/JPEG
+WebP
+Resize
+Compression/quality
+Batch conversion
+Output folder selection
+Preserve originals unless explicitly told otherwise
+File Toolbox
+Purpose:
+A universal file utility where the available actions depend on the selected file type.
+
+The user should be able to drag/drop or browse for a file.
+
+Eventually, depending on the file, offer relevant actions such as:
+
+Images: convert, resize, compress, inspect metadata
+PDFs: merge, split, reorder, rotate, extract
+Archives: inspect/extract
+Video/audio: inspect metadata and eventually conversion/extraction tools
+General files: rename, copy path, hash, inspect metadata, open containing folder
+
+Design this tool so additional file-specific actions can easily be added later.
+
+Startup Manager
+Purpose:
+Provide a clean Cubical interface for viewing programs configured to launch with Windows.
+
+Eventually support:
+
+Display startup applications
+Show enabled/disabled state
+Show application name
+Show executable/path when available
+Enable/disable startup entries
+Open file location where appropriate
+
+IMPORTANT:
+Be cautious with system-level operations. Do not delete startup entries or modify anything destructive without explicit user action. Prefer safe enable/disable behavior.
+
+File Inspector
+Purpose:
+Let the user drop almost any file into Cubical and immediately see useful information about it.
+
+Eventually display:
+
+File name
+File type
+Extension
+File size
+Full path
+Created date
+Modified date
+Relevant metadata
+Image dimensions when applicable
+Media duration/codec when applicable
+File hash/checksum where practical
+Open containing folder
+Copy path
+
+The interface should adapt based on the file type.
+
+System Info
+Purpose:
+Provide a clean, readable overview of the computer.
+
+Eventually display:
+
+Windows version
+Computer/device name
+CPU
+GPU
+Installed RAM
+Storage drives and capacity
+Available/free storage
+Display information
+Basic network information
+Architecture
+Relevant hardware/system details available safely through Electron/Node/Windows
+
+STORE INTEGRATION:
+
+Add all six tools to the Cubical Store.
+
+They should use the SAME Store card layout and visual language as the existing free tools.
+
+Each Store listing should:
+
+Clearly be categorized as a Tool, not a Widget
+Display a FREE price tag exactly like the existing free Store items
+Have an icon consistent with Cubical's existing icon style
+Have a short description
+Support the same install/add behavior as existing free tools
+Once installed, appear wherever installed Tools currently appear
+Launch through the same mechanism as File Finder and Bulk File Organizer
+
+Use these Store names:
+
+Storage Explorer
+Image Converter
+File Toolbox
+Startup Manager
+File Inspector
+System Info
+
+Suggested short descriptions:
+
+Storage Explorer:
+"See exactly what's taking up space on your PC."
+
+Image Converter:
+"Convert, resize, and process images locally."
+
+File Toolbox:
+"One place for all your everyday file utilities."
+
+Startup Manager:
+"See and manage what launches with Windows."
+
+File Inspector:
+"Drop in a file and see what's inside."
+
+System Info:
+"A clean overview of your PC and hardware."
+
+IMPLEMENTATION PRIORITY:
+
+First, properly integrate all six into Cubical's existing Tool and Store architecture.
+
+Do NOT create these as widgets.
+
+Do NOT create a second tool framework if the existing File Finder/Bulk File Organizer system can be extended.
+
+Make sure:
+
+Store cards work
+FREE labels match existing free tools
+Installation works
+Installed state persists
+Tools appear in the correct installed-tools area
+Tools launch correctly
+Navigation works correctly
+Each tool has a polished initial full-page interface
+Existing tools and widgets are unaffected
+
+After the architecture and Store integration are working, implement as much real local functionality as is safely practical.
+
+These should perform operations LOCALLY on the user's computer whenever possible. Do not upload user files to external services just to perform basic file operations.
+
+VISUAL STYLE:
+
+Match the existing Cubical design language.
+
+I want these to feel like native parts of Cubical, not six unrelated utilities pasted into the application.
+
+Keep them:
+
+Cozy
+Clean
+Simple
+Friendly
+Easy to understand
+Visually consistent with File Finder and Bulk File Organizer
+
+Do not redesign the rest of Cubical while doing this.
+
+Before making changes, inspect how the current free Tools are registered, displayed in the Store, installed, persisted, and launched. Then extend that existing system with these six new Tools using the smallest clean architectural changes possible.

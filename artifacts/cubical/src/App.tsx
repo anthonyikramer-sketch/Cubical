@@ -260,14 +260,26 @@ const PRODUCTS: Product[] = [
   { id: 'spreadsheet-cleaner', name: 'Spreadsheet Cleaner', description: 'Sweep out the clutter hiding between your rows and columns.', price: '$2.99', icon: TableProperties, iconColor: 'hsl(31 75% 43%)', iconBg: 'hsl(31 75% 43% / .13)' },
   { id: 'pdf-toolkit', name: 'PDF Toolkit', description: 'Small, sharp tools for the PDFs you touch every day.', price: '$3.99', icon: FileScan, iconColor: 'hsl(1 68% 54%)', iconBg: 'hsl(1 68% 54% / .12)' },
   { id: 'bulk-file-renamer', name: 'Bulk File Renamer', description: 'Give a whole folder a thoughtful name in one quick pass.', price: 'FREE', icon: FileArchive, iconColor: 'hsl(226 45% 49%)', iconBg: 'hsl(226 45% 49% / .12)' },
-  { id: 'duplicate-finder', name: 'Duplicate Finder', description: 'Spot the copies taking up space and keep the best version.', price: 'FREE', icon: Files, iconColor: 'hsl(287 40% 47%)', iconBg: 'hsl(287 40% 47% / .12)' },
-  { id: 'file-finder', name: 'File Finder', description: 'Find the file. Skip the folder archaeology.', price: 'FREE', icon: FolderSearch, iconColor: 'hsl(197 55% 38%)', iconBg: 'hsl(197 55% 38% / .12)' },
+  { id: 'duplicate-finder',   name: 'Duplicate Finder',  description: 'Spot the copies taking up space and keep the best version.', price: 'FREE', icon: Files,       iconColor: 'hsl(287 40% 47%)', iconBg: 'hsl(287 40% 47% / .12)' },
+  { id: 'file-finder',        name: 'File Finder',       description: 'Find the file. Skip the folder archaeology.',                  price: 'FREE', icon: FolderSearch, iconColor: 'hsl(197 55% 38%)', iconBg: 'hsl(197 55% 38% / .12)' },
+  { id: 'storage-explorer',   name: 'Storage Explorer',  description: "See exactly what's taking up space on your PC.",               price: 'FREE', icon: HardDrive,    iconColor: 'hsl(215 60% 43%)', iconBg: 'hsl(215 60% 43% / .12)' },
+  { id: 'image-converter',    name: 'Image Converter',   description: 'Convert, resize, and process images locally.',                 price: 'FREE', icon: ImagePlus,    iconColor: 'hsl(140 50% 35%)', iconBg: 'hsl(140 50% 35% / .11)' },
+  { id: 'file-toolbox',       name: 'File Toolbox',      description: 'One place for all your everyday file utilities.',              price: 'FREE', icon: FolderOpen,   iconColor: 'hsl(25 65% 42%)',  iconBg: 'hsl(25 65% 42% / .11)'  },
+  { id: 'startup-manager',    name: 'Startup Manager',   description: 'See and manage what launches with Windows.',                   price: 'FREE', icon: PackageOpen,  iconColor: 'hsl(262 48% 50%)', iconBg: 'hsl(262 48% 50% / .11)' },
+  { id: 'file-inspector',     name: 'File Inspector',    description: "Drop in a file and see what's inside.",                       price: 'FREE', icon: FileText,     iconColor: 'hsl(350 58% 46%)', iconBg: 'hsl(350 58% 46% / .11)' },
+  { id: 'system-info',        name: 'System Info',       description: 'A clean overview of your PC and hardware.',                   price: 'FREE', icon: Monitor,      iconColor: 'hsl(45 68% 40%)',  iconBg: 'hsl(45 68% 40% / .12)'  },
 ];
 
 const TOOL_ROUTES: Partial<Record<Product['id'], string>> = {
   'bulk-file-renamer':   '/tool/bulk-file-renamer',
   'spreadsheet-cleaner': '/tool/spreadsheet-cleaner',
   'file-finder':         '/tool/file-finder',
+  'storage-explorer':    '/tool/storage-explorer',
+  'image-converter':     '/tool/image-converter',
+  'file-toolbox':        '/tool/file-toolbox',
+  'startup-manager':     '/tool/startup-manager',
+  'file-inspector':      '/tool/file-inspector',
+  'system-info':         '/tool/system-info',
 };
 
 function getToolRoute(product: Product) { return TOOL_ROUTES[product.id]; }
@@ -594,7 +606,13 @@ const CRUMB_MAP: Record<string, string> = {
   '/breakroom': 'Shelf / Breakroom',
   '/profile': 'Shelf / Profile',
   '/settings': 'Shelf / Settings',
-  '/tool/file-finder': 'Shelf / File Finder',
+  '/tool/file-finder':       'Shelf / File Finder',
+  '/tool/storage-explorer':  'Shelf / Storage Explorer',
+  '/tool/image-converter':   'Shelf / Image Converter',
+  '/tool/file-toolbox':      'Shelf / File Toolbox',
+  '/tool/startup-manager':   'Shelf / Startup Manager',
+  '/tool/file-inspector':    'Shelf / File Inspector',
+  '/tool/system-info':       'Shelf / System Info',
 };
 
 function AppShell({ children, libraryCount }: { children: ReactNode; libraryCount: number }) {
@@ -797,7 +815,7 @@ function StorePage() {
       <DisplacedWidgetBand />
       <div className="mb-5 flex items-center justify-between">
         <span className="eyebrow" style={{ color: 'hsl(var(--muted-foreground))' }}>The current edit</span>
-        <span className="library-count">06 tools · no noise</span>
+        <span className="library-count">{String(PRODUCTS.length).padStart(2, '0')} tools · no noise</span>
       </div>
       <div className="product-grid" data-testid="product-catalog">
         {PRODUCTS.map((product) => <ProductCard key={product.id} product={product} />)}
@@ -5614,6 +5632,509 @@ function SettingsPage() {
   );
 }
 
+// ─── Storage Explorer ─────────────────────────────────────────────────────────
+
+function StorageExplorer() {
+  const isDesktop = !!(window.cubicalDesktop);
+  const previewEntries = [
+    { name: 'Documents', size: '12.4 GB', pct: 62 },
+    { name: 'Downloads', size: '6.7 GB',  pct: 34 },
+    { name: 'Pictures',  size: '4.1 GB',  pct: 21 },
+    { name: 'Videos',    size: '2.3 GB',  pct: 12 },
+    { name: 'AppData',   size: '1.8 GB',  pct: 9  },
+  ];
+  return (
+    <section className="renamer-page" data-testid="storage-explorer">
+      <Link href="/library" className="detail-back" data-testid="link-back-library"><ArrowLeft /> Back to library</Link>
+      <div className="tool-title-row">
+        <div>
+          <div className="eyebrow">Cubical tool · local prototype</div>
+          <div className="tool-title-with-icon">
+            <span className="renamer-tool-icon" style={{ color: 'hsl(215 60% 43%)', background: 'hsl(215 60% 43% / .12)' }}><HardDrive /></span>
+            <div><h1>Storage Explorer.</h1><p>See exactly what's taking up space on your PC.</p></div>
+          </div>
+        </div>
+        <span className="tool-status"><i className="status-dot" /> Preview mode</span>
+      </div>
+      <DisplacedWidgetBand />
+      <div className="renamer-notice">
+        <HardDrive />
+        <div>
+          <strong>{isDesktop ? 'Choose a folder to scan' : 'Desktop access required'}</strong>
+          <span>{isDesktop ? 'Select a drive or folder and Storage Explorer will visualise what is taking up space.' : 'Storage Explorer needs direct filesystem access. It will be fully functional in the Cubical desktop app for Windows.'}</span>
+        </div>
+      </div>
+      <div className="storage-explorer-workspace">
+        <div className="storage-drive-card">
+          <div className="storage-drive-header">
+            <HardDrive className="storage-drive-icon" />
+            <div className="storage-drive-meta-wrap">
+              <div className="storage-drive-name">C:\ — Local Drive</div>
+              <div className="storage-drive-meta">19.8 GB used of 59.5 GB · {isDesktop ? 'Live data' : 'Preview'}</div>
+            </div>
+            <button type="button" className="button-primary" disabled={!isDesktop} style={{ fontSize: 11, minHeight: 34, padding: '0 14px' }}>Scan folder</button>
+          </div>
+          <div className="storage-bar-track"><div className="storage-bar-fill" style={{ width: '33%' }} /></div>
+        </div>
+        <div className="storage-folder-list">
+          <div className="renamer-section-heading">
+            <span className="eyebrow">Largest folders</span>
+            <span className="library-count" style={{ opacity: .55 }}>Preview data</span>
+          </div>
+          {previewEntries.map((e) => (
+            <div className="storage-folder-row" key={e.name}>
+              <FolderOpen className="storage-folder-row-icon" />
+              <span className="storage-folder-name">{e.name}</span>
+              <div className="storage-row-bar-track"><div className="storage-row-bar-fill" style={{ width: `${e.pct}%` }} /></div>
+              <span className="storage-folder-size">{e.size}</span>
+              <button type="button" className="button-quiet" disabled={!isDesktop} style={{ fontSize: 10, minHeight: 28, padding: '0 10px' }}>Open</button>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="desktop-note"><Sparkles /><p><strong>Requires Cubical for Windows.</strong> Folder scanning, drill-down, and file-type breakdowns connect to the local filesystem. The layout above shows what Storage Explorer will look like.</p></div>
+    </section>
+  );
+}
+
+// ─── Image Converter ──────────────────────────────────────────────────────────
+
+function ImageConverter() {
+  const [files, setFiles]         = useState<File[]>([]);
+  const [format, setFormat]       = useState<'png' | 'jpeg' | 'webp'>('png');
+  const [quality, setQuality]     = useState(90);
+  const [maxWidth, setMaxWidth]   = useState('');
+  const [maxHeight, setMaxHeight] = useState('');
+  const [converting, setConverting] = useState(false);
+  const [results, setResults]     = useState<{ name: string; url: string }[]>([]);
+
+  const handleFiles = (list: FileList | null) => {
+    if (!list) return;
+    setFiles(Array.from(list).filter((f) => f.type.startsWith('image/')));
+    setResults([]);
+  };
+
+  const convertAll = async () => {
+    if (!files.length) return;
+    setConverting(true);
+    const out: { name: string; url: string }[] = [];
+    for (const file of files) {
+      const imgUrl = URL.createObjectURL(file);
+      const img    = new Image();
+      await new Promise<void>((res) => { img.onload = () => res(); img.src = imgUrl; });
+      let w = img.naturalWidth, h = img.naturalHeight;
+      const mw = parseInt(maxWidth), mh = parseInt(maxHeight);
+      if (!isNaN(mw) && mw > 0) { const s = mw / w; h = Math.round(h * s); w = mw; }
+      if (!isNaN(mh) && mh > 0 && h > mh) { const s = mh / h; w = Math.round(w * s); h = mh; }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d')!;
+      if (format === 'jpeg') { ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h); }
+      ctx.drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(imgUrl);
+      const mime = format === 'jpeg' ? 'image/jpeg' : format === 'webp' ? 'image/webp' : 'image/png';
+      const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, mime, quality / 100));
+      if (!blob) continue;
+      const stem = file.name.replace(/\.[^.]+$/, '');
+      out.push({ name: `${stem}.${format === 'jpeg' ? 'jpg' : format}`, url: URL.createObjectURL(blob) });
+    }
+    setResults(out);
+    setConverting(false);
+  };
+
+  const formatLabels: Record<string, string> = { png: 'Lossless, great for graphics', jpeg: 'Smaller files, ideal for photos', webp: 'Modern format, best of both' };
+
+  return (
+    <section className="renamer-page" data-testid="image-converter">
+      <Link href="/library" className="detail-back" data-testid="link-back-library"><ArrowLeft /> Back to library</Link>
+      <div className="tool-title-row">
+        <div>
+          <div className="eyebrow">Cubical tool · works in browser</div>
+          <div className="tool-title-with-icon">
+            <span className="renamer-tool-icon" style={{ color: 'hsl(140 50% 35%)', background: 'hsl(140 50% 35% / .11)' }}><ImagePlus /></span>
+            <div><h1>Image Converter.</h1><p>Convert, resize, and process images locally.</p></div>
+          </div>
+        </div>
+        <span className="tool-status"><i className="status-dot" /> Original stays safe</span>
+      </div>
+      <DisplacedWidgetBand />
+      <div className="renamer-notice">
+        <ImagePlus />
+        <div><strong>Converts entirely in your browser</strong><span>No upload, no server. Your images never leave your computer.</span></div>
+      </div>
+      <div className="image-converter-workspace">
+        <div className="image-converter-controls">
+          <div className="renamer-section-heading">
+            <span className="eyebrow">01 · Select images</span>
+            {files.length > 0 && <span className="library-count">{files.length} image{files.length !== 1 ? 's' : ''}</span>}
+          </div>
+          <label className="file-picker">
+            <ImagePlus /><span>{files.length ? 'Choose different images' : 'Select images'}</span>
+            <input type="file" accept="image/*" multiple onChange={(e) => handleFiles(e.target.files)} data-testid="input-image-picker" />
+          </label>
+          <div className="renamer-section-heading method-heading"><span className="eyebrow">02 · Output format</span></div>
+          <div className="rename-method-selector">
+            {(['png', 'jpeg', 'webp'] as const).map((f) => (
+              <button key={f} type="button" className={`rename-method-card${format === f ? ' is-selected' : ''}`} onClick={() => setFormat(f)}>
+                <div><strong>{f === 'jpeg' ? 'JPG' : f.toUpperCase()}</strong><span>{formatLabels[f]}</span></div>
+              </button>
+            ))}
+          </div>
+          {format === 'jpeg' && (
+            <label className="rename-field">
+              <span>Quality — {quality}%</span>
+              <input type="range" min="10" max="100" step="5" value={quality} onChange={(e) => setQuality(Number(e.target.value))} />
+            </label>
+          )}
+          <div className="renamer-section-heading method-heading"><span className="eyebrow">03 · Resize (optional)</span></div>
+          <div className="rename-field-pair">
+            <label className="rename-field"><span>Max width (px)</span><input type="number" min="1" value={maxWidth} onChange={(e) => setMaxWidth(e.target.value)} placeholder="Original" /></label>
+            <label className="rename-field"><span>Max height (px)</span><input type="number" min="1" value={maxHeight} onChange={(e) => setMaxHeight(e.target.value)} placeholder="Original" /></label>
+          </div>
+          <p className="renamer-help">Resize maintains aspect ratio. Leave blank to keep original dimensions.</p>
+        </div>
+        <div className="image-converter-results">
+          <div className="renamer-section-heading">
+            <span className="eyebrow">04 · Download</span>
+            {results.length > 0 && <span className="library-count">{results.length} ready</span>}
+          </div>
+          {results.length === 0 ? (
+            <div className="renamer-empty"><div className="empty-cube"><ImagePlus /></div><h2>Converted images appear here.</h2><p>Choose images and a format, then click Convert.</p></div>
+          ) : (
+            <div className="image-result-list">
+              {results.map((r) => (
+                <div className="image-result-row" key={r.name}>
+                  <img src={r.url} alt={r.name} className="image-result-thumb" />
+                  <span className="image-result-name">{r.name}</span>
+                  <a href={r.url} download={r.name} className="button-primary" style={{ fontSize: 11, minHeight: 34, padding: '0 14px', textDecoration: 'none' }}>
+                    <Download /> Save
+                  </a>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="renamer-actions">
+            <div><strong>Originals untouched.</strong><span>Converted copies are downloaded separately.</span></div>
+            <button type="button" className="button-primary" onClick={convertAll} disabled={files.length === 0 || converting} data-testid="button-convert">
+              {converting ? 'Converting…' : 'Convert'} {!converting && <ArrowRight />}
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ─── File Toolbox ─────────────────────────────────────────────────────────────
+
+type ToolboxEntry = { file: File; hash: string | null; dims: { w: number; h: number } | null };
+
+function formatFileBytes(n: number) {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 ** 2) return `${(n / 1024).toFixed(1)} KB`;
+  if (n < 1024 ** 3) return `${(n / 1024 ** 2).toFixed(2)} MB`;
+  return `${(n / 1024 ** 3).toFixed(2)} GB`;
+}
+
+async function buildToolboxEntry(file: File): Promise<ToolboxEntry> {
+  let hash: string | null = null;
+  let dims: { w: number; h: number } | null = null;
+  try {
+    const buf    = await file.arrayBuffer();
+    const digest = await crypto.subtle.digest('SHA-256', buf);
+    hash = Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('');
+  } catch { /* unavailable */ }
+  if (file.type.startsWith('image/')) {
+    const url = URL.createObjectURL(file);
+    dims = await new Promise<{ w: number; h: number } | null>((res) => {
+      const img = new Image();
+      img.onload  = () => { URL.revokeObjectURL(url); res({ w: img.naturalWidth, h: img.naturalHeight }); };
+      img.onerror = () => { URL.revokeObjectURL(url); res(null); };
+      img.src = url;
+    });
+  }
+  return { file, hash, dims };
+}
+
+function FileToolbox() {
+  const [entry,   setEntry]   = useState<ToolboxEntry | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [copied,  setCopied]  = useState<string | null>(null);
+
+  const loadFile = async (file: File) => {
+    setLoading(true);
+    setEntry(await buildToolboxEntry(file));
+    setLoading(false);
+  };
+
+  const copyText = async (text: string, key: string) => {
+    try { await navigator.clipboard.writeText(text); setCopied(key); setTimeout(() => setCopied(null), 2000); } catch { /* ignore */ }
+  };
+
+  const ext      = entry?.file.name.includes('.') ? entry.file.name.split('.').pop()?.toUpperCase() ?? '—' : '—';
+  const isImage  = entry?.file.type.startsWith('image/');
+  const isPdf    = entry?.file.type === 'application/pdf';
+  const isText   = entry?.file.type.startsWith('text/');
+
+  return (
+    <section className="renamer-page" data-testid="file-toolbox">
+      <Link href="/library" className="detail-back" data-testid="link-back-library"><ArrowLeft /> Back to library</Link>
+      <div className="tool-title-row">
+        <div>
+          <div className="eyebrow">Cubical tool · works in browser</div>
+          <div className="tool-title-with-icon">
+            <span className="renamer-tool-icon" style={{ color: 'hsl(25 65% 42%)', background: 'hsl(25 65% 42% / .11)' }}><FolderOpen /></span>
+            <div><h1>File Toolbox.</h1><p>One place for all your everyday file utilities.</p></div>
+          </div>
+        </div>
+        <span className="tool-status"><i className="status-dot" /> Local only</span>
+      </div>
+      <DisplacedWidgetBand />
+      {!entry && !loading && (
+        <div className="renamer-notice">
+          <FolderOpen />
+          <div><strong>Drop any file to get started</strong><span>File Toolbox inspects your file and offers actions based on its type. Nothing leaves your browser.</span></div>
+        </div>
+      )}
+      <div
+        className="toolbox-drop-panel"
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) loadFile(f); }}
+      >
+        {!entry && !loading ? (
+          <>
+            <div className="empty-cube"><FolderOpen /></div>
+            <h2>Drop a file here.</h2>
+            <p>Any file — image, PDF, text, archive — File Toolbox will read it and offer the right tools.</p>
+            <label className="file-picker" style={{ marginTop: 16 }}>
+              <FilePlus2 /><span>Browse for a file</span>
+              <input type="file" onChange={(e) => { const f = e.target.files?.[0]; if (f) loadFile(f); }} data-testid="input-toolbox-picker" />
+            </label>
+          </>
+        ) : loading ? (
+          <p className="toolbox-loading">Reading file…</p>
+        ) : entry && (
+          <div className="toolbox-file-info">
+            <div className="toolbox-info-grid">
+              <span className="toolbox-info-label">Name</span>      <span className="toolbox-info-value">{entry.file.name}</span>
+              <span className="toolbox-info-label">Size</span>      <span className="toolbox-info-value">{formatFileBytes(entry.file.size)}</span>
+              <span className="toolbox-info-label">Type</span>      <span className="toolbox-info-value">{entry.file.type || '—'}</span>
+              <span className="toolbox-info-label">Extension</span> <span className="toolbox-info-value">{ext}</span>
+              <span className="toolbox-info-label">Modified</span>  <span className="toolbox-info-value">{new Date(entry.file.lastModified).toLocaleString()}</span>
+              {entry.dims && (<><span className="toolbox-info-label">Dimensions</span><span className="toolbox-info-value">{entry.dims.w} × {entry.dims.h} px</span></>)}
+              {entry.hash && (<><span className="toolbox-info-label">SHA-256</span><span className="toolbox-info-value toolbox-hash">{entry.hash}</span></>)}
+            </div>
+            <div className="toolbox-actions">
+              <button type="button" className="button-quiet" onClick={() => copyText(entry.file.name, 'name')}><ClipboardCopy /> {copied === 'name' ? 'Copied!' : 'Copy filename'}</button>
+              {entry.hash && <button type="button" className="button-quiet" onClick={() => copyText(entry.hash!, 'hash')}><ClipboardCopy /> {copied === 'hash' ? 'Copied!' : 'Copy hash'}</button>}
+              {isImage && <a href={URL.createObjectURL(entry.file)} target="_blank" rel="noopener noreferrer" className="button-quiet"><ExternalLink /> View image</a>}
+              {isPdf   && <a href={URL.createObjectURL(entry.file)} target="_blank" rel="noopener noreferrer" className="button-quiet"><ExternalLink /> Open PDF</a>}
+              {isText  && <button type="button" className="button-quiet" onClick={async () => { const t = await entry.file.text(); copyText(t, 'content'); }}><ClipboardCopy /> {copied === 'content' ? 'Copied!' : 'Copy content'}</button>}
+              <button type="button" className="button-quiet" onClick={() => { setEntry(null); setCopied(null); }}>Clear</button>
+            </div>
+          </div>
+        )}
+      </div>
+      <div className="desktop-note"><Sparkles /><p><strong>More actions coming.</strong> Desktop-specific features — rename in place, move, open containing folder, PDF tools — arrive in the Cubical Windows app.</p></div>
+    </section>
+  );
+}
+
+// ─── Startup Manager ──────────────────────────────────────────────────────────
+
+function StartupManager() {
+  const isDesktop  = !!(window.cubicalDesktop);
+  const previewItems = [
+    { name: 'Discord',  path: 'AppData\\Local\\Discord\\Update.exe --processStart Discord.exe', enabled: true  },
+    { name: 'Spotify',  path: 'AppData\\Roaming\\Spotify\\Spotify.exe',                        enabled: true  },
+    { name: 'Slack',    path: 'AppData\\Local\\slack\\slack.exe',                              enabled: false },
+    { name: 'Steam',    path: 'Program Files (x86)\\Steam\\steam.exe',                         enabled: true  },
+    { name: 'OneDrive', path: 'Program Files\\Microsoft OneDrive\\OneDrive.exe',               enabled: true  },
+  ];
+  return (
+    <section className="renamer-page" data-testid="startup-manager">
+      <Link href="/library" className="detail-back" data-testid="link-back-library"><ArrowLeft /> Back to library</Link>
+      <div className="tool-title-row">
+        <div>
+          <div className="eyebrow">Cubical tool · local prototype</div>
+          <div className="tool-title-with-icon">
+            <span className="renamer-tool-icon" style={{ color: 'hsl(262 48% 50%)', background: 'hsl(262 48% 50% / .11)' }}><PackageOpen /></span>
+            <div><h1>Startup Manager.</h1><p>See and manage what launches with Windows.</p></div>
+          </div>
+        </div>
+        <span className="tool-status"><i className="status-dot" /> Preview mode</span>
+      </div>
+      <DisplacedWidgetBand />
+      <div className="renamer-notice">
+        <PackageOpen />
+        <div>
+          <strong>{isDesktop ? 'Reading startup entries' : 'Desktop access required'}</strong>
+          <span>{isDesktop ? 'Startup Manager is reading your Windows registry and startup folders.' : 'Startup Manager reads from the Windows registry. It will be fully functional in the Cubical desktop app. The list below shows what it will look like.'}</span>
+        </div>
+      </div>
+      <div className="startup-list">
+        <div className="renamer-section-heading">
+          <span className="eyebrow">Startup programs</span>
+          <span className="library-count" style={{ opacity: .55 }}>Preview data</span>
+        </div>
+        {previewItems.map((item) => (
+          <div className="startup-row" key={item.name}>
+            <PackageOpen className="startup-row-icon" />
+            <div className="startup-row-info">
+              <strong className="startup-row-name">{item.name}</strong>
+              <span className="startup-row-path">C:\Users\…\{item.path}</span>
+            </div>
+            <button type="button" className={`startup-toggle${item.enabled ? ' is-enabled' : ''}`} disabled={!isDesktop}>
+              {item.enabled ? 'Enabled' : 'Disabled'}
+            </button>
+          </div>
+        ))}
+      </div>
+      <div className="desktop-note"><Sparkles /><p><strong>Requires Cubical for Windows.</strong> Toggle, inspect, and manage which programs launch at startup — cleanly, without touching the registry by hand.</p></div>
+    </section>
+  );
+}
+
+// ─── File Inspector ───────────────────────────────────────────────────────────
+
+function mimeCategory(type: string) {
+  if (type.startsWith('image/')) return 'Image';
+  if (type.startsWith('video/')) return 'Video';
+  if (type.startsWith('audio/')) return 'Audio';
+  if (type.startsWith('text/'))  return 'Text file';
+  if (type === 'application/pdf') return 'PDF document';
+  if (/spreadsheet|excel|csv/.test(type)) return 'Spreadsheet';
+  if (/zip|archive|compressed|7z|rar/.test(type)) return 'Archive';
+  return 'File';
+}
+
+function FileInspector() {
+  const [entry,   setEntry]   = useState<ToolboxEntry | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [copied,  setCopied]  = useState<string | null>(null);
+  const [imgSrc,  setImgSrc]  = useState<string | null>(null);
+
+  const loadFile = async (file: File) => {
+    setLoading(true);
+    setImgSrc(null);
+    const built = await buildToolboxEntry(file);
+    if (built.dims) setImgSrc(URL.createObjectURL(file));
+    setEntry(built);
+    setLoading(false);
+  };
+
+  const copyText = async (text: string, key: string) => {
+    try { await navigator.clipboard.writeText(text); setCopied(key); setTimeout(() => setCopied(null), 2000); } catch { /* ignore */ }
+  };
+
+  const ext = entry ? (entry.file.name.includes('.') ? `.${entry.file.name.split('.').pop()}` : '—') : '';
+
+  return (
+    <section className="renamer-page" data-testid="file-inspector">
+      <Link href="/library" className="detail-back" data-testid="link-back-library"><ArrowLeft /> Back to library</Link>
+      <div className="tool-title-row">
+        <div>
+          <div className="eyebrow">Cubical tool · works in browser</div>
+          <div className="tool-title-with-icon">
+            <span className="renamer-tool-icon" style={{ color: 'hsl(350 58% 46%)', background: 'hsl(350 58% 46% / .11)' }}><FileText /></span>
+            <div><h1>File Inspector.</h1><p>Drop in a file and see what's inside.</p></div>
+          </div>
+        </div>
+        <span className="tool-status"><i className="status-dot" /> Local only</span>
+      </div>
+      <DisplacedWidgetBand />
+      <div
+        className="toolbox-drop-panel"
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) loadFile(f); }}
+      >
+        {!entry && !loading ? (
+          <>
+            <div className="empty-cube"><FileText /></div>
+            <h2>Drop a file to inspect it.</h2>
+            <p>File Inspector reads name, size, type, dates, dimensions for images, and a SHA-256 hash — entirely in your browser.</p>
+            <label className="file-picker" style={{ marginTop: 16 }}>
+              <FilePlus2 /><span>Browse for a file</span>
+              <input type="file" onChange={(e) => { const f = e.target.files?.[0]; if (f) loadFile(f); }} data-testid="input-inspector-picker" />
+            </label>
+          </>
+        ) : loading ? (
+          <p className="toolbox-loading">Inspecting file…</p>
+        ) : entry && (
+          <div className="toolbox-file-info">
+            {imgSrc && <div className="inspector-img-wrap"><img src={imgSrc} alt={entry.file.name} className="inspector-img-thumb" /></div>}
+            <div className="toolbox-info-grid">
+              <span className="toolbox-info-label">File name</span>  <span className="toolbox-info-value">{entry.file.name}</span>
+              <span className="toolbox-info-label">Category</span>   <span className="toolbox-info-value">{mimeCategory(entry.file.type)}</span>
+              <span className="toolbox-info-label">MIME type</span>  <span className="toolbox-info-value">{entry.file.type || '—'}</span>
+              <span className="toolbox-info-label">Extension</span>  <span className="toolbox-info-value">{ext}</span>
+              <span className="toolbox-info-label">Size</span>       <span className="toolbox-info-value">{formatFileBytes(entry.file.size)} ({entry.file.size.toLocaleString()} bytes)</span>
+              <span className="toolbox-info-label">Modified</span>   <span className="toolbox-info-value">{new Date(entry.file.lastModified).toLocaleString()}</span>
+              {entry.dims && (<><span className="toolbox-info-label">Dimensions</span><span className="toolbox-info-value">{entry.dims.w} × {entry.dims.h} px</span></>)}
+              {entry.hash && (<><span className="toolbox-info-label">SHA-256</span><span className="toolbox-info-value toolbox-hash">{entry.hash}</span></>)}
+            </div>
+            <div className="toolbox-actions">
+              <button type="button" className="button-quiet" onClick={() => copyText(entry.file.name, 'name')}><ClipboardCopy /> {copied === 'name' ? 'Copied!' : 'Copy filename'}</button>
+              {entry.hash && <button type="button" className="button-quiet" onClick={() => copyText(entry.hash!, 'hash')}><ClipboardCopy /> {copied === 'hash' ? 'Copied!' : 'Copy SHA-256'}</button>}
+              <button type="button" className="button-quiet" onClick={() => { setEntry(null); setCopied(null); setImgSrc(null); }}>Inspect another file</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+// ─── System Info ──────────────────────────────────────────────────────────────
+
+function SystemInfoPage() {
+  const isDesktop = !!(window.cubicalDesktop);
+  const cards: { label: string; value: string; detail: string; Icon: typeof Monitor }[] = [
+    { label: 'Operating System', value: 'Windows 11 Pro',          detail: 'Version 23H2 · Build 22631',              Icon: Monitor      },
+    { label: 'Processor',        value: 'Intel Core i7-13700K',    detail: '16 cores / 24 threads · 3.40 GHz base',   Icon: Zap          },
+    { label: 'Memory',           value: '32 GB DDR5',              detail: '4800 MHz · 2 slots used of 4',            Icon: Hash         },
+    { label: 'Storage',          value: '1 TB NVMe SSD',           detail: 'Samsung 980 Pro · C:\\ primary drive',    Icon: HardDrive    },
+    { label: 'Display',          value: '2560 × 1440',             detail: '27 in · 144 Hz · HDR400',                 Icon: Monitor      },
+    { label: 'Architecture',     value: 'x64 (64-bit)',            detail: 'AMD64 compatible',                        Icon: Globe        },
+  ];
+  return (
+    <section className="renamer-page" data-testid="system-info">
+      <Link href="/library" className="detail-back" data-testid="link-back-library"><ArrowLeft /> Back to library</Link>
+      <div className="tool-title-row">
+        <div>
+          <div className="eyebrow">Cubical tool · local prototype</div>
+          <div className="tool-title-with-icon">
+            <span className="renamer-tool-icon" style={{ color: 'hsl(45 68% 40%)', background: 'hsl(45 68% 40% / .12)' }}><Monitor /></span>
+            <div><h1>System Info.</h1><p>A clean overview of your PC and hardware.</p></div>
+          </div>
+        </div>
+        <span className="tool-status"><i className="status-dot" /> Preview mode</span>
+      </div>
+      <DisplacedWidgetBand />
+      <div className="renamer-notice">
+        <Monitor />
+        <div>
+          <strong>{isDesktop ? 'Reading system information' : 'Desktop access required'}</strong>
+          <span>{isDesktop ? 'System Info is gathering your hardware and OS details.' : 'Live hardware data requires the Cubical desktop app. The cards below show what your System Info dashboard will look like.'}</span>
+        </div>
+      </div>
+      <div className="system-info-grid">
+        {cards.map(({ label, value, detail, Icon }) => (
+          <div className="system-info-card" key={label}>
+            <div className="system-info-card-header">
+              <Icon className="system-info-icon" />
+              <span className="system-info-label">{label}</span>
+            </div>
+            <div className="system-info-value">{isDesktop ? value : '—'}</div>
+            <div className="system-info-detail">{isDesktop ? detail : 'Available in Cubical for Windows'}</div>
+          </div>
+        ))}
+      </div>
+      <div className="desktop-note"><Sparkles /><p><strong>Requires Cubical for Windows.</strong> CPU, RAM, GPU, storage, display, and network details are read directly from your system when running as a desktop app.</p></div>
+    </section>
+  );
+}
+
 function NotFound() {
   return <section className="placeholder-page"><div className="eyebrow">Shelf / missing</div><h1 className="display-title mt-4">That page wandered off.</h1><div className="mt-8"><Link href="/store" className="button-primary" data-testid="link-not-found-store">Back to store <ArrowRight /></Link></div></section>;
 }
@@ -5694,6 +6215,12 @@ function App() {
             <Route path="/tool/bulk-file-renamer"><BulkFileRenamer /></Route>
             <Route path="/tool/spreadsheet-cleaner"><SpreadsheetCleaner /></Route>
             <Route path="/tool/file-finder"><FileFinderPage /></Route>
+            <Route path="/tool/storage-explorer"><StorageExplorer /></Route>
+            <Route path="/tool/image-converter"><ImageConverter /></Route>
+            <Route path="/tool/file-toolbox"><FileToolbox /></Route>
+            <Route path="/tool/startup-manager"><StartupManager /></Route>
+            <Route path="/tool/file-inspector"><FileInspector /></Route>
+            <Route path="/tool/system-info"><SystemInfoPage /></Route>
             <Route path="/profile"><ProfilePage /></Route>
             <Route path="/settings"><SettingsPage /></Route>
             <Route><NotFound /></Route>
