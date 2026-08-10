@@ -695,6 +695,35 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
 .notepad-export-btn svg { width: 10px; height: 10px; flex-shrink: 0; }
 .notepad-export-btn:hover { background: hsl(var(--primary) / .08); color: hsl(var(--primary)); border-color: hsl(var(--primary) / .35); }
 
+/* Import mode prompt — replaces footer when a file is pending */
+.notepad-import-prompt {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; width: 100%; flex-wrap: wrap;
+}
+.notepad-import-prompt-label {
+  font-size: 10.5px; font-weight: 700; color: hsl(var(--foreground));
+  flex-shrink: 0;
+}
+.notepad-import-prompt-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.notepad-import-btn {
+  display: inline-flex; align-items: center; gap: 3px;
+  height: 22px; padding: 0 9px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 6px;
+  background: transparent;
+  color: hsl(var(--muted-foreground));
+  font-family: var(--app-font-sans); font-size: 10px; font-weight: 700;
+  cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
+  white-space: nowrap;
+}
+.notepad-import-btn:hover { background: hsl(var(--muted) / .6); color: hsl(var(--foreground)); }
+.notepad-import-btn.is-primary {
+  background: hsl(var(--primary)); color: hsl(var(--primary-foreground));
+  border-color: hsl(var(--primary));
+}
+.notepad-import-btn.is-primary:hover { background: hsl(var(--primary-hover)); border-color: hsl(var(--primary-hover)); }
+
 /* Spreadsheet tool extras (unchanged, included for completeness) */
 .spreadsheet-tool-icon { color: hsl(31 75% 43%); background: hsl(31 75% 43% / .13); }
 .spreadsheet-workspace { display: grid; grid-template-columns: minmax(260px, .75fr) minmax(0, 1.25fr); gap: 16px; align-items: start; }

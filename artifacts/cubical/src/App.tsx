@@ -1541,6 +1541,7 @@ function NotepadWidget({ compact = false }: { compact?: boolean }) {
   const [charCount,      setCharCount]      = useState(0);
   const [toolbarVisible, setToolbarVisible] = useState(true);
   const [confirmClear,   setConfirmClear]   = useState(false);
+  const [importPending,  setImportPending]  = useState<string | null>(null);
   // Increment to re-render toolbar active-states on every selection / transaction
   const [tick, setTick] = useState(0);
 
@@ -1672,6 +1673,25 @@ function NotepadWidget({ compact = false }: { compact?: boolean }) {
   // ── Import ────────────────────────────────────────────────────────────────
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  /** Commit parsed HTML to the editor — replace or append. */
+  const applyImport = useCallback((html: string, mode: 'replace' | 'append') => {
+    const ed = tiptap.current;
+    if (!ed) return;
+    if (mode === 'append') {
+      // Move to the very end, insert a paragraph break, then insert the new content
+      ed.commands.focus('end');
+      ed.commands.insertContent('<p></p>' + html);
+    } else {
+      ed.commands.setContent(html || '<p></p>');
+    }
+    setCharCount(ed.getText().replace(/\n/g, '').length);
+    try {
+      const safe = sanitizeNotepadHtml(ed.getHTML());
+      window.localStorage.setItem(NOTEPAD_HTML_KEY, safe);
+    } catch {}
+    setImportPending(null);
+  }, []);
+
   const handleImportFile = useCallback((e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!fileInputRef.current) return;
@@ -1713,21 +1733,14 @@ function NotepadWidget({ compact = false }: { compact?: boolean }) {
 
       const hasContent = ed.getText().trim().length > 0;
       if (hasContent) {
-        const ok = window.confirm(
-          'Import will replace your current notes. Continue?',
-        );
-        if (!ok) return;
+        // Show inline Replace / Append prompt instead of a blocking confirm dialog
+        setImportPending(html);
+      } else {
+        applyImport(html, 'replace');
       }
-
-      ed.commands.setContent(html || '<p></p>');
-      setCharCount(ed.getText().replace(/\n/g, '').length);
-      try {
-        const safe = sanitizeNotepadHtml(ed.getHTML());
-        window.localStorage.setItem(NOTEPAD_HTML_KEY, safe);
-      } catch {}
     };
     reader.readAsText(file);
-  }, []);
+  }, [applyImport]);
 
   const triggerImport = () => fileInputRef.current?.click();
 
@@ -1819,6 +1832,17 @@ function NotepadWidget({ compact = false }: { compact?: boolean }) {
       <div ref={containerRef} className="notepad-editor-wrap" />
 
       <div className="notepad-footer">
+        {importPending !== null ? (
+          <div className="notepad-import-prompt">
+            <span className="notepad-import-prompt-label">Add to existing notes, or replace them?</span>
+            <span className="notepad-import-prompt-actions">
+              <button type="button" className="notepad-import-btn" onClick={() => setImportPending(null)}>Cancel</button>
+              <button type="button" className="notepad-import-btn" onClick={() => applyImport(importPending, 'replace')}>Replace</button>
+              <button type="button" className="notepad-import-btn is-primary" onClick={() => applyImport(importPending, 'append')}>Append</button>
+            </span>
+          </div>
+        ) : (
+        <>
         <span className="notepad-footer-count">
           {charCount > 0 ? `${charCount} char${charCount !== 1 ? 's' : ''} · saved locally` : 'Empty · start typing'}
         </span>
@@ -1844,6 +1868,8 @@ function NotepadWidget({ compact = false }: { compact?: boolean }) {
             </>
           )}
         </span>
+        </>
+        )}
       </div>
     </div>
   );
