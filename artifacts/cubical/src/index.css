@@ -407,8 +407,9 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
   will-change: left, top;
 }
 /* Disable transition while dragging so the widget tracks the cursor instantly */
+/* z-index:1000 renders the dragged widget above the sidebar (z-index:5) */
 .grid-widget-outer.is-active-outer {
-  z-index: 50;
+  z-index: 1000;
   transition: none;
 }
 
@@ -423,13 +424,13 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
   box-shadow: 0 6px 20px hsl(var(--shadow-base) / .05);
   overflow: hidden;
   transition: border-color .2s, box-shadow .2s;
+  cursor: grab; /* drag always enabled — 6px dead-zone prevents content-click conflicts */
 }
+.grid-widget:active { cursor: grabbing; }
 .grid-widget.is-editable {
   border: 2px dashed hsl(var(--primary) / .35);
-  cursor: grab;
   box-shadow: 0 6px 20px hsl(var(--shadow-base) / .08);
 }
-.grid-widget.is-editable:active { cursor: grabbing; }
 .grid-widget.is-active {
   box-shadow: 0 22px 55px hsl(var(--primary) / .2);
   transition: none; /* instant movement during drag */
@@ -628,8 +629,10 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
 /* ─── Clock ───────────────────────────────────────────────────────────────────── */
 
 /* Fill wrapper — makes clock occupy the full grid widget */
-.clock-fill { display: flex; flex-direction: column; height: 100%; padding: 22px; overflow: hidden; }
-.clock-minimal { align-items: center; justify-content: center; padding: 12px; }
+.clock-fill { display: flex; flex-direction: column; height: 100%; padding: 14px 16px; overflow: hidden; }
+/* Compact state: tighter padding so the border sits close to the time */
+.clock-fill.clock-compact { padding: 8px 10px; }
+.clock-minimal { align-items: center; justify-content: center; padding: 8px; }
 .clock-time-sm { font-family: var(--app-font-display); font-size: clamp(22px, 3vw, 34px); font-weight: 700; letter-spacing: -.06em; }
 .clock-toggle { display: flex; align-items: center; gap: 6px; cursor: pointer; color: hsl(var(--muted-foreground)); font-size: 11px; font-weight: 700; }
 .clock-toggle input { accent-color: hsl(var(--primary)); }
@@ -3008,44 +3011,81 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
 }
 
 /* ─── Displaced widget band ─────────────────────────────────────────────────── */
-/* Inline strip below page title when portable widgets are in that section.     */
+/* Inline strip below page title; widgets occupy one horizontal row when space  */
+/* allows and wrap to a second row only when necessary.                         */
 
 .displaced-band {
   display: flex;
   flex-wrap: wrap;
-  gap: 18px;
-  margin-bottom: 32px;
-  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 28px;
+  align-items: stretch;
 }
 
+/* ── Card shell: default (compact widgets like Clock, Calendar, Calculator) ── */
 .displaced-band-card {
-  flex: 0 1 440px;
-  min-width: 280px;
+  flex: 0 0 200px;
+  min-width: 160px;
   border: 1px solid hsl(var(--border));
-  border-radius: 20px;
+  border-radius: 16px;
   background: hsl(var(--card));
-  box-shadow: 0 6px 20px hsl(var(--shadow-base) / .06);
+  box-shadow: 0 4px 14px hsl(var(--shadow-base) / .06);
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  user-select: none;
+  transition: opacity .15s;
 }
+.displaced-band-card.is-reorder-drag { opacity: .45; }
 
+/* Widget-specific widths */
+.displaced-band-card[data-widget="notepad"]        { flex: 0 0 380px; min-width: 260px; }
+.displaced-band-card[data-widget="link-shelf"]     { flex: 0 0 280px; }
+.displaced-band-card[data-widget="decision-maker"] { flex: 0 0 260px; }
+.displaced-band-card[data-widget="clock"]          { flex: 0 0 180px; }
+
+/* ── Header: drag grip + widget label + Recall button ── */
 .displaced-band-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 16px;
+  padding: 8px 12px;
   border-bottom: 1px solid hsl(var(--border));
   background: hsl(var(--secondary) / .5);
   flex-shrink: 0;
+  cursor: grab;
+}
+.displaced-band-header:active { cursor: grabbing; }
+
+.displaced-grip {
+  width: 13px;
+  height: 13px;
+  color: hsl(var(--muted-foreground) / .5);
+  flex-shrink: 0;
+  margin-right: 5px;
 }
 
 .displaced-band-label {
+  display: flex;
+  align-items: center;
+  gap: 0;
   font-size: 11px;
   font-weight: 700;
   color: hsl(var(--muted-foreground));
   letter-spacing: .05em;
   text-transform: uppercase;
+}
+
+/* ── Body: standard fixed height, overflow hidden (internal scroll for Notepad) */
+.displaced-band-body {
+  height: 190px;
+  overflow: hidden;
+  position: relative;
+  flex: 1 0 auto;
+}
+/* Notepad scrolls its content rather than growing the card */
+.displaced-band-card[data-widget="notepad"] .displaced-band-body {
+  overflow-y: auto;
 }
 
 .displaced-recall-btn {

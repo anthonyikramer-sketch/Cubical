@@ -345,7 +345,7 @@ const WIDGET_LABELS: Record<WidgetId, string> = {
 // Minimum pixel dimensions — below these a widget cannot be resized
 const WIDGET_MIN: Record<WidgetId, { w: number; h: number }> = {
   calendar:         { w: 280, h: 280 },
-  clock:            { w: 220, h: 180 },
+  clock:            { w: 140, h: 100 },
   notepad:          { w: 220, h: 160 },
   'file-finder':    { w: 220, h: 120 },
   'link-shelf':     { w: 220, h: 180 },
@@ -353,8 +353,11 @@ const WIDGET_MIN: Record<WidgetId, { w: number; h: number }> = {
   calculator:       { w: 180, h: 280 },
 };
 
-// Portable widgets can be dragged from Home to other pages
-const PORTABLE_WIDGETS = new Set<WidgetId>(['notepad', 'calendar', 'link-shelf', 'decision-maker', 'calculator']);
+// Portable by default — widgets not in the registry (e.g. file-finder) are NOT portable.
+function isPortableWidget(id: WidgetId): boolean {
+  const def = WIDGET_REGISTRY.find((w) => w.id === id);
+  return def !== undefined && def.portable !== false;
+}
 
 // Default pixel layout — sized for a ~970 px wide canvas (1280 px viewport, expanded sidebar).
 const DEFAULT_LAYOUT: LayoutItem[] = [
@@ -374,6 +377,8 @@ type WidgetDef = {
   defaultH: number;
   defaultX: number;
   defaultY: number;
+  /** Portable by default. Set false to opt out of the portable-widget system. */
+  portable?: boolean;
 };
 
 const WIDGET_REGISTRY: WidgetDef[] = [
@@ -383,6 +388,7 @@ const WIDGET_REGISTRY: WidgetDef[] = [
   { id: 'link-shelf',     label: 'Link Shelf',     defaultW: 390, defaultH: 264, defaultX: 0,   defaultY: 644 },
   { id: 'decision-maker', label: 'Decision Maker', defaultW: 310, defaultH: 360, defaultX: 400, defaultY: 644 },
   { id: 'calculator',     label: 'Calculator',     defaultW: 240, defaultH: 450, defaultX: 720, defaultY: 274 },
+  // file-finder is a system widget not managed through this registry
 ];
 
 const DEFAULT_ACTIVE_WIDGETS: WidgetId[] = ['calendar', 'clock', 'notepad'];
@@ -451,9 +457,10 @@ interface PortableCtxShape {
   addWidget:    (id: WidgetId) => void;
   removeWidget: (id: WidgetId) => void;
   // Portable drag
-  displace:  (id: WidgetId, page: string) => void;
-  recall:    (id: WidgetId) => void;
-  recallAll: () => void;
+  displace:          (id: WidgetId, page: string) => void;
+  recall:            (id: WidgetId) => void;
+  recallAll:         () => void;
+  reorderDisplaced:  (page: string, fromIdx: number, toIdx: number) => void;
   // Drag gesture state
   dragId:      WidgetId | null;
   setDragId:   (id: WidgetId | null) => void;
@@ -465,7 +472,7 @@ interface PortableCtxShape {
 const PortableCtx = createContext<PortableCtxShape>({
   activeWidgets: [], displaced: [],
   addWidget: () => {}, removeWidget: () => {},
-  displace: () => {}, recall: () => {}, recallAll: () => {},
+  displace: () => {}, recall: () => {}, recallAll: () => {}, reorderDisplaced: () => {},
   dragId: null, setDragId: () => {},
   hoverPage: null, setHoverPage: () => {},
   hoverPageRef: { current: null },
@@ -543,11 +550,24 @@ function PortableProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  // Reorder displaced widgets within a section (left-to-right order in the band)
+  const reorderDisplaced = useCallback((page: string, fromIdx: number, toIdx: number) => {
+    setDisplaced((prev) => {
+      const section = prev.filter((d) => d.page === page);
+      const others  = prev.filter((d) => d.page !== page);
+      if (fromIdx < 0 || fromIdx >= section.length || toIdx < 0 || toIdx >= section.length) return prev;
+      const reordered = [...section];
+      const [moved] = reordered.splice(fromIdx, 1);
+      reordered.splice(toIdx, 0, moved);
+      return [...others, ...reordered];
+    });
+  }, []);
+
   return (
     <PortableCtx.Provider value={{
       activeWidgets, displaced,
       addWidget, removeWidget,
-      displace, recall, recallAll,
+      displace, recall, recallAll, reorderDisplaced,
       dragId, setDragId,
       hoverPage, setHoverPage, hoverPageRef,
     }}>
@@ -885,8 +905,11 @@ function todayStr() {
 type CalendarMode = 'tile' | 'compact' | 'full';
 
 function getCalendarMode(w: number, h: number): CalendarMode {
-  if (w <= 2 || h <= 2) return 'tile';
-  if (w >= 5 && h >= 5) return 'full';
+  // w/h are approximate grid units: round(px/82) and round(px/92).
+  // tile  = compact day-card (small widget, min ~280px)
+  // full  = month grid + day panel (large widget)
+  if (w <= 4 || h <= 4) return 'tile';
+  if (w >= 6 && h >= 6) return 'full';
   return 'compact';
 }
 
@@ -2084,15 +2107,16 @@ function GridWidget({
   return (
     // Outer wrapper: pixel position; overflow:visible lets decorations overhang.
     // Transition eases boundary-correction settle; disabled while dragging (is-active-outer).
+    // onPointerDown is always active — startDrag uses a 6px dead-zone so content clicks pass through.
     <div
       className={`grid-widget-outer${isActive ? ' is-active-outer' : ''}`}
       style={{ left: item.x, top: item.y, width: item.w, height: item.h }}
       data-testid={`grid-widget-${item.id}`}
+      onPointerDown={onDragStart}
     >
       {/* Visual card — keeps overflow: hidden for its own rounded corners */}
       <div
         className={`grid-widget${isEditing ? ' is-editable' : ''}${isActive ? ' is-active' : ''}`}
-        onPointerDown={isEditing ? onDragStart : undefined}
       >
         {isEditing && (
           <div className="widget-edit-badge" aria-hidden>
@@ -2230,36 +2254,46 @@ function HomeWorkspace({
   // ── Drag ──────────────────────────────────────────────────────────────────
 
   const startDrag = (id: WidgetId, e: React.PointerEvent) => {
-    if (!isEditing) return;
-    e.preventDefault();
-    e.stopPropagation();
+    // Drag is ALWAYS enabled — no isEditing guard.
+    // A 6 px dead-zone prevents accidental drags from widget-content taps.
+    const item = layout.find((l) => l.id === id);
+    if (!item) return;
 
-    const item = layout.find((l) => l.id === id)!;
     const origX = item.x, origY = item.y;
     const startMX = e.clientX, startMY = e.clientY;
-    const isPortable = PORTABLE_WIDGETS.has(id);
-    let isInSidebarZone = false;
+    const portable = isPortableWidget(id);
 
-    setActiveItem({ ...item });
-    activeItemRef.current = { ...item };
-    setActiveMode('drag');
+    let dragging = false;
+    let inSidebar = false;
 
     const onMove = (ev: PointerEvent) => {
+      const dx = ev.clientX - startMX;
+      const dy = ev.clientY - startMY;
+
+      // Only start drag after meaningful movement (avoids conflict with content clicks)
+      if (!dragging) {
+        if (Math.hypot(dx, dy) < 6) return;
+        dragging = true;
+        setActiveItem({ ...item });
+        activeItemRef.current = { ...item };
+        setActiveMode('drag');
+      }
+
+      ev.preventDefault();
+
       const containerLeft = containerRef.current?.getBoundingClientRect().left ?? 0;
 
-      // Portable drag: pointer entering sidebar zone triggers drop-target highlights
-      if (isPortable && ev.clientX < containerLeft) {
-        if (!isInSidebarZone) { isInSidebarZone = true; setDragId(id); }
-        return; // freeze widget position while hovering sidebar
+      // Portable: entering sidebar zone activates drop-target highlights on nav links
+      if (portable && ev.clientX < containerLeft) {
+        if (!inSidebar) { inSidebar = true; setDragId(id); }
+      } else if (inSidebar) {
+        inSidebar = false;
+        setDragId(null);
       }
-      if (isInSidebarZone) { isInSidebarZone = false; setDragId(null); }
 
-      // Free pixel movement — no grid snap
-      const proposed: LayoutItem = {
-        ...item,
-        x: origX + (ev.clientX - startMX),
-        y: origY + (ev.clientY - startMY),
-      };
+      // Free pixel movement — widget follows cursor everywhere, including over sidebar.
+      // z-index:1000 on .is-active-outer renders it above the sidebar visually.
+      const proposed: LayoutItem = { ...item, x: origX + dx, y: origY + dy };
       setActiveItem(proposed);
       activeItemRef.current = proposed;
     };
@@ -2268,8 +2302,10 @@ function HomeWorkspace({
       document.removeEventListener('pointermove', onMove);
       document.removeEventListener('pointerup', onUp);
 
+      if (!dragging) return; // tap/click, not a drag — do nothing
+
       // Portable drop: displace into sidebar destination and navigate
-      const dropPage = isInSidebarZone ? hoverPageRef.current : null;
+      const dropPage = inSidebar ? hoverPageRef.current : null;
       if (dropPage) {
         displace(id, dropPage);
         navigate(dropPage);
@@ -2520,30 +2556,94 @@ function isSectionMatch(location: string, page: string): boolean {
 
 function DisplacedWidgetBand() {
   const [location] = useLocation();
-  const { displaced, recall } = usePortable();
+  const { displaced, recall, reorderDisplaced } = usePortable();
+  const bandRef = useRef<HTMLDivElement>(null);
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const [dropIdx, setDropIdx] = useState<number | null>(null);
 
   const bandWidgets = displaced.filter((d) => isSectionMatch(location, d.page));
   if (bandWidgets.length === 0) return null;
 
+  const sectionPage = bandWidgets[0]?.page ?? '';
+
+  // Live visual reorder preview while dragging
+  const displayWidgets = (() => {
+    if (dragIdx === null || dropIdx === null || dragIdx === dropIdx) return bandWidgets;
+    const arr = [...bandWidgets];
+    const [item] = arr.splice(dragIdx, 1);
+    arr.splice(dropIdx, 0, item);
+    return arr;
+  })();
+
+  const startReorder = (origIdx: number) => (e: React.PointerEvent) => {
+    e.stopPropagation();
+    setDragIdx(origIdx);
+    setDropIdx(origIdx);
+
+    const onMove = (ev: PointerEvent) => {
+      if (!bandRef.current) return;
+      const cards = Array.from(bandRef.current.querySelectorAll<HTMLElement>('.displaced-band-card'));
+      let newDrop = bandWidgets.length - 1;
+      for (let i = 0; i < cards.length; i++) {
+        const r = cards[i].getBoundingClientRect();
+        if (ev.clientX < r.left + r.width / 2) { newDrop = i; break; }
+      }
+      setDropIdx(Math.max(0, Math.min(newDrop, bandWidgets.length - 1)));
+    };
+
+    const onUp = () => {
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      setDragIdx((di) => {
+        setDropIdx((dt) => {
+          if (di !== null && dt !== null && di !== dt) reorderDisplaced(sectionPage, di, dt);
+          return null;
+        });
+        return null;
+      });
+    };
+
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+  };
+
   return (
-    <div className="displaced-band" data-testid="displaced-band">
-      {bandWidgets.map((d) => (
-        <div key={d.id} className="displaced-band-card" data-testid={`displaced-card-${d.id}`}>
-          <div className="displaced-band-header">
-            <span className="displaced-band-label">{WIDGET_LABELS[d.id]}</span>
-            <button className="displaced-recall-btn" onClick={() => recall(d.id)} title="Send back to Home">
-              <CornerUpLeft /> Recall
-            </button>
+    <div className="displaced-band" data-testid="displaced-band" ref={bandRef}>
+      {displayWidgets.map((d) => {
+        const origIdx = bandWidgets.indexOf(d);
+        const isDragging = origIdx === dragIdx;
+        return (
+          <div
+            key={d.id}
+            className={`displaced-band-card${isDragging ? ' is-reorder-drag' : ''}`}
+            data-widget={d.id}
+            data-testid={`displaced-card-${d.id}`}
+          >
+            <div className="displaced-band-header" onPointerDown={startReorder(origIdx)}>
+              <span className="displaced-band-label">
+                <GripHorizontal className="displaced-grip" />
+                {WIDGET_LABELS[d.id]}
+              </span>
+              <button
+                className="displaced-recall-btn"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={() => recall(d.id)}
+                title="Send back to Home"
+              >
+                <CornerUpLeft /> Recall
+              </button>
+            </div>
+            <div className="displaced-band-body">
+              {d.id === 'notepad'        && <NotepadWidget compact={false} />}
+              {d.id === 'calendar'       && <CalendarWidget gridW={3} gridH={3} />}
+              {d.id === 'clock'          && <ClockWidget gridH={1} />}
+              {d.id === 'link-shelf'     && <LinkShelfWidget gridW={3} gridH={2} />}
+              {d.id === 'decision-maker' && <DecisionMakerWidget gridW={3} gridH={2} />}
+              {d.id === 'calculator'     && <CalculatorWidget />}
+            </div>
           </div>
-          <div className="displaced-band-body">
-            {d.id === 'notepad'        && <NotepadWidget compact={false} />}
-            {d.id === 'calendar'       && <CalendarWidget gridW={6} gridH={5} />}
-            {d.id === 'link-shelf'     && <LinkShelfWidget gridW={5} gridH={3} />}
-            {d.id === 'decision-maker' && <DecisionMakerWidget gridW={4} gridH={3} />}
-            {d.id === 'calculator'     && <CalculatorWidget />}
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -2670,7 +2770,6 @@ function BulkFileRenamer() {
   return (
     <section className="renamer-page" data-testid="bulk-file-renamer">
       <Link href="/library" className="detail-back" data-testid="link-back-library"><ArrowLeft /> Back to library</Link>
-      <DisplacedWidgetBand />
       <div className="tool-title-row">
         <div>
           <div className="eyebrow">Cubical tool · local prototype</div>
@@ -2678,6 +2777,7 @@ function BulkFileRenamer() {
         </div>
         <span className="tool-status"><i className="status-dot" /> Ready when you are</span>
       </div>
+      <DisplacedWidgetBand />
       <div className="renamer-notice">
         <FilePlus2 />
         <div><strong>Safe preview mode</strong><span>Files are selected only for this session. Nothing is changed until you review the preview and click Rename Files.</span></div>
@@ -2836,7 +2936,6 @@ function SpreadsheetCleaner() {
 
   return (
     <section className="renamer-page spreadsheet-page" data-testid="spreadsheet-cleaner">
-      <DisplacedWidgetBand />
       <Link href="/library" className="detail-back" data-testid="link-back-library"><ArrowLeft /> Back to library</Link>
       <div className="tool-title-row">
         <div>
@@ -2845,6 +2944,7 @@ function SpreadsheetCleaner() {
         </div>
         <span className="tool-status"><i className="status-dot" /> Original stays safe</span>
       </div>
+      <DisplacedWidgetBand />
       <div className="renamer-notice"><FilePlus2 /><div><strong>Safe copy mode</strong><span>Spreadsheet Cleaner reads your CSV and creates a new cleaned download. The original uploaded file is never modified.</span></div></div>
       <div className="spreadsheet-workspace">
         <div className="spreadsheet-controls">
