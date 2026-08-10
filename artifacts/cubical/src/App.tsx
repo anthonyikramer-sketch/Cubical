@@ -38,6 +38,14 @@ const PRODUCTS: Product[] = [
   { id: 'duplicate-finder', name: 'Duplicate Finder', description: 'Spot the copies taking up space and keep the best version.', price: 'FREE', icon: Files, iconColor: 'hsl(287 40% 47%)', iconBg: 'hsl(287 40% 47% / .12)' },
 ];
 
+const TOOL_ROUTES: Partial<Record<Product['id'], string>> = {
+  'bulk-file-renamer': '/tool/bulk-file-renamer',
+};
+
+function getToolRoute(product: Product) {
+  return TOOL_ROUTES[product.id];
+}
+
 function getStoredLibrary() {
   try {
     const stored = localStorage.getItem('cubical-library');
@@ -139,6 +147,7 @@ function ScreenshotPlaceholder({ product }: { product: Product }) {
 }
 
 function ProductDetail({ product, isAdded, onAdd, onOpen }: { product: Product; isAdded: boolean; onAdd: () => void; onOpen: () => void }) {
+  const toolRoute = getToolRoute(product);
   return (
     <section>
       <Link href="/" className="detail-back" data-testid="link-back-store"><ArrowLeft /> Back to store</Link>
@@ -150,7 +159,11 @@ function ProductDetail({ product, isAdded, onAdd, onOpen }: { product: Product; 
           <p data-testid="text-detail-description">{product.description} Built to stay out of your way, feel good to use, and make a small part of your day lighter.</p>
           <div className="detail-price" data-testid="text-detail-price">{product.price} · one-time, local-only</div>
           {isAdded ? (
-            <button className="button-primary" onClick={onOpen} data-testid="button-open-added"><Check /> In your library · Open</button>
+            toolRoute ? (
+              <Link href={toolRoute} className="button-primary" data-testid="button-open-added"><Check /> In your library · Open</Link>
+            ) : (
+              <button className="button-primary" onClick={onOpen} data-testid="button-open-added"><Check /> In your library · Open</button>
+            )
           ) : (
             <button className="button-primary" onClick={onAdd} data-testid="button-add-library">Add to library <ArrowRight /></button>
           )}
@@ -176,7 +189,20 @@ function LibraryPage({ products, onOpen }: { products: Product[]; onOpen: (produ
   return (
     <section>
       <div className="library-head"><div className="page-intro !mb-0"><div className="eyebrow">Your chosen tools</div><h1 className="display-title mt-4">Your library.</h1><p>Everything you decided was worth keeping, in one quiet place.</p></div><span className="library-count" data-testid="text-library-count">{String(products.length).padStart(2, '0')} saved</span></div>
-      {products.length === 0 ? <EmptyLibrary /> : <div className="library-list" data-testid="library-list">{products.map((product, index) => <div className="library-row" style={{ animationDelay: `${index * 60}ms` }} key={product.id} data-testid={`row-library-${product.id}`}><ProductIcon product={product} /><div className="library-row-main"><div className="library-row-name">{product.name}</div><div className="library-row-description">{product.description}</div></div><button className="button-quiet" onClick={() => onOpen(product)} data-testid={`button-open-${product.id}`}>Open <ArrowRight className="ml-1 inline-block h-3 w-3" /></button></div>)}</div>}
+      {products.length === 0 ? <EmptyLibrary /> : <div className="library-list" data-testid="library-list">{products.map((product, index) => {
+        const toolRoute = getToolRoute(product);
+        return (
+          <div className="library-row" style={{ animationDelay: `${index * 60}ms` }} key={product.id} data-testid={`row-library-${product.id}`}>
+            <ProductIcon product={product} />
+            <div className="library-row-main"><div className="library-row-name">{product.name}</div><div className="library-row-description">{product.description}</div></div>
+            {toolRoute ? (
+              <Link className="button-quiet" href={toolRoute} data-testid={`button-open-${product.id}`}>Open <ArrowRight className="ml-1 inline-block h-3 w-3" /></Link>
+            ) : (
+              <button className="button-quiet" onClick={() => onOpen(product)} data-testid={`button-open-${product.id}`}>Open <ArrowRight className="ml-1 inline-block h-3 w-3" /></button>
+            )}
+          </div>
+        );
+      })}</div>}
     </section>
   );
 }
@@ -453,8 +479,9 @@ function App() {
     setToast(`${product.name} added to your library`);
   };
   const openProduct = (product: Product) => {
-    if (product.id === 'bulk-file-renamer') {
-      setLocation('/tool/bulk-file-renamer');
+    const toolRoute = getToolRoute(product);
+    if (toolRoute) {
+      setLocation(toolRoute);
       return;
     }
     setToast(`${product.name} would launch here`);
