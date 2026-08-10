@@ -1,0 +1,239 @@
+I have uploaded a pixel-art Sakura environment image that I want to use as the first Cubical skin.
+
+This is the beginning of the actual Cubical skin system.
+
+IMPORTANT:
+Do not redesign the image.
+Do not recreate the image with CSS.
+Do not crop individual objects out of it.
+Do not add additional artwork.
+Use the uploaded image itself as the Sakura environment.
+
+--------------------------------------------------
+1. ADD SAKURA AS A REAL SKIN
+--------------------------------------------------
+
+Create a new skin called:
+
+Sakura
+
+The existing Cubical appearance should remain available as:
+
+Default
+
+Sakura should appear in the existing Profile skin/customization section and be equippable.
+
+The user should be able to switch:
+
+Default -> Sakura
+Sakura -> Default
+
+Remember the equipped skin locally after refresh/reopening Cubical.
+
+Do not build purchasing, currency, unlocking, or Store functionality for skins yet.
+
+For this prototype, Sakura should simply be treated as owned.
+
+--------------------------------------------------
+2. SAKURA HOME ENVIRONMENT
+--------------------------------------------------
+
+When Sakura is equipped, use the uploaded Sakura pixel-art image as the Home workspace environment.
+
+The artwork should replace the normal plain Home workspace background.
+
+The image represents a small pixel-art cubby/workspace inside the user's monitor.
+
+Preserve the artwork's original appearance.
+
+Do NOT:
+- blur it
+- stretch it disproportionately
+- smooth the pixel art
+- recolor it
+- place a dark overlay over it
+- cover it with another generic background
+
+Use image-rendering behavior appropriate for pixel artwork where useful.
+
+--------------------------------------------------
+3. IMAGE SCALING
+--------------------------------------------------
+
+The Sakura environment needs to work across different Cubical window sizes.
+
+Preserve the image's aspect ratio.
+
+Prefer showing the entire environment whenever reasonably possible.
+
+Do not distort the image to fill arbitrary dimensions.
+
+The central Sakura tree, landscape, wooden frame, floor, bottom shelf, "You got this" note, and cat should remain visually coherent.
+
+If the available workspace has a different aspect ratio, use intelligent containment/cropping rather than stretching.
+
+The environment should feel intentionally framed inside Cubical.
+
+--------------------------------------------------
+4. WIDGETS MUST SIT ON TOP OF THE ENVIRONMENT
+--------------------------------------------------
+
+The existing Home widgets must remain functional:
+
+- Calendar
+- Clock
+- Notepad
+
+Preserve:
+- dragging
+- resizing
+- compact widget states
+- saved positions
+- saved sizes
+- Calendar data
+- Notepad data
+- Clock functionality
+
+Widgets should render ABOVE the Sakura environment.
+
+The Sakura image is decorative and must never intercept mouse interaction with widgets.
+
+The artwork should behave as the environmental layer behind the interactive Home workspace.
+
+Do not bake widgets into the background image.
+
+--------------------------------------------------
+5. MAKE WIDGETS VISUALLY FIT SAKURA
+--------------------------------------------------
+
+When Sakura is equipped, lightly restyle Home widgets so they belong inside the environment.
+
+Do NOT heavily redesign them yet.
+
+Use restrained Sakura-compatible styling such as:
+
+- warm cream/off-white surfaces
+- soft pink accents
+- warm brown borders
+- subtle shadows
+- slightly softer corners
+
+Widgets must remain highly readable.
+
+Do not make widgets transparent enough that the detailed artwork makes text difficult to read.
+
+The goal is for the widgets to look like useful objects placed inside the Sakura cubby.
+
+--------------------------------------------------
+6. SAKURA SIDEBAR
+--------------------------------------------------
+
+When Sakura is equipped, allow the sidebar to receive a restrained Sakura visual treatment.
+
+Use colors inspired by the environment:
+- warm dark wood/brown
+- muted Sakura pink
+- warm cream
+- subtle green accents where appropriate
+
+Do not put the full background image inside the sidebar.
+
+Keep sidebar readability and functionality intact.
+
+Preserve:
+- auto-collapse
+- hover expansion
+- pinning
+- navigation
+- Your Shelf
+- Yourself
+
+--------------------------------------------------
+7. OTHER PAGES
+--------------------------------------------------
+
+Do NOT force the full Sakura environment image behind Store, Library, Profile, Settings, or tools.
+
+The main environment artwork belongs specifically to Home.
+
+However, when Sakura is equipped, those pages may inherit restrained Sakura theme variables such as:
+
+- accent color
+- button color
+- selected navigation color
+- subtle surface colors
+- borders
+
+Keep those pages clean and functional.
+
+--------------------------------------------------
+8. SKIN ARCHITECTURE
+--------------------------------------------------
+
+Do not hardcode Sakura modifications randomly throughout components.
+
+Create a simple reusable skin/theme architecture.
+
+At minimum, Cubical should understand:
+
+skin = default
+skin = sakura
+
+Structure it so future skins can define things such as:
+
+- Home environment image
+- workspace background
+- sidebar colors
+- accent colors
+- widget surfaces
+- borders
+- shadows
+- text colors
+
+Future skins may eventually include additional artwork, decorative overlays, animations, sounds, and other environmental effects.
+
+Do NOT implement those systems now.
+
+Just avoid building Sakura in a way that would make additional skins difficult later.
+
+--------------------------------------------------
+9. HOME GREETING
+--------------------------------------------------
+
+The existing large "Good to be back." greeting should NOT permanently cover a major portion of the Sakura artwork.
+
+When Sakura is equipped, integrate the greeting more subtly into the environment or reduce its visual dominance.
+
+The environment itself should become the visual focus of Home.
+
+Do not remove useful Home functionality simply to expose more artwork.
+
+--------------------------------------------------
+10. VERIFY
+--------------------------------------------------
+
+Before finishing, verify:
+
+1. Default skin still works.
+2. Sakura appears in Profile.
+3. Sakura can be equipped.
+4. Default can be re-equipped.
+5. Equipped skin survives refresh.
+6. Sakura artwork appears on Home only when Sakura is equipped.
+7. Artwork is not distorted.
+8. Widgets render above the artwork.
+9. Widgets can still be dragged.
+10. Widgets can still be resized.
+11. Widget positions persist.
+12. Calendar data persists.
+13. Notepad data persists.
+14. Clock still works.
+15. Sidebar still collapses and expands.
+16. Sidebar pin still works.
+17. Store still works.
+18. Library still works.
+19. Profile still works.
+20. Settings still works.
+21. Existing tools are unchanged.
+
+Do not add unrelated features during this task.

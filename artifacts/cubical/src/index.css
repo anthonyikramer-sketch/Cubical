@@ -1724,3 +1724,191 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
   transition: color 0.12s;
 }
 .settings-cancel-btn:hover { color: hsl(var(--foreground)); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SKIN SYSTEM
+   Architecture: data-skin attribute on <html> drives all visual overrides.
+   Each skin block is self-contained; components need no skin-specific logic.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Sakura skin: global CSS variable overrides ─────────────────────────── */
+
+[data-skin="sakura"] {
+  --background:          28 38% 93%;
+  --foreground:          22 40% 16%;
+  --border:              25 30% 76%;
+  --input:               25 30% 76%;
+  --ring:                340 38% 52%;
+  --card:                30 50% 97%;
+  --card-foreground:     22 40% 16%;
+  --card-border:         25 30% 76%;
+  --primary:             340 38% 50%;
+  --primary-foreground:  30 50% 97%;
+  --secondary:           28 35% 90%;
+  --secondary-foreground:22 40% 16%;
+  --muted:               28 30% 88%;
+  --muted-foreground:    22 22% 48%;
+  --accent:              340 52% 66%;
+  --accent-foreground:   22 40% 16%;
+  --destructive:         1 68% 54%;
+  --destructive-foreground: 30 50% 97%;
+}
+
+/* Sakura shell — keep the warm radial glow */
+[data-skin="sakura"] .cubical-shell {
+  background:
+    radial-gradient(circle at 88% 6%, hsl(340 52% 66% / .10), transparent 24rem),
+    hsl(28 38% 93%);
+}
+
+/* ─── Sakura sidebar ─────────────────────────────────────────────────────── */
+
+[data-skin="sakura"] .cubical-sidebar {
+  background: hsl(22 42% 17%);   /* warm dark wood */
+  color: hsl(30 40% 90%);
+}
+[data-skin="sakura"] .sidebar-footnote {
+  border-top-color: hsl(30 40% 90% / .12);
+  color: hsl(28 22% 58%);
+}
+[data-skin="sakura"] .side-label {
+  color: hsl(28 25% 60%);
+}
+[data-skin="sakura"] .nav-link {
+  color: hsl(30 30% 78%);
+}
+[data-skin="sakura"] .nav-link:hover {
+  color: hsl(30 40% 95%);
+  background: hsl(30 40% 90% / .09);
+}
+[data-skin="sakura"] .nav-link.active {
+  background: hsl(340 38% 50%);
+  color: hsl(30 50% 97%);
+}
+[data-skin="sakura"] .brand-mark {
+  background: hsl(340 38% 50%);
+  color: hsl(30 50% 97%);
+  box-shadow: 5px 5px 0 hsl(22 42% 10% / .55);
+}
+[data-skin="sakura"] .sidebar-pin-btn {
+  color: hsl(28 22% 58%);
+}
+[data-skin="sakura"] .sidebar-pin-btn:hover {
+  color: hsl(30 40% 90%);
+}
+[data-skin="sakura"] .sidebar-pin-btn.is-pinned {
+  color: hsl(340 52% 66%);
+}
+
+/* ─── Sakura home: environment frame ─────────────────────────────────────── */
+
+.home-sakura {
+  padding-bottom: 0;
+}
+
+.sakura-env-frame {
+  position: relative;
+  border-radius: 22px;
+  overflow: hidden;
+  /* Fallback bg matches warm wood tones at image edges */
+  background: hsl(22 38% 52%);
+  min-height: 540px;
+}
+
+/* The pixel-art environment image — fills the frame, maintains aspect ratio */
+.sakura-env-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  image-rendering: pixelated;   /* preserve pixel-art crispness */
+  pointer-events: none;         /* never intercept widget interactions */
+  user-select: none;
+  display: block;
+  border-radius: 0;
+}
+
+/* Interactive UI floats above the artwork */
+.sakura-env-ui {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 540px;
+}
+
+/* Compact top bar replacing the large greeting */
+.sakura-top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 22px 12px;
+}
+
+.sakura-greeting {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 16px;
+  border-radius: 99px;
+  background: hsl(30 50% 97% / .86);
+  color: hsl(340 35% 38%);
+  font-size: 12.5px;
+  font-weight: 700;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border: 1px solid hsl(25 30% 76% / .45);
+  box-shadow: 0 2px 8px hsl(22 30% 20% / .12);
+  letter-spacing: .01em;
+}
+
+/* Edit-mode hint overlaid on the environment */
+.sakura-edit-hint {
+  margin: 0 22px 10px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: hsl(30 50% 97% / .82);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-size: 11px;
+  color: hsl(340 30% 36%);
+  border: 1px solid hsl(25 28% 76% / .35);
+}
+
+/* Sakura widget surfaces — warm cream with brown borders */
+[data-skin="sakura"] .grid-widget {
+  background: hsl(30 50% 97% / .94);
+  border-color: hsl(25 32% 72%);
+  box-shadow: 0 4px 18px hsl(22 30% 22% / .20);
+}
+[data-skin="sakura"] .grid-widget:hover {
+  border-color: hsl(340 35% 60% / .35);
+}
+[data-skin="sakura"] .grid-widget.is-editable {
+  border-color: hsl(340 38% 58% / .45);
+  border-style: dashed;
+}
+[data-skin="sakura"] .grid-widget.is-active {
+  box-shadow: 0 16px 48px hsl(22 30% 22% / .30);
+  border-color: hsl(340 38% 52% / .65);
+  border-style: solid;
+}
+[data-skin="sakura"] .grid-widget.is-conflict {
+  border-color: hsl(1 68% 54% / .6) !important;
+}
+
+/* ─── Profile: Sakura skin card preview ──────────────────────────────────── */
+
+.skin-preview-sakura-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  image-rendering: pixelated;
+  display: block;
+  pointer-events: none;
+  user-select: none;
+}

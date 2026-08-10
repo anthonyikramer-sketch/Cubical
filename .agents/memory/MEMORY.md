@@ -1,1 +1,2 @@
 - [Hash routing & Replit preview](hash-routing-preview.md) — Cubical uses inline useHashLocation; path screenshots always show Home; never import from wouter/use-hash-location.
+- [Sakura skin system](sakura-skin-system.md) — data-skin on html drives all visual overrides; applySkin() + CSS selectors; image at public/sakura-env.png.

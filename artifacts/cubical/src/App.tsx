@@ -130,6 +130,23 @@ function applyThemeMode(mode: ThemeMode) {
   document.documentElement.classList.toggle('dark', dark);
 }
 
+// ─── Skin system ──────────────────────────────────────────────────────────────
+// Skins are applied via a `data-skin` attribute on <html>.
+// CSS selectors like `[data-skin="sakura"] .cubical-sidebar` handle visual changes.
+// Future skins add a new id here and a matching CSS block.
+
+function readEquippedSkin(): string {
+  try { return window.localStorage.getItem(PROFILE_SKIN_KEY) ?? 'default'; } catch { return 'default'; }
+}
+
+function applySkin(skinId: string) {
+  if (skinId === 'default' || !skinId) {
+    document.documentElement.removeAttribute('data-skin');
+  } else {
+    document.documentElement.dataset.skin = skinId;
+  }
+}
+
 interface ProfileData { name: string; avatar: string | null; bannerColor: string; }
 const DEFAULT_PROFILE: ProfileData = { name: '', avatar: null, bannerColor: '#7c9e8f' };
 
@@ -144,8 +161,8 @@ function writeProfile(p: ProfileData) { writeLocal(PROFILE_KEY, p); }
 interface CubicalSkin { id: string; name: string; description: string; owned: boolean; comingSoon?: boolean; }
 
 const CUBICAL_SKINS: CubicalSkin[] = [
-  { id: 'default', name: 'Default', description: 'Clean and calm. The original Cubical look.',                owned: true  },
-  { id: 'sakura',  name: 'Sakura',  description: 'Cherry blossoms and soft pinks. A peaceful seasonal look.', owned: false, comingSoon: true },
+  { id: 'default', name: 'Default', description: 'Clean and calm. The original Cubical look.',                owned: true },
+  { id: 'sakura',  name: 'Sakura',  description: 'Cherry blossoms and soft pinks. A peaceful seasonal look.', owned: true },
 ];
 
 type FileTypeCategory = 'all' | 'documents' | 'pdfs' | 'spreadsheets' | 'images' | 'videos' | 'audio' | 'archives';
@@ -1272,39 +1289,52 @@ function HomeWorkspace({ isEditing }: { isEditing: boolean }) {
 
 function HomePage() {
   const [isEditing, setIsEditing] = useState(false);
+  const isSakura = readEquippedSkin() === 'sakura';
+
+  const editBtn = !isEditing ? (
+    <button type="button" className="home-edit-btn" onClick={() => setIsEditing(true)} data-testid="button-customize-layout">
+      <Pencil /> Edit Layout
+    </button>
+  ) : (
+    <button type="button" className="home-edit-btn home-edit-btn-done" onClick={() => setIsEditing(false)} data-testid="button-done-editing">
+      <Check /> Done
+    </button>
+  );
+
+  if (isSakura) {
+    return (
+      <div className="home-page home-sakura" data-testid="home-page">
+        <div className="sakura-env-frame">
+          {/* Environment artwork — decorative, non-interactive */}
+          <img src="/sakura-env.png" className="sakura-env-img" alt="" aria-hidden draggable={false} />
+          {/* Interactive UI layer floats above the artwork */}
+          <div className="sakura-env-ui">
+            <div className="sakura-top-bar">
+              <span className="sakura-greeting">✦ Your workspace</span>
+              {editBtn}
+            </div>
+            {isEditing && (
+              <p className="home-edit-hint sakura-edit-hint">
+                Drag widgets to reposition · drag the corner ↘ to resize · widgets snap to the grid
+              </p>
+            )}
+            <HomeWorkspace isEditing={isEditing} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="home-page" data-testid="home-page">
-
-      {/* Header row */}
       <div className="home-header-row">
         <div>
           <div className="eyebrow">Your workspace</div>
           <h1 className="display-title" style={{ marginTop: '0.75rem' }}>Good to be back.</h1>
           {isEditing && <p className="home-edit-hint">Drag widgets to reposition · drag the corner ↘ to resize · widgets snap to the grid</p>}
         </div>
-
-        {/* Edit Layout button — always visible */}
-        {!isEditing ? (
-          <button
-            type="button"
-            className="home-edit-btn"
-            onClick={() => setIsEditing(true)}
-            data-testid="button-customize-layout"
-          >
-            <Pencil /> Edit Layout
-          </button>
-        ) : (
-          <button
-            type="button"
-            className="home-edit-btn home-edit-btn-done"
-            onClick={() => setIsEditing(false)}
-            data-testid="button-done-editing"
-          >
-            <Check /> Done
-          </button>
-        )}
+        {editBtn}
       </div>
-
       <HomeWorkspace isEditing={isEditing} />
     </div>
   );
@@ -3187,6 +3217,7 @@ function ProfilePage() {
   const equipSkin = (id: string) => {
     setEquippedSkin(id);
     try { window.localStorage.setItem(PROFILE_SKIN_KEY, id); } catch {}
+    applySkin(id);
     setSaved(true);
     setTimeout(() => setSaved(false), 1800);
   };
@@ -3272,7 +3303,9 @@ function ProfilePage() {
                     </div>
                   </div>
                 )}
-                {skin.id === 'sakura' && <div className="skin-preview-sakura">🌸</div>}
+                {skin.id === 'sakura' && (
+                  <img src="/sakura-env.png" className="skin-preview-sakura-img" alt="Sakura environment" draggable={false} />
+                )}
                 {skin.comingSoon && <div className="skin-coming-soon-badge">Coming soon</div>}
                 {equippedSkin === skin.id && !skin.comingSoon && (
                   <div className="skin-equipped-badge"><Check className="w-3 h-3" /> Equipped</div>
@@ -3530,11 +3563,12 @@ function App() {
   const [toast, setToast]           = useState<string | null>(null);
   const libraryProducts = useMemo(() => PRODUCTS.filter((product) => libraryIds.includes(product.id)), [libraryIds]);
 
-  // Apply persisted theme mode and cosmetic palette on first mount.
+  // Apply persisted theme mode, cosmetic palette, and skin on first mount.
   useEffect(() => {
     const settings = readSettings();
     applyThemeMode(settings.themeMode);
     applyTheme(getEquippedCosmetic(), settings.themeMode);
+    applySkin(readEquippedSkin());
     // Startup page: redirect only when landing on root with no specific hash
     const hash = window.location.hash.replace(/^#/, '') || '/';
     if (hash === '/') {
