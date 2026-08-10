@@ -86,8 +86,6 @@
     "@workspace/api-client-react": "workspace:*",
     "class-variance-authority": "catalog:",
     "clsx": "catalog:",
-    "electron": "^33.0.2",
-    "electron-builder": "^25.1.8",
     "cmdk": "^1.1.1",
     "date-fns": "^3.6.0",
     "embla-carousel-react": "^8.6.0",

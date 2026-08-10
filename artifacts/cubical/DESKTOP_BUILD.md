@@ -28,10 +28,16 @@ That's it. electron-builder downloads the correct Electron binary automatically.
 ## Build steps
 
 ```bash
-# 1. Install dependencies (run once, or after any package.json change)
+# 1. Install workspace dependencies
 pnpm install
 
-# 2. Build the Vite frontend + package into Windows installers
+# 2. Install Electron and electron-builder locally in the cubical package
+#    (these are desktop-only and not tracked in the workspace — install once per machine)
+cd artifacts/cubical
+pnpm add --save-dev electron electron-builder
+cd ../..
+
+# 3. Build the Vite frontend + package into Windows installers
 pnpm --filter @workspace/cubical run electron:dist
 ```
 
