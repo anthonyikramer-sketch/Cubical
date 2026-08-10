@@ -545,7 +545,11 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
   padding: 11px 12px;
   border-radius: 13px;
   background: hsl(var(--secondary));
-  transition: background .15s;
+  border: 1px solid transparent;
+  transition: background .15s, border-color .15s;
+}
+.dark .breakroom-stat-row {
+  border-color: hsl(var(--border));
 }
 .breakroom-stat-icon { font-size: 20px; line-height: 1; flex-shrink: 0; }
 .breakroom-stat-body { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
