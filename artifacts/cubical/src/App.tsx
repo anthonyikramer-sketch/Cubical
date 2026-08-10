@@ -1,17 +1,27 @@
 import { createPortal } from 'react-dom';
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties, type ReactNode } from 'react';
 import {
+  AlignCenter,
+  AlignLeft,
+  AlignRight,
   ArrowLeft,
   ArrowRight,
+  Bell,
+  Bold,
+  BookOpen,
+  Calculator as CalculatorIcon,
   CalendarDays,
   Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   CircleUserRound,
   ClipboardCopy,
   Clock,
   Coffee,
+  CornerUpLeft,
   Crown,
+  Delete,
   Download,
   ExternalLink,
   File,
@@ -25,38 +35,47 @@ import {
   FolderOpen,
   FolderSearch,
   Gamepad2,
+  Globe,
   Grid2X2,
   GripHorizontal,
   HardDrive,
+  Hash,
+  Heading1,
+  Heading2,
   House,
+  ImagePlus,
+  Italic,
   Library as LibraryIcon,
+  Link2,
+  List,
+  ListChecks,
+  ListOrdered,
   Lock,
+  Monitor,
+  Moon,
   Music,
   PackageOpen,
   Palette,
   Pause,
   Pencil,
+  Pin,
+  PinOff,
   Play,
   Plus,
   RotateCcw,
   Search,
   Settings,
+  Shuffle,
   Sparkles,
   StickyNote,
+  Sun,
   TableProperties,
   Timer,
   Trash2,
   Trophy,
+  Underline,
   X,
   Zap,
-  // New
-  Bell,
-  ImagePlus,
-  Monitor,
-  Moon,
-  Pin,
-  PinOff,
-  Sun,
 } from 'lucide-react';
 import { Link, Route, Router, Switch, useLocation } from 'wouter';
 
@@ -261,9 +280,15 @@ function writeLocal(key: string, value: unknown) {
 
 const LIBRARY_STORAGE_KEY   = 'cubical-library';
 const CALENDAR_STORAGE_KEY  = 'cubical-calendar-events';
-const NOTEPAD_STORAGE_KEY   = 'cubical-notepad';
+const NOTEPAD_STORAGE_KEY   = 'cubical-notepad';       // legacy plain-text fallback
+const NOTEPAD_HTML_KEY      = 'cubical-notepad-html';  // rich-text (innerHTML)
 const CLOCK_SECONDS_KEY     = 'cubical-clock-seconds';
+const CLOCK_TIMER_KEY       = 'cubical-clock-timer';
+const CLOCK_ALARMS_KEY      = 'cubical-clock-alarms';
 const LAYOUT_STORAGE_KEY    = 'cubical-home-layout';
+const LINK_SHELF_KEY        = 'cubical-link-shelf';
+const DECISION_MAKER_KEY    = 'cubical-decision-maker';
+const DISPLACED_WIDGETS_KEY = 'cubical-displaced-widgets';
 
 function isStringArray(v: unknown): v is string[] {
   return Array.isArray(v) && v.every((x) => typeof x === 'string');
@@ -295,18 +320,32 @@ const GRID_ROWS = 10;
 const GRID_GAP  = 10; // px
 const CELL_H    = 82; // px, fixed row height
 
-type WidgetId = 'calendar' | 'clock' | 'notepad' | 'file-finder';
+type WidgetId = 'calendar' | 'clock' | 'notepad' | 'file-finder' | 'link-shelf' | 'decision-maker' | 'calculator';
 
 type LayoutItem = { id: WidgetId; x: number; y: number; w: number; h: number; };
 
-const WIDGET_LABELS: Record<WidgetId, string> = { calendar: 'Calendar', clock: 'Clock', notepad: 'Notepad', 'file-finder': 'File Finder' };
+const WIDGET_LABELS: Record<WidgetId, string> = {
+  calendar:         'Calendar',
+  clock:            'Clock',
+  notepad:          'Notepad',
+  'file-finder':    'File Finder',
+  'link-shelf':     'Link Shelf',
+  'decision-maker': 'Decision Maker',
+  calculator:       'Calculator',
+};
 
 const WIDGET_MIN: Record<WidgetId, { w: number; h: number }> = {
-  calendar:      { w: 2, h: 2 },
-  clock:         { w: 2, h: 1 },
-  notepad:       { w: 2, h: 2 },
-  'file-finder': { w: 2, h: 1 },
+  calendar:         { w: 2, h: 2 },
+  clock:            { w: 2, h: 2 },
+  notepad:          { w: 2, h: 2 },
+  'file-finder':    { w: 2, h: 1 },
+  'link-shelf':     { w: 2, h: 2 },
+  'decision-maker': { w: 2, h: 2 },
+  calculator:       { w: 2, h: 3 },
 };
+
+// Portable widgets can be dragged from Home to other pages
+const PORTABLE_WIDGETS = new Set<WidgetId>(['notepad', 'calendar', 'link-shelf', 'decision-maker', 'calculator']);
 
 const DEFAULT_LAYOUT: LayoutItem[] = [
   { id: 'calendar', x: 0, y: 0, w: 7, h: 7 },
@@ -331,9 +370,12 @@ type WidgetDef = {
 };
 
 const WIDGET_REGISTRY: WidgetDef[] = [
-  { id: 'calendar', label: 'Calendar', defaultW: 7, defaultH: 7, defaultX: 0, defaultY: 0 },
-  { id: 'clock',    label: 'Clock',    defaultW: 5, defaultH: 3, defaultX: 7, defaultY: 0 },
-  { id: 'notepad',  label: 'Notepad',  defaultW: 5, defaultH: 5, defaultX: 7, defaultY: 3 },
+  { id: 'calendar',       label: 'Calendar',       defaultW: 7, defaultH: 7, defaultX: 0, defaultY: 0 },
+  { id: 'clock',          label: 'Clock',          defaultW: 5, defaultH: 3, defaultX: 7, defaultY: 0 },
+  { id: 'notepad',        label: 'Notepad',        defaultW: 5, defaultH: 5, defaultX: 7, defaultY: 3 },
+  { id: 'link-shelf',     label: 'Link Shelf',     defaultW: 5, defaultH: 3, defaultX: 0, defaultY: 7 },
+  { id: 'decision-maker', label: 'Decision Maker', defaultW: 4, defaultH: 4, defaultX: 5, defaultY: 7 },
+  { id: 'calculator',     label: 'Calculator',     defaultW: 3, defaultH: 5, defaultX: 9, defaultY: 5 },
 ];
 
 const DEFAULT_ACTIVE_WIDGETS: WidgetId[] = ['calendar', 'clock', 'notepad'];
@@ -360,16 +402,17 @@ function getStoredLayout(): LayoutItem[] {
     if (!raw) return DEFAULT_LAYOUT;
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return DEFAULT_LAYOUT;
-    // 'file-finder' is included so stored layouts with it are restored; it is not
-    // in DEFAULT_LAYOUT so new users don't see it until a future "add widget" UI exists.
-    const ids: WidgetId[] = ['calendar', 'clock', 'notepad', 'file-finder'];
+    const ids: WidgetId[] = ['calendar', 'clock', 'notepad', 'file-finder', 'link-shelf', 'decision-maker', 'calculator'];
     const result: LayoutItem[] = [];
     for (const id of ids) {
       const found = parsed.find((item: unknown) => item && typeof item === 'object' && (item as Record<string, unknown>).id === id);
       if (!found || typeof (found as Record<string, unknown>).x !== 'number') {
+        // Prefer a hard-coded default; fall back to registry entry so new widgets always get a slot
         const dflt = DEFAULT_LAYOUT.find((d) => d.id === id);
-        if (!dflt) continue; // not in default layout — skip if also not in storage
-        result.push(dflt);
+        if (dflt) { result.push(dflt); continue; }
+        const reg = WIDGET_REGISTRY.find((r) => r.id === id);
+        if (!reg) continue; // file-finder and other non-registry widgets — skip
+        result.push({ id, x: reg.defaultX, y: reg.defaultY, w: reg.defaultW, h: reg.defaultH });
         continue;
       }
       const f = found as Record<string, number>;
@@ -406,6 +449,123 @@ function findFreePosition(item: LayoutItem, occupied: LayoutItem[]): LayoutItem 
   return item; // fallback: original position
 }
 
+// ─── Portable widget system ───────────────────────────────────────────────────
+
+type DisplacedWidget = { id: WidgetId; page: string };
+
+interface PortableCtxShape {
+  // Widget location — single source of truth
+  activeWidgets: WidgetId[];
+  displaced:     DisplacedWidget[];
+  // Home management
+  addWidget:    (id: WidgetId) => void;
+  removeWidget: (id: WidgetId) => void;
+  // Portable drag
+  displace:  (id: WidgetId, page: string) => void;
+  recall:    (id: WidgetId) => void;
+  recallAll: () => void;
+  // Drag gesture state
+  dragId:      WidgetId | null;
+  setDragId:   (id: WidgetId | null) => void;
+  hoverPage:   string | null;      // reactive value (for CSS highlights)
+  setHoverPage: (p: string | null) => void;
+  hoverPageRef: React.MutableRefObject<string | null>; // non-stale ref for drop handler
+}
+
+const PortableCtx = createContext<PortableCtxShape>({
+  activeWidgets: [], displaced: [],
+  addWidget: () => {}, removeWidget: () => {},
+  displace: () => {}, recall: () => {}, recallAll: () => {},
+  dragId: null, setDragId: () => {},
+  hoverPage: null, setHoverPage: () => {},
+  hoverPageRef: { current: null },
+});
+
+function usePortable() { return useContext(PortableCtx); }
+
+function getDisplaced(): DisplacedWidget[] {
+  try {
+    const raw = window.localStorage.getItem(DISPLACED_WIDGETS_KEY);
+    if (!raw) return [];
+    const v: unknown = JSON.parse(raw);
+    if (!Array.isArray(v)) return [];
+    return (v as unknown[]).filter((d): d is DisplacedWidget =>
+      !!d && typeof (d as DisplacedWidget).id === 'string' && typeof (d as DisplacedWidget).page === 'string',
+    );
+  } catch { return []; }
+}
+function storeDisplaced(d: DisplacedWidget[]) { writeLocal(DISPLACED_WIDGETS_KEY, d); }
+
+function PortableProvider({ children }: { children: ReactNode }) {
+  // Single source of truth: a widget is either on Home (activeWidgets) or displaced
+  const [activeWidgets, setActiveWidgets] = useState<WidgetId[]>(() => {
+    // Filter out any widgets that were displaced in a previous session
+    const all  = getActiveWidgets();
+    const disp = getDisplaced().map((d) => d.id);
+    return all.filter((id) => !disp.includes(id));
+  });
+  const [displaced, setDisplaced] = useState<DisplacedWidget[]>(getDisplaced);
+  const [dragId, setDragId]       = useState<WidgetId | null>(null);
+  const [hoverPage, _setHoverPage] = useState<string | null>(null);
+  // Ref version: always current, safe to read in document-level event closures
+  const hoverPageRef = useRef<string | null>(null);
+  const setHoverPage = useCallback((p: string | null) => {
+    hoverPageRef.current = p;
+    _setHoverPage(p);
+  }, []);
+
+  // Persist whenever either list changes
+  useEffect(() => { storeActiveWidgets(activeWidgets); }, [activeWidgets]);
+  useEffect(() => { storeDisplaced(displaced); }, [displaced]);
+
+  const addWidget = useCallback((id: WidgetId) => {
+    setActiveWidgets((prev) => prev.includes(id) ? prev : [...prev, id]);
+  }, []);
+
+  const removeWidget = useCallback((id: WidgetId) => {
+    setActiveWidgets((prev) => prev.filter((w) => w !== id));
+  }, []);
+
+  // Move widget OFF Home and mark it as living on `page`
+  const displace = useCallback((id: WidgetId, page: string) => {
+    setActiveWidgets((prev) => prev.filter((w) => w !== id));
+    setDisplaced((prev) => [...prev.filter((d) => d.id !== id), { id, page }]);
+  }, []);
+
+  // Move widget back to Home, removing from displaced
+  const recall = useCallback((id: WidgetId) => {
+    setDisplaced((prev) => {
+      const entry = prev.find((d) => d.id === id);
+      if (!entry) return prev;
+      setActiveWidgets((aw) => aw.includes(id) ? aw : [...aw, id]);
+      return prev.filter((d) => d.id !== id);
+    });
+  }, []);
+
+  const recallAll = useCallback(() => {
+    setDisplaced((prev) => {
+      const ids = prev.map((d) => d.id);
+      setActiveWidgets((aw) => {
+        const missing = ids.filter((id) => !aw.includes(id));
+        return missing.length > 0 ? [...aw, ...missing] : aw;
+      });
+      return [];
+    });
+  }, []);
+
+  return (
+    <PortableCtx.Provider value={{
+      activeWidgets, displaced,
+      addWidget, removeWidget,
+      displace, recall, recallAll,
+      dragId, setDragId,
+      hoverPage, setHoverPage, hoverPageRef,
+    }}>
+      {children}
+    </PortableCtx.Provider>
+  );
+}
+
 // ─── App shell ────────────────────────────────────────────────────────────────
 
 const CRUMB_MAP: Record<string, string> = {
@@ -419,15 +579,17 @@ const CRUMB_MAP: Record<string, string> = {
 };
 
 function AppShell({ children, libraryCount }: { children: ReactNode; libraryCount: number }) {
-  const [location] = useLocation();
+  const [location, navigate]  = useLocation();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [sidebarPinned, setSidebarPinned]       = useState(
+  const [sidebarPinned, setSidebarPinned] = useState(
     () => readLocal<boolean>(SIDEBAR_PINNED_KEY, false, (v): v is boolean => typeof v === 'boolean'),
   );
   const collapseTimerRef    = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isSidebarHoveredRef = useRef(false);
   const sidebarPinnedRef    = useRef(sidebarPinned);
   sidebarPinnedRef.current  = sidebarPinned;
+
+  const { dragId, displace, hoverPage, setHoverPage } = usePortable();
 
   const scheduleCollapse = () => {
     if (window.innerWidth <= 800) return;
@@ -440,7 +602,6 @@ function AppShell({ children, libraryCount }: { children: ReactNode; libraryCoun
 
   useEffect(() => {
     scheduleCollapse();
-
     const handleResize = () => {
       if (window.innerWidth <= 800) {
         if (collapseTimerRef.current) clearTimeout(collapseTimerRef.current);
@@ -448,7 +609,6 @@ function AppShell({ children, libraryCount }: { children: ReactNode; libraryCoun
       }
     };
     window.addEventListener('resize', handleResize);
-
     return () => {
       if (collapseTimerRef.current) clearTimeout(collapseTimerRef.current);
       window.removeEventListener('resize', handleResize);
@@ -463,6 +623,7 @@ function AppShell({ children, libraryCount }: { children: ReactNode; libraryCoun
 
   const handleSidebarLeave = () => {
     isSidebarHoveredRef.current = false;
+    setHoverPage(null);
     scheduleCollapse();
   };
 
@@ -477,6 +638,9 @@ function AppShell({ children, libraryCount }: { children: ReactNode; libraryCoun
       scheduleCollapse();
     }
   };
+
+  // Drop-target pages for portable drag (exclude Home — widgets live there)
+  const portableDropPages = ['/store', '/library', '/breakroom', '/profile', '/settings'];
 
   const navItems = [
     { href: '/',          label: 'Home',      icon: House       },
@@ -495,10 +659,34 @@ function AppShell({ children, libraryCount }: { children: ReactNode; libraryCoun
     return location === href;
   };
 
+  const renderNavLink = (href: string, label: string, Icon: typeof House, extra?: ReactNode) => {
+    const isDropTarget = !!dragId && portableDropPages.includes(href);
+    const isHovered    = hoverPage === href;
+    return (
+      <Link
+        key={href}
+        href={href}
+        className={`nav-link ${isActive(href) ? 'active' : ''}${isDropTarget && isHovered ? ' is-drop-target' : ''}`}
+        data-testid={`link-${label.toLowerCase()}`}
+        title={label}
+        onPointerEnter={() => isDropTarget && setHoverPage(href)}
+        onPointerLeave={() => isDropTarget && setHoverPage(null)}
+        onClick={(e) => {
+          // Block link navigation when a portable widget is being dragged —
+          // the document-level pointerup handler in HomeWorkspace owns the drop.
+          if (dragId) e.preventDefault();
+        }}
+      >
+        <Icon />
+        {extra ?? <span>{label}</span>}
+      </Link>
+    );
+  };
+
   return (
     <div className="cubical-shell">
       <aside
-        className={`cubical-sidebar${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}
+        className={`cubical-sidebar${sidebarCollapsed ? ' sidebar-collapsed' : ''}${dragId ? ' has-portable-drag' : ''}`}
         data-testid="sidebar-navigation"
         onMouseEnter={handleSidebarEnter}
         onMouseLeave={handleSidebarLeave}
@@ -507,47 +695,31 @@ function AppShell({ children, libraryCount }: { children: ReactNode; libraryCoun
           <span className="brand-mark">C</span>
           <span className="brand-word">cubical</span>
         </Link>
+
         <div className="sidebar-section mt-12 w-full">
           <div className="side-label mb-3">Your shelf</div>
           <nav className="sidebar-nav flex flex-col gap-1" aria-label="Main navigation">
-            {navItems.map(({ href, label, icon: Icon }) => (
-              <Link
-                key={href}
-                href={href}
-                className={`nav-link ${isActive(href) ? 'active' : ''}`}
-                data-testid={`link-${label.toLowerCase()}`}
-                title={sidebarCollapsed ? label : undefined}
-              >
-                <Icon />
-                <span>{label}{label === 'Library' && libraryCount > 0 ? ` · ${libraryCount}` : ''}</span>
-              </Link>
-            ))}
+            {navItems.map(({ href, label, icon: Icon }) =>
+              renderNavLink(href, label, Icon,
+                href !== '/' ? <span>{label}{label === 'Library' && libraryCount > 0 ? ` · ${libraryCount}` : ''}</span> : <span>{label}</span>,
+              ),
+            )}
           </nav>
         </div>
+
         <div className="sidebar-bottom w-full">
           <div className="side-label mb-3">Yourself</div>
           <nav className="sidebar-nav flex flex-col gap-1" aria-label="Utility navigation">
-            {utilityItems.map(({ href, label, icon: Icon }) => (
-              <Link
-                key={href}
-                href={href}
-                className={`nav-link ${location === href ? 'active' : ''}`}
-                data-testid={`link-${label.toLowerCase()}`}
-                title={sidebarCollapsed ? label : undefined}
-              >
-                <Icon /><span>{label}</span>
-              </Link>
-            ))}
+            {utilityItems.map(({ href, label, icon: Icon }) =>
+              renderNavLink(href, label, Icon, <span>{label}</span>),
+            )}
           </nav>
           <button
             className={`sidebar-pin-btn${sidebarPinned ? ' is-pinned' : ''}`}
             onClick={togglePin}
             title={sidebarPinned ? 'Unpin sidebar' : 'Pin sidebar open'}
           >
-            {sidebarPinned
-              ? <Pin className="w-3.5 h-3.5 shrink-0" />
-              : <PinOff className="w-3.5 h-3.5 shrink-0" />
-            }
+            {sidebarPinned ? <Pin className="w-3.5 h-3.5 shrink-0" /> : <PinOff className="w-3.5 h-3.5 shrink-0" />}
             <span className="sidebar-pin-label">{sidebarPinned ? 'Pinned' : 'Pin'}</span>
           </button>
           <p className="sidebar-footnote">A personal shelf for useful little tools.<br />Made for curious desktops.</p>
@@ -938,116 +1110,770 @@ function CalendarWidget({ gridW, gridH }: { gridW: number; gridH: number }) {
 
 // ── ClockWidget ────────────────────────────────────────────────────────────
 
-function ClockWidget({ gridH }: { gridH: number }) {
-  const [now, setNow] = useState(() => new Date());
-  const [showSeconds, setShowSeconds] = useState(() => {
-    try { return window.localStorage.getItem(CLOCK_SECONDS_KEY) === 'true'; } catch { return false; }
-  });
+type ClockMode = 'clock' | 'timer' | 'alarm';
 
+interface ClockTimerSaved { h: number; m: number; s: number; remaining: number; running: boolean; }
+interface ClockAlarm { id: string; time: string; label: string; days: number[]; enabled: boolean; firedToday?: string; }
+
+function pad2(n: number) { return String(n).padStart(2, '0'); }
+
+function isClockAlarmArray(v: unknown): v is ClockAlarm[] {
+  return Array.isArray(v) && v.every((a) => a && typeof a.id === 'string' && typeof a.time === 'string');
+}
+
+function ClockWidget({ gridH }: { gridH: number }) {
+  const [now, setNow]           = useState(() => new Date());
+  const [mode, setMode]         = useState<ClockMode>('clock');
+  const [showSeconds, setShowSeconds] = useState(
+    () => { try { return window.localStorage.getItem(CLOCK_SECONDS_KEY) === 'true'; } catch { return false; } },
+  );
+
+  // Timer state — loaded from localStorage; restored as paused (user resumes after refresh)
+  const [timerH, setTimerH]   = useState(() => {
+    try { const s = readLocal<Record<string, number>>(CLOCK_TIMER_KEY, {}, (v): v is Record<string, number> => typeof v === 'object' && v !== null); return s.h ?? 0; } catch { return 0; }
+  });
+  const [timerM, setTimerM]   = useState(() => {
+    try { const s = readLocal<Record<string, number>>(CLOCK_TIMER_KEY, {}, (v): v is Record<string, number> => typeof v === 'object' && v !== null); return s.m ?? 5; } catch { return 5; }
+  });
+  const [timerS, setTimerS]   = useState(() => {
+    try { const s = readLocal<Record<string, number>>(CLOCK_TIMER_KEY, {}, (v): v is Record<string, number> => typeof v === 'object' && v !== null); return s.s ?? 0; } catch { return 0; }
+  });
+  const [remaining, setRemaining] = useState<number>(() => {
+    try { const s = readLocal<Record<string, number>>(CLOCK_TIMER_KEY, {}, (v): v is Record<string, number> => typeof v === 'object' && v !== null); return s.remaining ?? 0; } catch { return 0; }
+  });
+  const [timerRunning, setTimerRunning] = useState(false); // never auto-resume on reload
+  const [timerDone, setTimerDone] = useState<boolean>(() => {
+    try { const s = readLocal<Record<string, unknown>>(CLOCK_TIMER_KEY, {}, (v): v is Record<string, unknown> => typeof v === 'object' && v !== null); return !!(s.done); } catch { return false; }
+  });
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Persist timer config and progress whenever they change
+  useEffect(() => {
+    writeLocal(CLOCK_TIMER_KEY, { h: timerH, m: timerM, s: timerS, remaining, done: timerDone });
+  }, [timerH, timerM, timerS, remaining, timerDone]);
+
+  // Alarm state
+  const [alarms, setAlarms]         = useState<ClockAlarm[]>(() => readLocal(CLOCK_ALARMS_KEY, [], isClockAlarmArray));
+  const [alarmInput, setAlarmInput] = useState({ time: '08:00', label: '', days: [] as number[] });
+  const [editingAlarmId, setEditingAlarmId] = useState<string | null>(null);
+  const [showAlarmForm, setShowAlarmForm]   = useState(false);
+  const [firedAlarmId, setFiredAlarmId]     = useState<string | null>(null);
+
+  // 1-second clock tick
   useEffect(() => {
     const id = window.setInterval(() => setNow(new Date()), 1000);
     return () => window.clearInterval(id);
   }, []);
+
   useEffect(() => { writeLocal(CLOCK_SECONDS_KEY, showSeconds); }, [showSeconds]);
+  useEffect(() => { writeLocal(CLOCK_ALARMS_KEY, alarms); }, [alarms]);
+
+  // Timer countdown
+  useEffect(() => {
+    if (timerRunning && remaining > 0) {
+      timerRef.current = setInterval(() => {
+        setRemaining((r) => {
+          if (r <= 1000) { setTimerRunning(false); setTimerDone(true); return 0; }
+          return r - 1000;
+        });
+      }, 1000);
+    }
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [timerRunning, remaining]);
+
+  // Alarm check
+  useEffect(() => {
+    const hh = now.getHours();
+    const mm = now.getMinutes();
+    const ss = now.getSeconds();
+    const day = now.getDay();
+    const todayStr = now.toDateString();
+    if (ss !== 0) return; // check at minute boundary
+    const fired = alarms.find((a) => {
+      if (!a.enabled) return false;
+      const [ah, am] = a.time.split(':').map(Number);
+      if (ah !== hh || am !== mm) return false;
+      if (a.days.length > 0 && !a.days.includes(day)) return false;
+      if (a.firedToday === todayStr) return false;
+      return true;
+    });
+    if (fired) {
+      setFiredAlarmId(fired.id);
+      setAlarms((prev) => prev.map((a) => a.id === fired.id ? { ...a, firedToday: todayStr } : a));
+    }
+  }, [now, alarms]);
 
   const hours   = now.getHours();
   const minutes = now.getMinutes();
   const seconds = now.getSeconds();
   const ampm    = hours >= 12 ? 'PM' : 'AM';
   const h12     = hours % 12 || 12;
-  const timeStr = `${h12}:${String(minutes).padStart(2, '0')}${(showSeconds && gridH >= 3) ? `:${String(seconds).padStart(2, '0')}` : ''}`;
+  const timeStr = `${h12}:${pad2(minutes)}${(showSeconds && gridH >= 3 && mode === 'clock') ? `:${pad2(seconds)}` : ''}`;
   const dateStr = now.toLocaleDateString('default', { weekday: 'long', month: 'long', day: 'numeric' });
 
-  // Minimal: just time (h=1)
-  if (gridH <= 1) {
-    return (
-      <div className="clock-fill clock-minimal">
-        <div className="clock-time clock-time-sm">{timeStr}<span className="clock-ampm">{ampm}</span></div>
-      </div>
-    );
-  }
+  const remSec   = Math.ceil(remaining / 1000);
+  const remH     = Math.floor(remSec / 3600);
+  const remM     = Math.floor((remSec % 3600) / 60);
+  const remS     = remSec % 60;
+  const remStr   = remH > 0 ? `${remH}:${pad2(remM)}:${pad2(remS)}` : `${pad2(remM)}:${pad2(remS)}`;
 
-  // Standard: time + AM/PM (h=2)
-  if (gridH <= 2) {
+  const startTimer = () => {
+    const ms = ((timerH * 3600) + (timerM * 60) + timerS) * 1000;
+    if (ms <= 0) return;
+    setRemaining(ms);
+    setTimerDone(false);
+    setTimerRunning(true);
+  };
+  const pauseTimer  = () => setTimerRunning(false);
+  const resumeTimer = () => { if (remaining > 0) setTimerRunning(true); };
+  const resetTimer  = () => { setTimerRunning(false); setRemaining(0); setTimerDone(false); };
+
+  const saveAlarm = () => {
+    if (!alarmInput.time) return;
+    if (editingAlarmId) {
+      setAlarms((prev) => prev.map((a) => a.id === editingAlarmId ? { ...a, ...alarmInput, firedToday: undefined } : a));
+      setEditingAlarmId(null);
+    } else {
+      setAlarms((prev) => [...prev, { id: crypto.randomUUID(), ...alarmInput, enabled: true }]);
+    }
+    setAlarmInput({ time: '08:00', label: '', days: [] });
+    setShowAlarmForm(false);
+  };
+  const toggleAlarm = (id: string) => setAlarms((prev) => prev.map((a) => a.id === id ? { ...a, enabled: !a.enabled } : a));
+  const deleteAlarm = (id: string) => setAlarms((prev) => prev.filter((a) => a.id !== id));
+  const editAlarm   = (a: ClockAlarm) => {
+    setEditingAlarmId(a.id);
+    setAlarmInput({ time: a.time, label: a.label, days: a.days });
+    setShowAlarmForm(true);
+  };
+  const toggleDay = (d: number) => setAlarmInput((prev) => ({
+    ...prev,
+    days: prev.days.includes(d) ? prev.days.filter((x) => x !== d) : [...prev.days, d],
+  }));
+
+  const firedAlarm = firedAlarmId ? alarms.find((a) => a.id === firedAlarmId) : null;
+  const DAY_LABELS = ['S','M','T','W','T','F','S'];
+  const compact = gridH <= 2;
+
+  // ── Tabs ──
+  const tabs = (
+    <div className="clock-tabs">
+      {(['clock','timer','alarm'] as ClockMode[]).map((m) => (
+        <button key={m} className={`clock-tab${mode === m ? ' active' : ''}`} onClick={() => setMode(m)}>
+          {m === 'clock' ? <Clock /> : m === 'timer' ? <Timer /> : <Bell />}
+          {!compact && <span>{m.charAt(0).toUpperCase() + m.slice(1)}</span>}
+        </button>
+      ))}
+    </div>
+  );
+
+  // ── Clock mode ──
+  if (mode === 'clock') {
+    if (compact) {
+      return (
+        <div className="clock-fill clock-compact">
+          {tabs}
+          <div className="clock-display compact">
+            <div className="clock-time clock-time-sm">{timeStr}<span className="clock-ampm">{ampm}</span></div>
+            {timerRunning && <div className="clock-timer-badge">⏱ {remStr}</div>}
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="clock-fill">
-        <div className="widget-header">
-          <span className="widget-label"><Clock /> Clock</span>
-        </div>
+        {tabs}
         <div className="clock-display">
           <div className="clock-time">{timeStr}<span className="clock-ampm">{ampm}</span></div>
+          <div className="clock-date">{dateStr}</div>
+          {timerRunning && <div className="clock-timer-badge inline">⏱ {remStr} remaining</div>}
+          {timerDone    && <div className="clock-timer-badge done">⏱ Timer done!</div>}
+          {firedAlarm   && (
+            <div className="clock-alarm-alert">
+              <Bell /> {firedAlarm.label || `Alarm — ${firedAlarm.time}`}
+              <button onClick={() => setFiredAlarmId(null)}>Dismiss</button>
+            </div>
+          )}
         </div>
-      </div>
-    );
-  }
-
-  // Full: time + AM/PM + date + seconds toggle (h>=3)
-  return (
-    <div className="clock-fill">
-      <div className="widget-header">
-        <span className="widget-label"><Clock /> Clock</span>
         <label className="clock-toggle">
           <input type="checkbox" checked={showSeconds} onChange={(e) => setShowSeconds(e.target.checked)} />
           <span>Seconds</span>
         </label>
       </div>
-      <div className="clock-display">
-        <div className="clock-time">{timeStr}<span className="clock-ampm">{ampm}</span></div>
-        <div className="clock-date">{dateStr}</div>
+    );
+  }
+
+  // ── Timer mode ──
+  if (mode === 'timer') {
+    return (
+      <div className="clock-fill clock-timer-mode">
+        {tabs}
+        {timerDone ? (
+          <div className="timer-done-state">
+            <div className="timer-done-icon">⏱</div>
+            <div className="timer-done-text">Timer done!</div>
+            <button className="clock-btn clock-btn-reset" onClick={resetTimer}>Reset</button>
+          </div>
+        ) : remaining > 0 ? (
+          <div className="timer-running-state">
+            <div className="timer-countdown">{remStr}</div>
+            <div className="timer-controls">
+              {timerRunning
+                ? <button className="clock-btn clock-btn-pause" onClick={pauseTimer}><Pause /> Pause</button>
+                : <button className="clock-btn clock-btn-start" onClick={resumeTimer}><Play /> Resume</button>
+              }
+              <button className="clock-btn clock-btn-reset" onClick={resetTimer}><RotateCcw /> Reset</button>
+            </div>
+          </div>
+        ) : (
+          <div className="timer-set-state">
+            <div className="timer-inputs">
+              <div className="timer-input-group">
+                <input type="number" min={0} max={23} value={timerH} onChange={(e) => setTimerH(Math.max(0, Math.min(23, +e.target.value)))} />
+                <span>h</span>
+              </div>
+              <div className="timer-input-group">
+                <input type="number" min={0} max={59} value={timerM} onChange={(e) => setTimerM(Math.max(0, Math.min(59, +e.target.value)))} />
+                <span>m</span>
+              </div>
+              <div className="timer-input-group">
+                <input type="number" min={0} max={59} value={timerS} onChange={(e) => setTimerS(Math.max(0, Math.min(59, +e.target.value)))} />
+                <span>s</span>
+              </div>
+            </div>
+            <button className="clock-btn clock-btn-start" onClick={startTimer}><Play /> Start</button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── Alarm mode ──
+  return (
+    <div className="clock-fill clock-alarm-mode">
+      {tabs}
+      <div className="alarm-list-wrap">
+        {firedAlarm && (
+          <div className="clock-alarm-alert">
+            <Bell /> {firedAlarm.label || `Alarm — ${firedAlarm.time}`}
+            <button onClick={() => setFiredAlarmId(null)}>Dismiss</button>
+          </div>
+        )}
+        {alarms.length === 0 && !showAlarmForm && (
+          <p className="alarm-empty">No alarms. Add one below.</p>
+        )}
+        {alarms.map((a) => (
+          <div key={a.id} className={`alarm-row${a.enabled ? '' : ' disabled'}`}>
+            <div className="alarm-row-time">{a.time}</div>
+            <div className="alarm-row-info">
+              {a.label && <span className="alarm-row-label">{a.label}</span>}
+              {a.days.length > 0 && (
+                <span className="alarm-row-days">{DAY_LABELS.filter((_, i) => a.days.includes(i)).join(' ')}</span>
+              )}
+            </div>
+            <div className="alarm-row-actions">
+              <button className={`alarm-toggle${a.enabled ? ' on' : ''}`} onClick={() => toggleAlarm(a.id)} title={a.enabled ? 'Disable' : 'Enable'} />
+              <button className="alarm-edit-btn" onClick={() => editAlarm(a)} title="Edit"><Pencil /></button>
+              <button className="alarm-del-btn" onClick={() => deleteAlarm(a.id)} title="Delete"><Trash2 /></button>
+            </div>
+          </div>
+        ))}
+        {showAlarmForm ? (
+          <div className="alarm-form">
+            <input type="time" value={alarmInput.time} onChange={(e) => setAlarmInput((p) => ({ ...p, time: e.target.value }))} className="alarm-time-input" />
+            <input type="text" placeholder="Label (optional)" value={alarmInput.label} onChange={(e) => setAlarmInput((p) => ({ ...p, label: e.target.value }))} className="alarm-label-input" />
+            <div className="alarm-days-row">
+              {DAY_LABELS.map((d, i) => (
+                <button key={i} className={`alarm-day-btn${alarmInput.days.includes(i) ? ' active' : ''}`} onClick={() => toggleDay(i)}>{d}</button>
+              ))}
+            </div>
+            <div className="alarm-form-actions">
+              <button className="clock-btn clock-btn-start" onClick={saveAlarm}><Check /> Save</button>
+              <button className="clock-btn clock-btn-reset" onClick={() => { setShowAlarmForm(false); setEditingAlarmId(null); setAlarmInput({ time: '08:00', label: '', days: [] }); }}>Cancel</button>
+            </div>
+          </div>
+        ) : (
+          <button className="alarm-add-btn" onClick={() => setShowAlarmForm(true)}><Plus /> Add alarm</button>
+        )}
       </div>
     </div>
   );
 }
 
-// ── NotepadWidget ──────────────────────────────────────────────────────────
+// ── Notepad HTML sanitizer ─────────────────────────────────────────────────
+// Allowlist of tags and their permitted attributes. Event handlers, style
+// attributes, and javascript: URLs are stripped on every save/load cycle.
 
-function NotepadWidget() {
-  const [content, setContent] = useState<string>(() => {
-    try { return window.localStorage.getItem(NOTEPAD_STORAGE_KEY) ?? ''; } catch { return ''; }
-  });
-  const [confirmClear, setConfirmClear] = useState(false);
-  const saveTimeout = useRef<number | null>(null);
+const NOTEPAD_ALLOWED_TAGS = new Set([
+  'b','strong','i','em','u','s','h1','h2','h3',
+  'ul','ol','li','p','br','a','span','div','blockquote',
+]);
+const NOTEPAD_ALLOWED_ATTRS: Record<string, string[]> = { a: ['href', 'target', 'rel'] };
 
-  const handleChange = (value: string) => {
-    setContent(value);
-    setConfirmClear(false);
-    if (saveTimeout.current) window.clearTimeout(saveTimeout.current);
-    saveTimeout.current = window.setTimeout(() => { writeLocal(NOTEPAD_STORAGE_KEY, value); }, 400);
+function sanitizeNotepadHtml(raw: string): string {
+  try {
+    const doc = new DOMParser().parseFromString(raw, 'text/html');
+
+    function cleanNode(node: Node): Node | null {
+      if (node.nodeType === Node.TEXT_NODE) return node.cloneNode(false);
+      if (node.nodeType !== Node.ELEMENT_NODE) return null;
+      const el = node as Element;
+      const tag = el.tagName.toLowerCase();
+      if (!NOTEPAD_ALLOWED_TAGS.has(tag)) {
+        // Unwrap: keep children, discard the element itself
+        const frag = document.createDocumentFragment();
+        for (const child of Array.from(el.childNodes)) {
+          const c = cleanNode(child);
+          if (c) frag.appendChild(c);
+        }
+        return frag.hasChildNodes() ? frag : null;
+      }
+      const out = document.createElement(tag);
+      for (const attr of (NOTEPAD_ALLOWED_ATTRS[tag] ?? [])) {
+        const val = el.getAttribute(attr);
+        if (val !== null) {
+          // Block javascript: and data: URLs in href
+          if (attr === 'href' && /^\s*(javascript|data):/i.test(val)) continue;
+          out.setAttribute(attr, val);
+        }
+      }
+      for (const child of Array.from(el.childNodes)) {
+        const c = cleanNode(child);
+        if (c) out.appendChild(c);
+      }
+      return out;
+    }
+
+    const wrapper = document.createElement('div');
+    for (const child of Array.from(doc.body.childNodes)) {
+      const c = cleanNode(child);
+      if (c) wrapper.appendChild(c);
+    }
+    return wrapper.innerHTML;
+  } catch { return ''; }
+}
+
+// ── NotepadWidget (rich-text editor) ──────────────────────────────────────
+
+function NotepadWidget({ compact = false }: { compact?: boolean }) {
+  const editorRef  = useRef<HTMLDivElement>(null);
+  const saveTimer  = useRef<number | null>(null);
+  const [charCount, setCharCount] = useState(0);
+  const [toolbarVisible, setToolbarVisible] = useState(true);
+
+  // Load HTML on mount (migrate from old plain-text key if needed)
+  useEffect(() => {
+    const html = (() => {
+      try {
+        const h = window.localStorage.getItem(NOTEPAD_HTML_KEY);
+        if (h !== null) return sanitizeNotepadHtml(h);   // sanitize on load
+        const plain = window.localStorage.getItem(NOTEPAD_STORAGE_KEY) ?? '';
+        if (plain) {
+          // Escape the plain text before treating it as HTML
+          const escaped = plain
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/\n/g, '<br>');
+          const migrated = sanitizeNotepadHtml(escaped);
+          window.localStorage.setItem(NOTEPAD_HTML_KEY, migrated);
+          return migrated;
+        }
+        return '';
+      } catch { return ''; }
+    })();
+    if (editorRef.current) {
+      editorRef.current.innerHTML = html;
+      setCharCount(editorRef.current.innerText.replace(/\n/g, '').length);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const schedSave = () => {
+    if (saveTimer.current) window.clearTimeout(saveTimer.current);
+    saveTimer.current = window.setTimeout(() => {
+      if (editorRef.current) {
+        try {
+          // Sanitize before persisting so stored HTML is always clean
+          const safe = sanitizeNotepadHtml(editorRef.current.innerHTML);
+          window.localStorage.setItem(NOTEPAD_HTML_KEY, safe);
+        } catch {}
+      }
+    }, 400);
   };
 
-  const clearNote = () => {
-    setContent('');
-    setConfirmClear(false);
-    writeLocal(NOTEPAD_STORAGE_KEY, '');
-    if (saveTimeout.current) window.clearTimeout(saveTimeout.current);
+  const handleInput = () => {
+    schedSave();
+    if (editorRef.current) setCharCount(editorRef.current.innerText.replace(/\n/g, '').length);
   };
+
+  const exec = (cmd: string, val?: string) => {
+    editorRef.current?.focus();
+    // eslint-disable-next-line @typescript-eslint/no-deprecated
+    document.execCommand(cmd, false, val);
+    schedSave();
+  };
+
+  const clearEditor = () => {
+    if (editorRef.current) { editorRef.current.innerHTML = ''; }
+    setCharCount(0);
+    try { window.localStorage.setItem(NOTEPAD_HTML_KEY, ''); } catch {}
+    if (saveTimer.current) window.clearTimeout(saveTimer.current);
+  };
+
+  const insertLink = () => {
+    const sel = window.getSelection();
+    const selectedText = sel?.toString() ?? '';
+    const url = window.prompt('Enter URL:', 'https://');
+    if (url) exec('createLink', url);
+    else if (selectedText) exec('createLink', selectedText);
+  };
+
+  const showToolbar = toolbarVisible && !compact;
+
+  const tbBtn = (title: string, cmd: string, val?: string, children?: ReactNode) => (
+    <button type="button" title={title} className="notepad-tb-btn" onMouseDown={(e) => { e.preventDefault(); exec(cmd, val); }}>
+      {children}
+    </button>
+  );
 
   return (
-    <div className="notepad-fill">
+    <div className="notepad-fill notepad-rich">
       <div className="widget-header">
         <span className="widget-label"><StickyNote /> Notepad</span>
         <div className="notepad-header-actions">
-          {content.trim() && !confirmClear && (
-            <button type="button" className="text-button" onClick={() => setConfirmClear(true)}><Trash2 /> Clear</button>
-          )}
-          {confirmClear && (
-            <span className="notepad-confirm">
-              Clear?&nbsp;
-              <button type="button" onClick={clearNote}>Yes</button>
-              <button type="button" onClick={() => setConfirmClear(false)}>No</button>
-            </span>
+          <button type="button" className={`notepad-toolbar-toggle${showToolbar ? ' active' : ''}`} title="Toggle toolbar" onClick={() => setToolbarVisible((v) => !v)}>
+            <Bold />
+          </button>
+          {charCount > 0 && (
+            <button type="button" className="text-button" onClick={clearEditor}><Trash2 /> Clear</button>
           )}
         </div>
       </div>
-      <textarea
-        className="notepad-textarea notepad-textarea-fill"
-        value={content}
-        onChange={(e) => handleChange(e.target.value)}
-        placeholder="Type freely. Notes save automatically and stay after refresh."
-        data-testid="notepad-textarea"
+
+      {showToolbar && (
+        <div className="notepad-toolbar">
+          {tbBtn('Bold', 'bold', undefined, <Bold />)}
+          {tbBtn('Italic', 'italic', undefined, <Italic />)}
+          {tbBtn('Underline', 'underline', undefined, <Underline />)}
+          <span className="notepad-tb-sep" />
+          {tbBtn('Heading 1', 'formatBlock', 'h1', <Heading1 />)}
+          {tbBtn('Heading 2', 'formatBlock', 'h2', <Heading2 />)}
+          <span className="notepad-tb-sep" />
+          {tbBtn('Bullet list', 'insertUnorderedList', undefined, <List />)}
+          {tbBtn('Numbered list', 'insertOrderedList', undefined, <ListOrdered />)}
+          {tbBtn('Task list', 'insertUnorderedList', undefined, <ListChecks />)}
+          <span className="notepad-tb-sep" />
+          {tbBtn('Align left', 'justifyLeft', undefined, <AlignLeft />)}
+          {tbBtn('Align centre', 'justifyCenter', undefined, <AlignCenter />)}
+          {tbBtn('Align right', 'justifyRight', undefined, <AlignRight />)}
+          <span className="notepad-tb-sep" />
+          <button type="button" title="Insert link" className="notepad-tb-btn" onMouseDown={(e) => { e.preventDefault(); insertLink(); }}><Link2 /></button>
+        </div>
+      )}
+
+      <div
+        ref={editorRef}
+        className="notepad-editor"
+        contentEditable
+        suppressContentEditableWarning
+        onInput={handleInput}
+        data-placeholder="Type freely. Notes save automatically and stay after refresh."
+        data-testid="notepad-editor"
       />
+
       <div className="notepad-footer">
-        {content.length > 0 ? `${content.length} character${content.length !== 1 ? 's' : ''} · saved locally` : 'Empty · start typing'}
+        {charCount > 0 ? `${charCount} char${charCount !== 1 ? 's' : ''} · saved locally` : 'Empty · start typing'}
+      </div>
+    </div>
+  );
+}
+
+// ─── LinkShelfWidget ──────────────────────────────────────────────────────────
+
+interface ShelfLink { id: string; name: string; url: string; }
+
+function isShelfLinkArray(v: unknown): v is ShelfLink[] {
+  return Array.isArray(v) && v.every((l) => l && typeof l.id === 'string' && typeof l.url === 'string');
+}
+
+function faviconSrc(url: string) {
+  try {
+    const origin = new URL(url).origin;
+    return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(origin)}&sz=32`;
+  } catch { return ''; }
+}
+
+function LinkShelfWidget({ gridW, gridH }: { gridW: number; gridH: number }) {
+  const [links, setLinks]         = useState<ShelfLink[]>(() => readLocal(LINK_SHELF_KEY, [], isShelfLinkArray));
+  const [showForm, setShowForm]   = useState(false);
+  const [editId, setEditId]       = useState<string | null>(null);
+  const [form, setForm]           = useState({ name: '', url: '' });
+  const [imgErrors, setImgErrors] = useState<Record<string, boolean>>({});
+
+  useEffect(() => { writeLocal(LINK_SHELF_KEY, links); }, [links]);
+
+  const saveLink = () => {
+    if (!form.url.trim()) return;
+    const url = form.url.startsWith('http') ? form.url.trim() : `https://${form.url.trim()}`;
+    const name = form.name.trim() || (() => { try { return new URL(url).hostname.replace('www.',''); } catch { return url; } })();
+    if (editId) {
+      setLinks((prev) => prev.map((l) => l.id === editId ? { ...l, name, url } : l));
+      setEditId(null);
+    } else {
+      setLinks((prev) => [...prev, { id: crypto.randomUUID(), name, url }]);
+    }
+    setForm({ name: '', url: '' });
+    setShowForm(false);
+  };
+
+  const deleteLink = (id: string) => setLinks((prev) => prev.filter((l) => l.id !== id));
+  const startEdit  = (l: ShelfLink) => { setEditId(l.id); setForm({ name: l.name, url: l.url }); setShowForm(true); };
+
+  // Size-responsive modes
+  const iconOnly = gridW <= 2 && gridH <= 2;
+  const gridMode = gridW >= 5 && gridH >= 3;
+
+  return (
+    <div className="link-shelf-fill">
+      <div className="widget-header">
+        <span className="widget-label"><Globe /> Link Shelf</span>
+        <button type="button" className="text-button" onClick={() => { setEditId(null); setForm({ name:'', url:'' }); setShowForm((v)=>!v); }}>
+          <Plus />
+        </button>
+      </div>
+
+      {showForm && (
+        <div className="link-shelf-form">
+          <input className="link-shelf-input" placeholder="URL" value={form.url} onChange={(e) => setForm((p) => ({ ...p, url: e.target.value }))} onKeyDown={(e) => e.key === 'Enter' && saveLink()} autoFocus />
+          <input className="link-shelf-input" placeholder="Name (optional)" value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} onKeyDown={(e) => e.key === 'Enter' && saveLink()} />
+          <div className="link-shelf-form-actions">
+            <button className="clock-btn clock-btn-start" onClick={saveLink}><Check /> {editId ? 'Save' : 'Add'}</button>
+            <button className="clock-btn clock-btn-reset" onClick={() => { setShowForm(false); setEditId(null); }}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {links.length === 0 && !showForm && (
+        <div className="link-shelf-empty">Add your favourite links here.</div>
+      )}
+
+      <div className={`link-shelf-list${gridMode ? ' grid-mode' : ''}${iconOnly ? ' icon-only-mode' : ''}`}>
+        {links.map((l) => (
+          <div key={l.id} className="link-shelf-item" title={l.name}>
+            <a href={l.url} target="_blank" rel="noopener noreferrer" className="link-shelf-anchor">
+              {faviconSrc(l.url) && !imgErrors[l.id] ? (
+                <img
+                  src={faviconSrc(l.url)}
+                  alt=""
+                  className="link-shelf-favicon"
+                  onError={() => setImgErrors((p) => ({ ...p, [l.id]: true }))}
+                />
+              ) : (
+                <span className="link-shelf-letter">{l.name[0]?.toUpperCase() ?? '?'}</span>
+              )}
+              {!iconOnly && <span className="link-shelf-name">{l.name}</span>}
+            </a>
+            <div className="link-shelf-item-actions">
+              <button title="Edit"   className="link-shelf-action-btn" onClick={() => startEdit(l)}><Pencil /></button>
+              <button title="Remove" className="link-shelf-action-btn" onClick={() => deleteLink(l.id)}><X /></button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── DecisionMakerWidget ──────────────────────────────────────────────────────
+
+type DiceType = 4 | 6 | 8 | 10 | 12 | 20;
+type DecisionMode = 'coin' | 'dice' | 'number' | 'list' | 'yesno' | 'wheel';
+
+interface DecisionState { mode: DecisionMode; dice: DiceType; numMin: number; numMax: number; listItems: string; }
+
+function isDecisionState(v: unknown): v is DecisionState {
+  return !!v && typeof (v as DecisionState).mode === 'string';
+}
+
+function DecisionMakerWidget({ gridW: _gridW, gridH: _gridH }: { gridW: number; gridH: number }) {
+  const [state, setState] = useState<DecisionState>(
+    () => readLocal(DECISION_MAKER_KEY, { mode: 'coin', dice: 6 as DiceType, numMin: 1, numMax: 100, listItems: '' }, isDecisionState),
+  );
+  const [result, setResult] = useState<string | null>(null);
+  const [spinning, setSpinning] = useState(false);
+
+  useEffect(() => { writeLocal(DECISION_MAKER_KEY, state); }, [state]);
+
+  const upd = (patch: Partial<DecisionState>) => setState((s) => ({ ...s, ...patch }));
+
+  const decide = () => {
+    setSpinning(true);
+    setResult(null);
+    setTimeout(() => {
+      let res = '';
+      switch (state.mode) {
+        case 'coin':   res = Math.random() < 0.5 ? '🪙 Heads' : '🪙 Tails'; break;
+        case 'dice':   res = `🎲 ${Math.floor(Math.random() * state.dice) + 1}`; break;
+        case 'number': res = `${Math.floor(Math.random() * (state.numMax - state.numMin + 1)) + state.numMin}`; break;
+        case 'yesno':  res = Math.random() < 0.5 ? '✅ Yes' : '❌ No'; break;
+        case 'list': {
+          const items = state.listItems.split('\n').map((s) => s.trim()).filter(Boolean);
+          res = items.length > 0 ? `→ ${items[Math.floor(Math.random() * items.length)]}` : '(empty list)';
+          break;
+        }
+        case 'wheel': {
+          const items = state.listItems.split('\n').map((s) => s.trim()).filter(Boolean);
+          res = items.length > 0 ? `🎡 ${items[Math.floor(Math.random() * items.length)]}` : '(empty wheel)';
+          break;
+        }
+      }
+      setResult(res);
+      setSpinning(false);
+    }, 600);
+  };
+
+  const MODES: { id: DecisionMode; label: string }[] = [
+    { id: 'coin',   label: '🪙 Coin'   },
+    { id: 'dice',   label: '🎲 Dice'   },
+    { id: 'number', label: '# Number'  },
+    { id: 'list',   label: '📋 List'   },
+    { id: 'yesno',  label: '✓ Yes/No'  },
+    { id: 'wheel',  label: '🎡 Wheel'  },
+  ];
+
+  const DICE_TYPES: DiceType[] = [4, 6, 8, 10, 12, 20];
+
+  return (
+    <div className="decision-fill">
+      <div className="widget-header">
+        <span className="widget-label"><Shuffle /> Decision Maker</span>
+      </div>
+
+      <div className="decision-mode-tabs">
+        {MODES.map((m) => (
+          <button key={m.id} className={`decision-mode-btn${state.mode === m.id ? ' active' : ''}`} onClick={() => { upd({ mode: m.id }); setResult(null); }}>
+            {m.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="decision-config">
+        {state.mode === 'dice' && (
+          <div className="decision-dice-row">
+            {DICE_TYPES.map((d) => (
+              <button key={d} className={`decision-dice-btn${state.dice === d ? ' active' : ''}`} onClick={() => upd({ dice: d })}>D{d}</button>
+            ))}
+          </div>
+        )}
+        {state.mode === 'number' && (
+          <div className="decision-num-row">
+            <label>Min<input type="number" value={state.numMin} onChange={(e) => upd({ numMin: +e.target.value })} className="decision-num-input" /></label>
+            <label>Max<input type="number" value={state.numMax} onChange={(e) => upd({ numMax: +e.target.value })} className="decision-num-input" /></label>
+          </div>
+        )}
+        {(state.mode === 'list' || state.mode === 'wheel') && (
+          <textarea
+            className="decision-list-input"
+            placeholder="One option per line"
+            value={state.listItems}
+            onChange={(e) => upd({ listItems: e.target.value })}
+          />
+        )}
+      </div>
+
+      <div className="decision-action-row">
+        <button className={`decision-go-btn${spinning ? ' spinning' : ''}`} onClick={decide} disabled={spinning}>
+          {spinning ? '…' : 'Go!'}
+        </button>
+        {result && <div className="decision-result">{result}</div>}
+      </div>
+    </div>
+  );
+}
+
+// ─── CalculatorWidget ──────────────────────────────────────────────────────────
+
+function safeEval(expr: string): string {
+  // Only allow digits, operators, parens, dots, spaces
+  if (!/^[\d+\-*/.() ]+$/.test(expr)) return 'Error';
+  try {
+    // eslint-disable-next-line no-new-func
+    const result = new Function('return (' + expr + ')')() as number;
+    if (!isFinite(result)) return 'Error';
+    // Round to 10 decimal places to avoid float jitter
+    const rounded = parseFloat(result.toPrecision(10));
+    return String(rounded);
+  } catch { return 'Error'; }
+}
+
+function CalculatorWidget() {
+  const [expr, setExpr]   = useState('');
+  const [result, setResult] = useState('');
+  const [justCalc, setJustCalc] = useState(false);
+
+  const press = useCallback((val: string) => {
+    if (val === '=') {
+      if (!expr) return;
+      const res = safeEval(expr);
+      setResult(res);
+      setJustCalc(true);
+    } else if (val === 'C') {
+      setExpr(''); setResult(''); setJustCalc(false);
+    } else if (val === '⌫') {
+      if (justCalc) { setExpr(''); setResult(''); setJustCalc(false); return; }
+      setExpr((e) => e.slice(0, -1));
+    } else {
+      if (justCalc) {
+        // Start fresh if user types a new number, keep result for operator chaining
+        if (/^[0-9(.]$/.test(val)) { setExpr(val); setResult(''); setJustCalc(false); return; }
+        setExpr(result + val); setResult(''); setJustCalc(false);
+      } else {
+        setExpr((e) => e + val);
+      }
+    }
+  }, [expr, result, justCalc]);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (/^[\d+\-*/().%]$/.test(e.key)) press(e.key === '%' ? '/100' : e.key);
+      else if (e.key === 'Enter' || e.key === '=') press('=');
+      else if (e.key === 'Backspace') press('⌫');
+      else if (e.key === 'Escape') press('C');
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [press]);
+
+  const BUTTONS = [
+    ['C', '(', ')', '⌫'],
+    ['7', '8', '9', '/'],
+    ['4', '5', '6', '*'],
+    ['1', '2', '3', '-'],
+    ['0', '.', '=', '+'],
+  ];
+
+  const display = result ? result : (expr || '0');
+
+  return (
+    <div className="calc-fill">
+      <div className="calc-display">
+        <div className="calc-expr">{expr || '\u00a0'}</div>
+        <div className={`calc-result${justCalc ? ' is-result' : ''}`}>{display}</div>
+      </div>
+      <div className="calc-grid">
+        {BUTTONS.map((row, ri) => (
+          <div key={ri} className="calc-row">
+            {row.map((btn) => (
+              <button
+                key={btn}
+                className={`calc-btn${btn === '=' ? ' calc-btn-eq' : ''}${btn === 'C' ? ' calc-btn-clear' : ''}${btn === '⌫' ? ' calc-btn-del' : ''}${/^[+\-*/]$/.test(btn) ? ' calc-btn-op' : ''}`}
+                onClick={() => press(btn)}
+              >
+                {btn}
+              </button>
+            ))}
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -1141,10 +1967,13 @@ function GridWidget({
 
         {/* Widget content */}
         <div className={`grid-widget-content${isEditing ? ' is-locked' : ''}`}>
-          {item.id === 'calendar'     && <CalendarWidget gridW={item.w} gridH={item.h} />}
-          {item.id === 'clock'        && <ClockWidget gridH={item.h} />}
-          {item.id === 'notepad'      && <NotepadWidget />}
-          {item.id === 'file-finder'  && <FileFinderWidget gridW={item.w} gridH={item.h} />}
+          {item.id === 'calendar'       && <CalendarWidget gridW={item.w} gridH={item.h} />}
+          {item.id === 'clock'          && <ClockWidget gridH={item.h} />}
+          {item.id === 'notepad'        && <NotepadWidget compact={item.h <= 2} />}
+          {item.id === 'file-finder'    && <FileFinderWidget gridW={item.w} gridH={item.h} />}
+          {item.id === 'link-shelf'     && <LinkShelfWidget gridW={item.w} gridH={item.h} />}
+          {item.id === 'decision-maker' && <DecisionMakerWidget gridW={item.w} gridH={item.h} />}
+          {item.id === 'calculator'     && <CalculatorWidget />}
         </div>
 
         {/* Remove (×) button — top-right, edit mode only, only for managed widgets */}
@@ -1250,6 +2079,9 @@ function HomeWorkspace({
   const [activeMode, setActiveMode] = useState<'drag' | 'resize' | null>(null);
   const [isConflict, setIsConflict] = useState(false);
 
+  const { setDragId, hoverPageRef, displace } = usePortable();
+  const [, navigate] = useLocation();
+
   // Measure container width and keep cellW in sync
   useEffect(() => {
     const el = containerRef.current;
@@ -1307,6 +2139,8 @@ function HomeWorkspace({
     const { x: origX, y: origY } = item;
     const startMX = e.clientX;
     const startMY = e.clientY;
+    const isPortable = PORTABLE_WIDGETS.has(id);
+    let isInSidebarZone = false;
 
     const preview = { ...item };
     setActiveItem(preview);
@@ -1317,6 +2151,17 @@ function HomeWorkspace({
 
     const onMove = (ev: PointerEvent) => {
       const cw = cellWRef.current;
+      const containerLeft = containerRef.current?.getBoundingClientRect().left ?? 0;
+
+      // Portable drag: detect pointer entering sidebar zone (left of container)
+      if (isPortable && ev.clientX < containerLeft - 20) {
+        if (!isInSidebarZone) { isInSidebarZone = true; setDragId(id); }
+        return;
+      } else if (isInSidebarZone) {
+        isInSidebarZone = false;
+        setDragId(null);
+      }
+
       const dx = Math.round((ev.clientX - startMX) / (cw + GRID_GAP));
       const dy = Math.round((ev.clientY - startMY) / (CELL_H + GRID_GAP));
       const proposed: LayoutItem = {
@@ -1334,6 +2179,23 @@ function HomeWorkspace({
     const onUp = () => {
       document.removeEventListener('pointermove', onMove);
       document.removeEventListener('pointerup', onUp);
+
+      // If portable drag ended over a sidebar page, displace the widget and navigate.
+      // Read hoverPageRef.current (not the stale closure value) to get the live target.
+      const dropPage = isInSidebarZone ? hoverPageRef.current : null;
+      if (dropPage) {
+        displace(id, dropPage);
+        navigate(dropPage);
+        setDragId(null);
+        setActiveItem(null);
+        activeItemRef.current = null;
+        setActiveMode(null);
+        setIsConflict(false);
+        isConflictRef.current = false;
+        return;
+      }
+
+      setDragId(null);
       const finalItem    = activeItemRef.current;
       const finalConflict = isConflictRef.current;
       if (finalItem && !finalConflict) {
@@ -1443,24 +2305,21 @@ function HomeWorkspace({
 // ─── Home page ────────────────────────────────────────────────────────────────
 
 function HomePage() {
-  const [isEditing, setIsEditing]         = useState(false);
-  const [activeWidgets, setActiveWidgets] = useState<WidgetId[]>(() => getActiveWidgets());
-  const [addOpen, setAddOpen]             = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [addOpen, setAddOpen]     = useState(false);
   const isSakura = readEquippedSkin() === 'sakura';
 
-  // Widgets available to add = registry minus currently active
-  const addable = WIDGET_REGISTRY.filter((w) => !activeWidgets.includes(w.id));
+  const { activeWidgets, displaced, addWidget, removeWidget, recallAll } = usePortable();
+  const displacedCount = displaced.length;
 
-  const handleRemove = (id: WidgetId) => {
-    const next = activeWidgets.filter((w) => w !== id);
-    setActiveWidgets(next);
-    storeActiveWidgets(next);
-  };
+  // Widgets available to add = registry minus active minus displaced
+  const displacedIds = displaced.map((d) => d.id);
+  const addable = WIDGET_REGISTRY.filter((w) => !activeWidgets.includes(w.id) && !displacedIds.includes(w.id));
+
+  const handleRemove = (id: WidgetId) => removeWidget(id);
 
   const handleAdd = (id: WidgetId) => {
-    const next = [...activeWidgets, id];
-    setActiveWidgets(next);
-    storeActiveWidgets(next);
+    addWidget(id);
     setAddOpen(false);
   };
 
@@ -1468,15 +2327,31 @@ function HomePage() {
 
   // ── Edit controls shared between both renders ──────────────────────────────
 
-  const editControls = !isEditing ? (
+  const recallBtn = (
     <button
       type="button"
-      className="home-edit-btn"
-      onClick={() => setIsEditing(true)}
-      data-testid="button-customize-layout"
+      className={`home-recall-btn${displacedCount === 0 ? ' is-muted' : ''}`}
+      onClick={() => displacedCount > 0 && recallAll()}
+      disabled={displacedCount === 0}
+      title="Recall all displaced widgets back to Home"
     >
-      <Pencil /> Edit Widgets
+      <CornerUpLeft />
+      Recall Widgets{displacedCount > 0 ? ` (${displacedCount})` : ''}
     </button>
+  );
+
+  const editControls = !isEditing ? (
+    <div className="home-edit-actions-wrap">
+      <button
+        type="button"
+        className="home-edit-btn"
+        onClick={() => setIsEditing(true)}
+        data-testid="button-customize-layout"
+      >
+        <Pencil /> Edit Widgets
+      </button>
+      {recallBtn}
+    </div>
   ) : (
     <div className="home-edit-controls">
       {/* Add Widget dropdown */}
@@ -1494,12 +2369,7 @@ function HomePage() {
         {addOpen && addable.length > 0 && (
           <div className="add-widget-dropdown" role="listbox">
             {addable.map((w) => (
-              <button
-                key={w.id}
-                role="option"
-                className="add-widget-item"
-                onClick={() => handleAdd(w.id)}
-              >
+              <button key={w.id} role="option" className="add-widget-item" onClick={() => handleAdd(w.id)}>
                 {w.label}
               </button>
             ))}
@@ -1515,15 +2385,19 @@ function HomePage() {
       >
         <Check /> Done
       </button>
+
+      {recallBtn}
     </div>
   );
 
+  const editHint = (
+    <p className="home-edit-hint">
+      Drag to reposition · drag ↘ corner to resize · drag left into sidebar to port · click × to remove
+    </p>
+  );
+
   const workspace = (
-    <HomeWorkspace
-      isEditing={isEditing}
-      activeWidgets={activeWidgets}
-      onRemoveWidget={handleRemove}
-    />
+    <HomeWorkspace isEditing={isEditing} activeWidgets={activeWidgets} onRemoveWidget={handleRemove} />
   );
 
   // ── Sakura layout ──────────────────────────────────────────────────────────
@@ -1538,11 +2412,7 @@ function HomePage() {
               <span className="sakura-greeting">✦ Your workspace</span>
               {editControls}
             </div>
-            {isEditing && (
-              <p className="home-edit-hint sakura-edit-hint">
-                Drag to reposition · drag ↘ corner to resize · click × to remove
-              </p>
-            )}
+            {isEditing && <p className="home-edit-hint sakura-edit-hint">{editHint}</p>}
             {workspace}
           </div>
         </div>
@@ -1558,15 +2428,50 @@ function HomePage() {
         <div>
           <div className="eyebrow">Your workspace</div>
           <h1 className="display-title" style={{ marginTop: '0.75rem' }}>Good to be back.</h1>
-          {isEditing && (
-            <p className="home-edit-hint">
-              Drag to reposition · drag ↘ corner to resize · click × to remove
-            </p>
-          )}
+          {isEditing && editHint}
         </div>
         {editControls}
       </div>
       {workspace}
+    </div>
+  );
+}
+
+// ─── Portable Widget Float ─────────────────────────────────────────────────────
+
+function PortableWidgetFloat() {
+  const [location] = useLocation();
+  const { displaced, recall } = usePortable();
+
+  // Only show on non-Home pages
+  if (location === '/') return null;
+
+  const pageWidgets = displaced.filter((d) => d.page === location);
+  if (pageWidgets.length === 0) return null;
+
+  return (
+    <div className="portable-float">
+      {pageWidgets.map((d) => (
+        <div key={d.id} className="portable-float-card">
+          <div className="portable-float-header">
+            <span className="portable-float-label">{WIDGET_LABELS[d.id]}</span>
+            <button
+              className="portable-recall-btn"
+              onClick={() => recall(d.id)}
+              title="Recall to Home"
+            >
+              <CornerUpLeft /> Recall
+            </button>
+          </div>
+          <div className="portable-float-body">
+            {d.id === 'notepad'        && <NotepadWidget compact />}
+            {d.id === 'calendar'       && <CalendarWidget gridW={4} gridH={4} />}
+            {d.id === 'link-shelf'     && <LinkShelfWidget gridW={4} gridH={3} />}
+            {d.id === 'decision-maker' && <DecisionMakerWidget gridW={4} gridH={3} />}
+            {d.id === 'calculator'     && <CalculatorWidget />}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -3970,28 +4875,31 @@ function App() {
   // All existing useLocation() calls, CRUMB_MAP keys, and isActive() checks are
   // unaffected — useHashLocation returns the path portion without the '#'.
   return (
-    <Router hook={useHashLocation}>
-      <AppShell libraryCount={libraryProducts.length}>
-        <Switch>
-          <Route path="/"><HomePage /></Route>
-          <Route path="/store"><StorePage /></Route>
-          <Route path="/product/:id">{(params) => {
-            const product = PRODUCTS.find((item) => item.id === params.id);
-            if (!product) return <NotFound />;
-            return <ProductDetail product={product} isAdded={libraryIds.includes(product.id)} onAdd={() => addToLibrary(product)} onOpen={() => openProduct(product)} />;
-          }}</Route>
-          <Route path="/library"><LibraryPage products={libraryProducts} onOpen={openProduct} /></Route>
-          <Route path="/breakroom"><BreakroomPage /></Route>
-          <Route path="/tool/bulk-file-renamer"><BulkFileRenamer /></Route>
-          <Route path="/tool/spreadsheet-cleaner"><SpreadsheetCleaner /></Route>
-          <Route path="/tool/file-finder"><FileFinderPage /></Route>
-          <Route path="/profile"><ProfilePage /></Route>
-          <Route path="/settings"><SettingsPage /></Route>
-          <Route><NotFound /></Route>
-        </Switch>
-        {toast && <div className="toast-message" role="status" data-testid="status-toast"><Check /> {toast}</div>}
-      </AppShell>
-    </Router>
+    <PortableProvider>
+      <Router hook={useHashLocation}>
+        <AppShell libraryCount={libraryProducts.length}>
+          <Switch>
+            <Route path="/"><HomePage /></Route>
+            <Route path="/store"><StorePage /></Route>
+            <Route path="/product/:id">{(params) => {
+              const product = PRODUCTS.find((item) => item.id === params.id);
+              if (!product) return <NotFound />;
+              return <ProductDetail product={product} isAdded={libraryIds.includes(product.id)} onAdd={() => addToLibrary(product)} onOpen={() => openProduct(product)} />;
+            }}</Route>
+            <Route path="/library"><LibraryPage products={libraryProducts} onOpen={openProduct} /></Route>
+            <Route path="/breakroom"><BreakroomPage /></Route>
+            <Route path="/tool/bulk-file-renamer"><BulkFileRenamer /></Route>
+            <Route path="/tool/spreadsheet-cleaner"><SpreadsheetCleaner /></Route>
+            <Route path="/tool/file-finder"><FileFinderPage /></Route>
+            <Route path="/profile"><ProfilePage /></Route>
+            <Route path="/settings"><SettingsPage /></Route>
+            <Route><NotFound /></Route>
+          </Switch>
+          {toast && <div className="toast-message" role="status" data-testid="status-toast"><Check /> {toast}</div>}
+          <PortableWidgetFloat />
+        </AppShell>
+      </Router>
+    </PortableProvider>
   );
 }
 
