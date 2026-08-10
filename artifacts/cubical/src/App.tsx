@@ -34,24 +34,40 @@ const PRODUCTS: Product[] = [
   { id: 'file-organizer', name: 'File Organizer', description: 'A calmer way to sort, group, and find everything on your desktop.', price: '$1.99', icon: FolderCog, iconColor: 'hsl(164 48% 32%)', iconBg: 'hsl(164 48% 32% / .12)' },
   { id: 'spreadsheet-cleaner', name: 'Spreadsheet Cleaner', description: 'Sweep out the clutter hiding between your rows and columns.', price: '$2.99', icon: TableProperties, iconColor: 'hsl(31 75% 43%)', iconBg: 'hsl(31 75% 43% / .13)' },
   { id: 'pdf-toolkit', name: 'PDF Toolkit', description: 'Small, sharp tools for the PDFs you touch every day.', price: '$3.99', icon: FileScan, iconColor: 'hsl(1 68% 54%)', iconBg: 'hsl(1 68% 54% / .12)' },
-  { id: 'bulk-file-renamer', name: 'Bulk File Renamer', description: 'Give a whole folder a thoughtful name in one quick pass.', price: '$0.99', icon: FileArchive, iconColor: 'hsl(226 45% 49%)', iconBg: 'hsl(226 45% 49% / .12)' },
+  { id: 'bulk-file-renamer', name: 'Bulk File Renamer', description: 'Give a whole folder a thoughtful name in one quick pass.', price: 'FREE', icon: FileArchive, iconColor: 'hsl(226 45% 49%)', iconBg: 'hsl(226 45% 49% / .12)' },
   { id: 'duplicate-finder', name: 'Duplicate Finder', description: 'Spot the copies taking up space and keep the best version.', price: 'FREE', icon: Files, iconColor: 'hsl(287 40% 47%)', iconBg: 'hsl(287 40% 47% / .12)' },
 ];
 
 const TOOL_ROUTES: Partial<Record<Product['id'], string>> = {
   'bulk-file-renamer': '/tool/bulk-file-renamer',
 };
+const LIBRARY_STORAGE_KEY = 'cubical-library';
 
 function getToolRoute(product: Product) {
   return TOOL_ROUTES[product.id];
 }
 
-function getStoredLibrary() {
+function getStoredLibrary(): string[] {
   try {
-    const stored = localStorage.getItem('cubical-library');
-    return stored ? JSON.parse(stored) as string[] : [];
+    if (typeof window === 'undefined') return [];
+    const stored = window.localStorage.getItem(LIBRARY_STORAGE_KEY);
+    if (!stored) return [];
+    const parsed: unknown = JSON.parse(stored);
+    if (!Array.isArray(parsed)) return [];
+    const validProductIds = new Set(PRODUCTS.map((product) => product.id));
+    return parsed.filter((id): id is string => typeof id === 'string' && validProductIds.has(id));
   } catch {
     return [];
+  }
+}
+
+function storeLibrary(libraryIds: string[]) {
+  try {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(LIBRARY_STORAGE_KEY, JSON.stringify(libraryIds));
+    }
+  } catch {
+    // Local persistence is best effort in restricted browser contexts.
   }
 }
 
@@ -148,6 +164,7 @@ function ScreenshotPlaceholder({ product }: { product: Product }) {
 
 function ProductDetail({ product, isAdded, onAdd, onOpen }: { product: Product; isAdded: boolean; onAdd: () => void; onOpen: () => void }) {
   const toolRoute = getToolRoute(product);
+  const isBulkFileRenamer = product.id === 'bulk-file-renamer';
   return (
     <section>
       <Link href="/" className="detail-back" data-testid="link-back-store"><ArrowLeft /> Back to store</Link>
@@ -157,7 +174,7 @@ function ProductDetail({ product, isAdded, onAdd, onOpen }: { product: Product; 
           <div className="eyebrow mt-7">A focused little utility</div>
           <h1 data-testid="text-detail-name">{product.name}</h1>
           <p data-testid="text-detail-description">{product.description} Built to stay out of your way, feel good to use, and make a small part of your day lighter.</p>
-          <div className="detail-price" data-testid="text-detail-price">{product.price} · one-time, local-only</div>
+          <div className="detail-price" data-testid="text-detail-price">{isBulkFileRenamer ? 'FREE · local-only' : `${product.price} · one-time, local-only`}</div>
           {isAdded ? (
             toolRoute ? (
               <Link href={toolRoute} className="button-primary" data-testid="button-open-added"><Check /> In your library · Open</Link>
@@ -165,7 +182,7 @@ function ProductDetail({ product, isAdded, onAdd, onOpen }: { product: Product; 
               <button className="button-primary" onClick={onOpen} data-testid="button-open-added"><Check /> In your library · Open</button>
             )
           ) : (
-            <button className="button-primary" onClick={onAdd} data-testid="button-add-library">Add to library <ArrowRight /></button>
+            <button className="button-primary" onClick={onAdd} data-testid={isBulkFileRenamer ? 'button-get-free' : 'button-add-library'}>{isBulkFileRenamer ? 'Get Free' : 'Add to library'} <ArrowRight /></button>
           )}
         </div>
         <ScreenshotPlaceholder product={product} />
@@ -513,7 +530,7 @@ function App() {
   const [, setLocation] = useLocation();
   const libraryProducts = useMemo(() => PRODUCTS.filter((product) => libraryIds.includes(product.id)), [libraryIds]);
 
-  useEffect(() => { localStorage.setItem('cubical-library', JSON.stringify(libraryIds)); }, [libraryIds]);
+  useEffect(() => { storeLibrary(libraryIds); }, [libraryIds]);
   useEffect(() => { if (!toast) return; const timeout = window.setTimeout(() => setToast(null), 2800); return () => window.clearTimeout(timeout); }, [toast]);
 
   const addToLibrary = (product: Product) => {
