@@ -2250,6 +2250,14 @@ const SAKURA_DECOS: Partial<Record<WidgetId, React.ReactNode>> = {
       alt="" aria-hidden draggable={false}
     />
   ),
+  // Flower bloom at the top-left corner of the file finder (mirrored for variety)
+  'file-finder': (
+    <img
+      src="/sakura/flower-corner.png"
+      className="sakura-deco sakura-deco--file-finder"
+      alt="" aria-hidden draggable={false}
+    />
+  ),
 };
 
 function SakuraWidgetDecoration({ widgetId }: { widgetId: WidgetId }) {

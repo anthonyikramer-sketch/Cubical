@@ -535,6 +535,15 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
   right: -8px;
 }
 
+/* File Finder: flower bloom at the top-left corner, mirrored for a fresh angle */
+.sakura-deco--file-finder {
+  height: clamp(44px, 12%, 64px);
+  width: auto;
+  top: -26px;
+  left: -12px;
+  transform: scaleX(-1);
+}
+
 /* Content area */
 .grid-widget-content { width: 100%; height: 100%; overflow: hidden; display: flex; flex-direction: column; }
 .grid-widget-content.is-locked { pointer-events: none; user-select: none; }
