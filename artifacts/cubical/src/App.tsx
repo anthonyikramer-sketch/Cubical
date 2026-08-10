@@ -49,6 +49,14 @@ import {
   Trophy,
   X,
   Zap,
+  // New
+  Bell,
+  ImagePlus,
+  Monitor,
+  Moon,
+  Pin,
+  PinOff,
+  Sun,
 } from 'lucide-react';
 import { Link, Route, Router, Switch, useLocation } from 'wouter';
 
@@ -84,6 +92,61 @@ declare global {
 
 const RECENT_SEARCHES_KEY = 'cubical-file-finder-recent';
 const FF_PENDING_QUERY_KEY = 'cubical-file-finder-pending';
+const SIDEBAR_PINNED_KEY  = 'cubical-sidebar-pinned';
+const PROFILE_KEY         = 'cubical-profile';
+const PROFILE_SKIN_KEY    = 'cubical-profile-skin';
+const SETTINGS_KEY        = 'cubical-settings';
+
+type ThemeMode   = 'light' | 'dark' | 'system';
+type StartupPage = 'home' | 'store' | 'library';
+
+interface AppSettings {
+  themeMode:           ThemeMode;
+  sidebarAutoCollapse: boolean;
+  clockSeconds:        boolean;
+  soundEnabled:        boolean;
+  startupPage:         StartupPage;
+}
+
+const DEFAULT_SETTINGS: AppSettings = {
+  themeMode:           'light',
+  sidebarAutoCollapse: true,
+  clockSeconds:        false,
+  soundEnabled:        true,
+  startupPage:         'home',
+};
+
+function isAppSettings(v: unknown): v is AppSettings {
+  return !!v && typeof v === 'object' && typeof (v as Record<string,unknown>).themeMode === 'string';
+}
+
+function readSettings(): AppSettings {
+  return { ...DEFAULT_SETTINGS, ...readLocal<AppSettings>(SETTINGS_KEY, DEFAULT_SETTINGS, isAppSettings) };
+}
+function writeSettings(s: AppSettings) { writeLocal(SETTINGS_KEY, s); }
+
+function applyThemeMode(mode: ThemeMode) {
+  const dark = mode === 'dark' || (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  document.documentElement.classList.toggle('dark', dark);
+}
+
+interface ProfileData { name: string; avatar: string | null; bannerColor: string; }
+const DEFAULT_PROFILE: ProfileData = { name: '', avatar: null, bannerColor: '#7c9e8f' };
+
+function isProfileData(v: unknown): v is ProfileData {
+  return !!v && typeof v === 'object' && typeof (v as Record<string,unknown>).name === 'string';
+}
+function readProfile(): ProfileData {
+  return { ...DEFAULT_PROFILE, ...readLocal<ProfileData>(PROFILE_KEY, DEFAULT_PROFILE, isProfileData) };
+}
+function writeProfile(p: ProfileData) { writeLocal(PROFILE_KEY, p); }
+
+interface CubicalSkin { id: string; name: string; description: string; owned: boolean; comingSoon?: boolean; }
+
+const CUBICAL_SKINS: CubicalSkin[] = [
+  { id: 'default', name: 'Default', description: 'Clean and calm. The original Cubical look.',                owned: true  },
+  { id: 'sakura',  name: 'Sakura',  description: 'Cherry blossoms and soft pinks. A peaceful seasonal look.', owned: false, comingSoon: true },
+];
 
 type FileTypeCategory = 'all' | 'documents' | 'pdfs' | 'spreadsheets' | 'images' | 'videos' | 'audio' | 'archives';
 type DateCategory    = 'anytime' | 'today' | 'week' | 'month' | 'year';
@@ -288,46 +351,123 @@ const CRUMB_MAP: Record<string, string> = {
 
 function AppShell({ children, libraryCount }: { children: ReactNode; libraryCount: number }) {
   const [location] = useLocation();
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarPinned, setSidebarPinned]       = useState(
+    () => readLocal<boolean>(SIDEBAR_PINNED_KEY, false, (v): v is boolean => typeof v === 'boolean'),
+  );
+  const collapseTimerRef    = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isSidebarHoveredRef = useRef(false);
+  const sidebarPinnedRef    = useRef(sidebarPinned);
+  sidebarPinnedRef.current  = sidebarPinned;
+
+  const scheduleCollapse = () => {
+    if (sidebarPinnedRef.current || !readSettings().sidebarAutoCollapse) return;
+    if (collapseTimerRef.current) clearTimeout(collapseTimerRef.current);
+    collapseTimerRef.current = setTimeout(() => {
+      if (!isSidebarHoveredRef.current) setSidebarCollapsed(true);
+    }, 4000);
+  };
+
+  useEffect(() => {
+    scheduleCollapse();
+    return () => { if (collapseTimerRef.current) clearTimeout(collapseTimerRef.current); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleSidebarEnter = () => {
+    isSidebarHoveredRef.current = true;
+    if (collapseTimerRef.current) clearTimeout(collapseTimerRef.current);
+    setSidebarCollapsed(false);
+  };
+
+  const handleSidebarLeave = () => {
+    isSidebarHoveredRef.current = false;
+    scheduleCollapse();
+  };
+
+  const togglePin = () => {
+    const next = !sidebarPinned;
+    setSidebarPinned(next);
+    writeLocal(SIDEBAR_PINNED_KEY, next);
+    if (next) {
+      if (collapseTimerRef.current) clearTimeout(collapseTimerRef.current);
+      setSidebarCollapsed(false);
+    } else {
+      scheduleCollapse();
+    }
+  };
+
   const navItems = [
-    { href: '/', label: 'Home', icon: House },
-    { href: '/store', label: 'Store', icon: Grid2X2 },
-    { href: '/library', label: 'Library', icon: LibraryIcon },
-    { href: '/breakroom', label: 'Breakroom', icon: Coffee },
+    { href: '/',          label: 'Home',      icon: House       },
+    { href: '/store',     label: 'Store',     icon: Grid2X2     },
+    { href: '/library',   label: 'Library',   icon: LibraryIcon },
+    { href: '/breakroom', label: 'Breakroom', icon: Coffee      },
   ];
   const utilityItems = [
-    { href: '/profile', label: 'Profile', icon: CircleUserRound },
-    { href: '/settings', label: 'Settings', icon: Settings },
+    { href: '/profile',  label: 'Profile',  icon: CircleUserRound },
+    { href: '/settings', label: 'Settings', icon: Settings        },
   ];
+
   const crumb = CRUMB_MAP[location] ?? `SHELF / ${location.slice(1).toUpperCase().replace(/\//g, ' / ')}`;
   const isActive = (href: string) => {
     if (href === '/library') return location === '/library' || location.startsWith('/tool/');
     return location === href;
   };
+
   return (
     <div className="cubical-shell">
-      <aside className="cubical-sidebar" data-testid="sidebar-navigation">
-        <Link href="/" className="flex items-center gap-3 no-underline" data-testid="link-brand">
-          <span className="brand-mark">C</span><span className="brand-word">cubical</span>
+      <aside
+        className={`cubical-sidebar${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}
+        data-testid="sidebar-navigation"
+        onMouseEnter={handleSidebarEnter}
+        onMouseLeave={handleSidebarLeave}
+      >
+        <Link href="/" className="brand-link no-underline" data-testid="link-brand">
+          <span className="brand-mark">C</span>
+          <span className="brand-word">cubical</span>
         </Link>
-        <div className="mt-12 w-full">
+        <div className="sidebar-section mt-12 w-full">
           <div className="side-label mb-3">Your shelf</div>
           <nav className="sidebar-nav flex flex-col gap-1" aria-label="Main navigation">
             {navItems.map(({ href, label, icon: Icon }) => (
-              <Link key={href} href={href} className={`nav-link ${isActive(href) ? 'active' : ''}`} data-testid={`link-${label.toLowerCase()}`}>
-                <Icon /><span>{label}{label === 'Library' && libraryCount > 0 ? ` · ${libraryCount}` : ''}</span>
+              <Link
+                key={href}
+                href={href}
+                className={`nav-link ${isActive(href) ? 'active' : ''}`}
+                data-testid={`link-${label.toLowerCase()}`}
+                title={sidebarCollapsed ? label : undefined}
+              >
+                <Icon />
+                <span>{label}{label === 'Library' && libraryCount > 0 ? ` · ${libraryCount}` : ''}</span>
               </Link>
             ))}
           </nav>
         </div>
         <div className="sidebar-bottom w-full">
-          <div className="side-label mb-3">The little things</div>
+          <div className="side-label mb-3">Yourself</div>
           <nav className="sidebar-nav flex flex-col gap-1" aria-label="Utility navigation">
             {utilityItems.map(({ href, label, icon: Icon }) => (
-              <Link key={href} href={href} className={`nav-link ${location === href ? 'active' : ''}`} data-testid={`link-${label.toLowerCase()}`}>
+              <Link
+                key={href}
+                href={href}
+                className={`nav-link ${location === href ? 'active' : ''}`}
+                data-testid={`link-${label.toLowerCase()}`}
+                title={sidebarCollapsed ? label : undefined}
+              >
                 <Icon /><span>{label}</span>
               </Link>
             ))}
           </nav>
+          <button
+            className={`sidebar-pin-btn${sidebarPinned ? ' is-pinned' : ''}`}
+            onClick={togglePin}
+            title={sidebarPinned ? 'Unpin sidebar' : 'Pin sidebar open'}
+          >
+            {sidebarPinned
+              ? <Pin className="w-3.5 h-3.5 shrink-0" />
+              : <PinOff className="w-3.5 h-3.5 shrink-0" />
+            }
+            <span className="sidebar-pin-label">{sidebarPinned ? 'Pinned' : 'Pin'}</span>
+          </button>
           <p className="sidebar-footnote">A personal shelf for useful little tools.<br />Made for curious desktops.</p>
         </div>
       </aside>
@@ -1855,107 +1995,6 @@ function DailyGameCard() {
   );
 }
 
-// ── Break Timer ────────────────────────────────────────────────────────────
-
-type TimerPreset = 5 | 10 | 15;
-
-function BreakTimerCard() {
-  const [preset, setPreset]     = useState<TimerPreset | null>(null);
-  const [remaining, setRemaining] = useState(0); // seconds
-  const [running, setRunning]   = useState(false);
-  const [done, setDone]         = useState(false);
-  const intervalRef             = useRef<number | null>(null);
-
-  const clearTimer = () => { if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; } };
-
-  const startPreset = (p: TimerPreset) => {
-    clearTimer();
-    setPreset(p);
-    setRemaining(p * 60);
-    setRunning(true);
-    setDone(false);
-  };
-
-  useEffect(() => {
-    if (!running) return;
-    intervalRef.current = window.setInterval(() => {
-      setRemaining((r) => {
-        if (r <= 1) { clearTimer(); setRunning(false); setDone(true); return 0; }
-        return r - 1;
-      });
-    }, 1000);
-    return clearTimer;
-  }, [running]);
-
-  const pause  = () => { clearTimer(); setRunning(false); };
-  const resume = () => {
-    if (remaining <= 0) return;
-    setDone(false);
-    setRunning(true);
-  };
-  const reset  = () => {
-    clearTimer();
-    setRunning(false);
-    setDone(false);
-    if (preset) setRemaining(preset * 60);
-  };
-  const clear  = () => { clearTimer(); setPreset(null); setRemaining(0); setRunning(false); setDone(false); };
-
-  const mins    = Math.floor(remaining / 60);
-  const secs    = remaining % 60;
-  const pct     = preset ? ((preset * 60 - remaining) / (preset * 60)) * 100 : 0;
-
-  return (
-    <div className="break-timer-card" data-testid="break-timer-card">
-      <div className="break-timer-header">
-        <span className="widget-label"><Timer /> Break Timer</span>
-      </div>
-
-      {!preset ? (
-        <div className="break-timer-presets">
-          <p className="break-timer-hint">Take five. Or ten. You've earned it.</p>
-          {([5, 10, 15] as TimerPreset[]).map((p) => (
-            <button key={p} className="break-preset-btn" onClick={() => startPreset(p)} data-testid={`button-preset-${p}`}>
-              {p} min
-            </button>
-          ))}
-        </div>
-      ) : (
-        <div className="break-timer-active">
-          <div className="break-timer-ring" style={{ '--pct': `${pct}` } as CSSProperties}>
-            <svg viewBox="0 0 64 64" className="break-ring-svg">
-              <circle cx="32" cy="32" r="28" className="break-ring-bg" />
-              <circle cx="32" cy="32" r="28" className="break-ring-fg"
-                strokeDasharray={`${(pct / 100) * 175.93} 175.93`}
-                transform="rotate(-90 32 32)"
-              />
-            </svg>
-            <div className="break-ring-time">
-              {String(mins).padStart(2, '0')}:{String(secs).padStart(2, '0')}
-            </div>
-          </div>
-
-          {done ? (
-            <div className="break-timer-done">
-              <p>Time's up! Back to it. 👋</p>
-              <button className="button-primary" style={{ marginTop: 10 }} onClick={clear}>Done</button>
-            </div>
-          ) : (
-            <div className="break-timer-controls">
-              {running
-                ? <button className="break-ctrl-btn" onClick={pause} aria-label="Pause"><Pause /></button>
-                : <button className="break-ctrl-btn" onClick={resume} aria-label="Resume"><Play /></button>
-              }
-              <button className="break-ctrl-btn" onClick={reset} aria-label="Reset"><RotateCcw /></button>
-              <button className="break-ctrl-btn break-ctrl-cancel" onClick={clear} aria-label="Cancel"><X /></button>
-            </div>
-          )}
-          <span className="break-preset-label">{preset}-minute break</span>
-        </div>
-      )}
-    </div>
-  );
-}
 
 // ── Games catalog ──────────────────────────────────────────────────────────
 
@@ -2451,13 +2490,12 @@ function BreakroomPage() {
       <div className="page-intro breakroom-intro">
         <div className="eyebrow">⏸ Take a breather</div>
         <h1 className="display-title mt-4">The Breakroom.</h1>
-        <p>You've been working. This is the part where you stop for a moment.<br />Games, timers, and a small excuse to close the spreadsheet.</p>
+        <p>You've been working. This is the part where you stop for a moment.<br />Games, a daily challenge, and a small excuse to close the spreadsheet.</p>
       </div>
 
-      {/* Daily game + Break timer row */}
-      <div id="daily-game-section" className="breakroom-top-row">
+      {/* Daily game */}
+      <div id="daily-game-section" className="mb-10">
         <DailyGameCard />
-        <BreakTimerCard />
       </div>
 
       {/* Your Games */}
@@ -2867,19 +2905,350 @@ function FileFinderPage() {
   );
 }
 
-// ─── Placeholder & utility pages ──────────────────────────────────────────────
+// ─── Profile page ─────────────────────────────────────────────────────────────
 
-function PlaceholderPage({ type }: { type: 'profile' | 'settings' }) {
-  const profile = type === 'profile';
+const BANNER_COLORS = [
+  '#7c9e8f', '#a89080', '#8b9bc4', '#b0977e',
+  '#7ea896', '#c49a6c', '#8ba3b0', '#9e8fb0',
+];
+
+function ProfilePage() {
+  const [profile,       setProfile_]     = useState<ProfileData>(readProfile);
+  const [equippedSkin,  setEquippedSkin]  = useState<string>(
+    () => { try { return window.localStorage.getItem(PROFILE_SKIN_KEY) ?? 'default'; } catch { return 'default'; } }
+  );
+  const [saved, setSaved]   = useState(false);
+  const fileInputRef        = useRef<HTMLInputElement>(null);
+
+  const update = (patch: Partial<ProfileData>) => {
+    setProfile_((p) => { const next = { ...p, ...patch }; writeProfile(next); return next; });
+  };
+
+  const handleAvatarChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const result = ev.target?.result;
+      if (typeof result === 'string') update({ avatar: result });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const removeAvatar = () => {
+    update({ avatar: null });
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const equipSkin = (id: string) => {
+    setEquippedSkin(id);
+    try { window.localStorage.setItem(PROFILE_SKIN_KEY, id); } catch {}
+    setSaved(true);
+    setTimeout(() => setSaved(false), 1800);
+  };
+
+  const displayInitial = profile.name.trim() ? profile.name.trim()[0].toUpperCase() : '?';
+
   return (
-    <section className="placeholder-page">
-      <div className="eyebrow">{profile ? 'A little about you' : 'Make it yours'}</div>
-      <h1 className="display-title mt-4">{profile ? 'Profile.' : 'Settings.'}</h1>
-      <div className="placeholder-panel" data-testid={`placeholder-${type}`}>
-        <Sparkles className="mb-5 h-6 w-6 text-[hsl(var(--accent))]" />
-        <h2 className="font-display text-xl font-semibold tracking-tight">{profile ? 'This is a local prototype.' : 'Nothing to tune just yet.'}</h2>
-        <p>{profile ? 'Accounts, names, and cloud profiles are intentionally not part of Cubical yet. For now, this shelf belongs entirely to the person sitting at this desktop.' : 'Cubical keeps things intentionally simple for this first pass. There are no accounts, sync settings, payments, or automatic updates to configure.'}</p>
+    <section className="profile-page">
+
+      {/* Banner + avatar */}
+      <div className="profile-hero">
+        <div className="profile-banner" style={{ background: profile.bannerColor }}>
+          <div className="profile-banner-colors">
+            {BANNER_COLORS.map((c) => (
+              <button
+                key={c}
+                className={`profile-color-swatch${profile.bannerColor === c ? ' active' : ''}`}
+                style={{ background: c }}
+                onClick={() => update({ bannerColor: c })}
+                title={c}
+              />
+            ))}
+          </div>
+        </div>
+        <div className="profile-avatar-wrap">
+          {profile.avatar
+            ? <img src={profile.avatar} alt="Profile" className="profile-avatar" />
+            : <div className="profile-avatar profile-avatar-placeholder">{displayInitial}</div>
+          }
+          <button className="profile-avatar-edit" onClick={() => fileInputRef.current?.click()} title="Change picture">
+            <ImagePlus className="w-3.5 h-3.5" />
+          </button>
+          {profile.avatar && (
+            <button className="profile-avatar-remove" onClick={removeAvatar} title="Remove picture">
+              <X className="w-3 h-3" />
+            </button>
+          )}
+          <input ref={fileInputRef} type="file" accept="image/*" className="sr-only" onChange={handleAvatarChange} />
+        </div>
       </div>
+
+      {/* Identity */}
+      <div className="profile-identity">
+        <div className="eyebrow">Your identity</div>
+        <div className="settings-field mt-4" style={{ maxWidth: 360 }}>
+          <label className="settings-label" htmlFor="profile-name">Display name</label>
+          <input
+            id="profile-name"
+            className="settings-input"
+            type="text"
+            placeholder="What should we call you?"
+            value={profile.name}
+            onChange={(e) => update({ name: e.target.value })}
+            maxLength={40}
+          />
+        </div>
+        {saved && (
+          <div className="profile-saved-badge">
+            <Check className="w-3 h-3" /> Saved
+          </div>
+        )}
+      </div>
+
+      {/* Skins */}
+      <div className="profile-skins">
+        <div className="eyebrow mt-10 mb-1">Your skins</div>
+        <p className="settings-hint mb-5">Choose how Cubical looks and feels. More skins coming soon.</p>
+        <div className="skins-grid">
+          {CUBICAL_SKINS.map((skin) => (
+            <div
+              key={skin.id}
+              className={`skin-card${skin.comingSoon ? ' skin-locked' : ''}${equippedSkin === skin.id && !skin.comingSoon ? ' skin-equipped' : ''}`}
+              data-testid={`card-skin-${skin.id}`}
+            >
+              <div className="skin-preview">
+                {skin.id === 'default' && (
+                  <div className="skin-preview-default">
+                    <div className="spd-sidebar" />
+                    <div className="spd-main">
+                      <div className="spd-bar" />
+                      <div className="spd-card" />
+                      <div className="spd-card spd-card-sm" />
+                    </div>
+                  </div>
+                )}
+                {skin.id === 'sakura' && <div className="skin-preview-sakura">🌸</div>}
+                {skin.comingSoon && <div className="skin-coming-soon-badge">Coming soon</div>}
+                {equippedSkin === skin.id && !skin.comingSoon && (
+                  <div className="skin-equipped-badge"><Check className="w-3 h-3" /> Equipped</div>
+                )}
+              </div>
+              <div className="skin-body">
+                <div className="skin-name">{skin.name}</div>
+                <p className="skin-desc">{skin.description}</p>
+                <div className="skin-footer">
+                  {skin.comingSoon
+                    ? <span className="skin-soon-label">Not yet available</span>
+                    : equippedSkin === skin.id
+                      ? <span className="skin-active-label">Currently equipped</span>
+                      : <button className="button-quiet skin-equip-btn" onClick={() => equipSkin(skin.id)}>Equip</button>
+                  }
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+    </section>
+  );
+}
+
+// ─── Settings page ─────────────────────────────────────────────────────────────
+
+function SettingsPage() {
+  const [settings,      setSettings_]    = useState<AppSettings>(readSettings);
+  const [clearConfirm,  setClearConfirm]  = useState(false);
+  const [layoutConfirm, setLayoutConfirm] = useState(false);
+  const [themeApplied,  setThemeApplied]  = useState(false);
+
+  const update = (patch: Partial<AppSettings>) => {
+    setSettings_((s) => { const next = { ...s, ...patch }; writeSettings(next); return next; });
+  };
+
+  const handleThemeMode = (mode: ThemeMode) => {
+    update({ themeMode: mode });
+    applyThemeMode(mode);
+    setThemeApplied(true);
+    setTimeout(() => setThemeApplied(false), 1600);
+  };
+
+  const handleClockSeconds = (on: boolean) => {
+    update({ clockSeconds: on });
+    writeLocal(CLOCK_SECONDS_KEY, on);
+  };
+
+  const handleResetLayout = () => {
+    try { window.localStorage.removeItem(LAYOUT_STORAGE_KEY); } catch {}
+    setLayoutConfirm(false);
+    window.location.hash = '/';
+  };
+
+  const handleClearData = () => {
+    try { window.localStorage.clear(); } catch {}
+    setClearConfirm(false);
+    window.location.reload();
+  };
+
+  return (
+    <section className="settings-page">
+      <div className="page-intro">
+        <div className="eyebrow">Make it yours</div>
+        <h1 className="display-title mt-4">Settings.</h1>
+      </div>
+
+      {/* Appearance */}
+      <div className="settings-card">
+        <div className="settings-card-header">
+          <h2 className="settings-section-title"><Sun className="w-4 h-4" /> Appearance</h2>
+        </div>
+        <div className="settings-row">
+          <div className="settings-row-info">
+            <div className="settings-row-label">Color mode</div>
+            <div className="settings-row-hint">Choose how Cubical looks.</div>
+          </div>
+          <div className="settings-mode-group">
+            {(['light', 'dark', 'system'] as ThemeMode[]).map((mode) => (
+              <button
+                key={mode}
+                className={`settings-mode-btn${settings.themeMode === mode ? ' active' : ''}`}
+                onClick={() => handleThemeMode(mode)}
+              >
+                {mode === 'light'  && <Sun className="w-3.5 h-3.5" />}
+                {mode === 'dark'   && <Moon className="w-3.5 h-3.5" />}
+                {mode === 'system' && <Monitor className="w-3.5 h-3.5" />}
+                {mode.charAt(0).toUpperCase() + mode.slice(1)}
+              </button>
+            ))}
+          </div>
+        </div>
+        {themeApplied && <p className="settings-applied">Applied.</p>}
+      </div>
+
+      {/* Navigation */}
+      <div className="settings-card">
+        <div className="settings-card-header">
+          <h2 className="settings-section-title"><Settings className="w-4 h-4" /> Navigation</h2>
+        </div>
+        <div className="settings-row">
+          <div className="settings-row-info">
+            <div className="settings-row-label">Sidebar auto-collapse</div>
+            <div className="settings-row-hint">Sidebar folds to icons after a few seconds of inactivity.</div>
+          </div>
+          <button
+            className={`settings-toggle${settings.sidebarAutoCollapse ? ' active' : ''}`}
+            onClick={() => update({ sidebarAutoCollapse: !settings.sidebarAutoCollapse })}
+          >
+            {settings.sidebarAutoCollapse ? 'On' : 'Off'}
+          </button>
+        </div>
+      </div>
+
+      {/* Home */}
+      <div className="settings-card">
+        <div className="settings-card-header">
+          <h2 className="settings-section-title"><House className="w-4 h-4" /> Home</h2>
+        </div>
+        <div className="settings-row">
+          <div className="settings-row-info">
+            <div className="settings-row-label">Show clock seconds</div>
+            <div className="settings-row-hint">Display seconds in the Clock widget.</div>
+          </div>
+          <button
+            className={`settings-toggle${settings.clockSeconds ? ' active' : ''}`}
+            onClick={() => handleClockSeconds(!settings.clockSeconds)}
+          >
+            {settings.clockSeconds ? 'On' : 'Off'}
+          </button>
+        </div>
+        <div className="settings-row settings-row-border">
+          <div className="settings-row-info">
+            <div className="settings-row-label">Reset home layout</div>
+            <div className="settings-row-hint">Return widgets to their default positions and sizes.</div>
+          </div>
+          {layoutConfirm
+            ? (
+              <div className="settings-confirm-row">
+                <span className="settings-confirm-label">This will reset your layout.</span>
+                <button className="settings-danger-btn" onClick={handleResetLayout}>Reset</button>
+                <button className="settings-cancel-btn" onClick={() => setLayoutConfirm(false)}>Cancel</button>
+              </div>
+            )
+            : <button className="button-quiet" onClick={() => setLayoutConfirm(true)}>Reset layout</button>
+          }
+        </div>
+      </div>
+
+      {/* Startup */}
+      <div className="settings-card">
+        <div className="settings-card-header">
+          <h2 className="settings-section-title"><Zap className="w-4 h-4" /> Startup</h2>
+        </div>
+        <div className="settings-row">
+          <div className="settings-row-info">
+            <div className="settings-row-label">Default startup page</div>
+            <div className="settings-row-hint">Where Cubical opens when you launch it.</div>
+          </div>
+          <div className="settings-mode-group">
+            {(['home', 'store', 'library'] as StartupPage[]).map((page) => (
+              <button
+                key={page}
+                className={`settings-mode-btn${settings.startupPage === page ? ' active' : ''}`}
+                onClick={() => update({ startupPage: page })}
+              >
+                {page.charAt(0).toUpperCase() + page.slice(1)}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Notifications */}
+      <div className="settings-card">
+        <div className="settings-card-header">
+          <h2 className="settings-section-title"><Bell className="w-4 h-4" /> Notifications</h2>
+        </div>
+        <div className="settings-row">
+          <div className="settings-row-info">
+            <div className="settings-row-label">Interface sounds</div>
+            <div className="settings-row-hint">Enable sounds for future Cubical features.</div>
+          </div>
+          <button
+            className={`settings-toggle${settings.soundEnabled ? ' active' : ''}`}
+            onClick={() => update({ soundEnabled: !settings.soundEnabled })}
+          >
+            {settings.soundEnabled ? 'On' : 'Off'}
+          </button>
+        </div>
+      </div>
+
+      {/* Data */}
+      <div className="settings-card">
+        <div className="settings-card-header">
+          <h2 className="settings-section-title"><Lock className="w-4 h-4" /> Data &amp; privacy</h2>
+        </div>
+        <p className="settings-hint">
+          Cubical is a local prototype. All data — your notes, calendar, library, and settings — stays on this device only. Nothing is sent anywhere.
+        </p>
+        <div className="settings-row settings-row-border">
+          <div className="settings-row-info">
+            <div className="settings-row-label">Clear all local data</div>
+            <div className="settings-row-hint">Permanently removes all Cubical data from this device.</div>
+          </div>
+          {clearConfirm
+            ? (
+              <div className="settings-confirm-row">
+                <span className="settings-confirm-label">This cannot be undone.</span>
+                <button className="settings-danger-btn" onClick={handleClearData}>Clear everything</button>
+                <button className="settings-cancel-btn" onClick={() => setClearConfirm(false)}>Cancel</button>
+              </div>
+            )
+            : <button className="settings-danger-btn" onClick={() => setClearConfirm(true)}>Clear data</button>
+          }
+        </div>
+      </div>
+
     </section>
   );
 }
@@ -2915,8 +3284,18 @@ function App() {
   const [toast, setToast]           = useState<string | null>(null);
   const libraryProducts = useMemo(() => PRODUCTS.filter((product) => libraryIds.includes(product.id)), [libraryIds]);
 
-  // Apply the persisted cosmetic theme on first mount so every page reflects it.
-  useEffect(() => { applyTheme(getEquippedCosmetic()); }, []);
+  // Apply persisted theme mode and cosmetic palette on first mount.
+  useEffect(() => {
+    const settings = readSettings();
+    applyThemeMode(settings.themeMode);
+    applyTheme(getEquippedCosmetic());
+    // Startup page: redirect only when landing on root with no specific hash
+    const hash = window.location.hash.replace(/^#/, '') || '/';
+    if (hash === '/') {
+      if (settings.startupPage === 'store')   window.location.hash = '/store';
+      else if (settings.startupPage === 'library') window.location.hash = '/library';
+    }
+  }, []);
 
   useEffect(() => { storeLibrary(libraryIds); }, [libraryIds]);
   useEffect(() => { if (!toast) return; const t = window.setTimeout(() => setToast(null), 2800); return () => window.clearTimeout(t); }, [toast]);
@@ -2952,8 +3331,8 @@ function App() {
           <Route path="/tool/bulk-file-renamer"><BulkFileRenamer /></Route>
           <Route path="/tool/spreadsheet-cleaner"><SpreadsheetCleaner /></Route>
           <Route path="/tool/file-finder"><FileFinderPage /></Route>
-          <Route path="/profile"><PlaceholderPage type="profile" /></Route>
-          <Route path="/settings"><PlaceholderPage type="settings" /></Route>
+          <Route path="/profile"><ProfilePage /></Route>
+          <Route path="/settings"><SettingsPage /></Route>
           <Route><NotFound /></Route>
         </Switch>
         {toast && <div className="toast-message" role="status" data-testid="status-toast"><Check /> {toast}</div>}

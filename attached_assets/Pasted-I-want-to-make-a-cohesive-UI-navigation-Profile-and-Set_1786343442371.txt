@@ -1,0 +1,308 @@
+I want to make a cohesive UI, navigation, Profile, and Settings improvement pass for Cubical.
+
+The goal is to make Cubical feel softer, more inviting, and more personal while remaining clean and professional.
+
+IMPORTANT:
+- Do not redesign or break the existing Home widget system.
+- Preserve draggable/resizable widgets and their saved layouts.
+- Preserve Calendar events and Notepad data.
+- Do not modify existing tool functionality.
+- Preserve Store and Library functionality.
+- Do not add accounts, payments, cloud sync, achievements, games, or company features in this pass.
+- Keep all current persistent local data working.
+
+--------------------------------------------------
+1. SIDEBAR AUTO-COLLAPSE
+--------------------------------------------------
+
+Improve the existing left sidebar.
+
+When expanded, it should continue displaying icons and navigation labels.
+
+After approximately 4 seconds of inactivity:
+- Automatically collapse the sidebar so only the navigation icons remain.
+- Only collapse when the mouse is NOT hovering over the sidebar.
+- Do not collapse while the user is actively interacting with sidebar controls.
+- Moving the mouse over the collapsed sidebar should smoothly expand it again.
+- After the mouse leaves and the inactivity delay passes, smoothly collapse it again.
+
+The animation should feel polished and fluid.
+
+Do NOT make the sidebar suddenly snap between states.
+
+Add a small pin/unpin control.
+
+When pinned:
+- Sidebar remains expanded indefinitely.
+- It should not automatically collapse.
+
+When unpinned:
+- Normal auto-collapse behavior returns.
+
+Remember the user's pin preference locally after refresh/reopening Cubical.
+
+Make sure collapsed icons have tooltips so users can identify navigation items without expanding the sidebar.
+
+The collapsed sidebar should remain wide enough that icons are comfortable to click.
+
+--------------------------------------------------
+2. REMOVE BREAK TIMER
+--------------------------------------------------
+
+Remove the standalone Break Timer from Cubical.
+
+Break timing/game limitations will eventually be handled through the Breakroom system instead.
+
+Do not replace the Break Timer with another feature.
+
+--------------------------------------------------
+3. RENAME "THE LITTLE THINGS"
+--------------------------------------------------
+
+Rename the sidebar section currently called:
+
+"The Little Things"
+
+to:
+
+"Yourself"
+
+This is intentional because Cubical now has the paired sidebar concepts:
+
+"Your Shelf"
+
+and
+
+"Yourself"
+
+Preserve this wording and capitalization.
+
+--------------------------------------------------
+4. EXPAND PROFILE
+--------------------------------------------------
+
+Turn Profile into a more complete personal identity/customization page.
+
+Profile should represent:
+
+"Who I am and what my Cubical looks like."
+
+Do NOT turn Profile into a general application settings page.
+
+Add:
+
+PROFILE IDENTITY
+
+- Display name
+- Profile picture
+- Ability to upload/change/remove the profile picture
+- Profile banner area
+
+For now, the banner can simply use a selectable solid accent color.
+
+Design the banner/profile area somewhat like a modern user profile:
+- banner across the upper portion
+- profile picture overlapping or positioned naturally near the banner
+- display name clearly visible
+
+Keep it professional and clean rather than making it look like a social media feed.
+
+Persist profile information locally for the prototype.
+
+--------------------------------------------------
+5. PROFILE CUSTOMIZATION / SKINS
+--------------------------------------------------
+
+Below the identity section, add a customization/appearance area specifically for Cubical skins.
+
+This is where users will eventually see skins they own and choose which one is equipped.
+
+For this prototype:
+
+- Show "Default" as an owned skin.
+- Create the architecture/UI for additional owned skins.
+- Allow an owned skin to be selected/equipped.
+- Clearly indicate which skin is currently equipped.
+- Do not build a Store purchasing system for skins yet.
+- Do not create a complicated inventory system yet.
+
+You may add a disabled or placeholder Sakura skin entry if useful for demonstrating the future system, but do not attempt to build the Sakura environment itself in this pass.
+
+The goal is to establish where owned Cubical skins will eventually live.
+
+--------------------------------------------------
+6. KEEP SETTINGS SEPARATE FROM PROFILE
+--------------------------------------------------
+
+Profile and Settings must remain separate concepts.
+
+PROFILE:
+Personal identity and visual customization.
+
+SETTINGS:
+How Cubical behaves.
+
+Expand Settings into a clean settings page.
+
+Include appropriate settings such as:
+
+APPEARANCE
+- Light mode
+- Dark mode
+- System/default mode if practical
+
+NAVIGATION
+- Sidebar auto-collapse toggle
+- Sidebar pin behavior
+- Auto-collapse delay if practical
+
+HOME
+- Clock seconds toggle
+- Reset Home widget layout with confirmation
+
+NOTIFICATIONS
+- Enable/disable notification sounds
+- Enable/disable future skin/environment sounds
+
+STARTUP
+- Option to choose the default startup page:
+  - Home
+  - Store
+  - Library
+
+DATA / LOCAL SETTINGS
+- A clearly labeled area explaining that prototype data is currently stored locally.
+- If adding a "Clear Local Data" button, require a strong confirmation before deleting anything.
+
+Do NOT include:
+- Credit card information
+- Billing information
+- Payment methods
+- Subscription management
+
+Those can eventually exist somewhere else if necessary.
+
+Persist settings locally.
+
+--------------------------------------------------
+7. SOFTEN THE OVERALL VISUAL DESIGN
+--------------------------------------------------
+
+Cubical currently feels slightly too much like a developer/technical dashboard.
+
+Perform a restrained visual polish pass across the main Cubical interface.
+
+The target feeling is:
+
+SOFT
+PROFESSIONAL
+PERSONAL
+CALM
+MODERN
+INVITING
+
+Avoid:
+- overly colorful UI
+- excessive gradients
+- flashy effects
+- gamer-style UI
+- overly corporate appearance
+- terminal/developer styling
+- excessive all-caps text
+- excessive tiny technical labels
+- excessive monospace typography
+- excessive visual clutter
+
+Improve:
+- typography
+- spacing
+- hierarchy
+- button styling
+- card styling
+- navigation
+- readability
+- subtle hover states
+- consistency
+
+Use a friendly modern sans-serif typography direction.
+
+Examples of the desired general typography character:
+- Inter
+- Manrope
+- DM Sans
+- Nunito Sans
+
+Use whichever option integrates cleanly with the existing project and does not introduce unnecessary dependencies.
+
+Do not make everything excessively rounded.
+
+Use moderate corner rounding and subtle borders/surfaces.
+
+The interface should still feel appropriate for someone using Cubical for an entire workday.
+
+--------------------------------------------------
+8. COLOR / THEME DIRECTION
+--------------------------------------------------
+
+Keep Cubical visually restrained.
+
+The default theme should use:
+- neutral backgrounds
+- readable contrast
+- one restrained primary accent
+- subtle secondary surfaces
+
+Do not turn the default Cubical appearance into the Sakura theme.
+
+The default theme should be attractive but intentionally neutral so future skins can dramatically change the environment.
+
+Light mode and dark mode should both remain professional and readable.
+
+--------------------------------------------------
+9. FUTURE COMPATIBILITY
+--------------------------------------------------
+
+Keep the UI architecture modular.
+
+Future Cubical features will include:
+- environmental skins
+- animated backgrounds
+- additional widgets
+- achievements
+- games
+- profile customization
+- potentially company/workspace features
+
+Do NOT implement those now.
+
+Simply avoid making architectural decisions that would obviously prevent those systems from being added later.
+
+--------------------------------------------------
+10. VERIFY BEFORE FINISHING
+--------------------------------------------------
+
+Before completing this task, verify:
+
+1. Sidebar smoothly collapses after inactivity.
+2. Sidebar does not collapse while being hovered.
+3. Hovering the collapsed sidebar expands it.
+4. Pinning keeps the sidebar open.
+5. Pin preference survives refresh.
+6. Sidebar icons remain usable when collapsed.
+7. Break Timer is removed.
+8. "The Little Things" now says "Yourself."
+9. Profile picture functionality works.
+10. Display name persists.
+11. Banner color persists.
+12. Default skin can be shown/equipped.
+13. Profile and Settings remain clearly separate.
+14. Light/dark mode works.
+15. Settings persist after refresh.
+16. Existing Home widget positions/sizes still persist.
+17. Existing Calendar events remain intact.
+18. Existing Notepad contents remain intact.
+19. Store still works.
+20. Library still works.
+21. Existing tools have not been broken or redesigned.
+
+Do not make unrelated changes.
