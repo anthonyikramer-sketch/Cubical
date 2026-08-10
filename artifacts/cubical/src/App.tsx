@@ -1593,6 +1593,45 @@ function NotepadWidget({ compact = false }: { compact?: boolean }) {
     schedSave();
   };
 
+  const [copied, setCopied] = useState(false);
+
+  const exportTxt = () => {
+    const ed = tiptap.current;
+    if (!ed) return;
+    const text = ed.getText({ blockSeparator: '\n' });
+    const blob = new Blob([text], { type: 'text/plain' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = 'notepad.txt';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportHtml = () => {
+    const ed = tiptap.current;
+    if (!ed) return;
+    const html = `<!DOCTYPE html>\n<html lang="en">\n<head><meta charset="UTF-8"><title>Notepad</title></head>\n<body>\n${ed.getHTML()}\n</body>\n</html>`;
+    const blob = new Blob([html], { type: 'text/html' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = 'notepad.html';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const copyAll = async () => {
+    const ed = tiptap.current;
+    if (!ed) return;
+    const text = ed.getText({ blockSeparator: '\n' });
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1800);
+    } catch {}
+  };
+
   const showToolbar = toolbarVisible && !compact;
 
   /** Toolbar button — highlights when the format is active at the cursor. */
@@ -1665,7 +1704,25 @@ function NotepadWidget({ compact = false }: { compact?: boolean }) {
       <div ref={containerRef} className="notepad-editor-wrap" />
 
       <div className="notepad-footer">
-        {charCount > 0 ? `${charCount} char${charCount !== 1 ? 's' : ''} · saved locally` : 'Empty · start typing'}
+        <span className="notepad-footer-count">
+          {charCount > 0 ? `${charCount} char${charCount !== 1 ? 's' : ''} · saved locally` : 'Empty · start typing'}
+        </span>
+        {charCount > 0 && (
+          <span className="notepad-export-actions">
+            <button type="button" className="notepad-export-btn" title="Copy all text to clipboard" onClick={copyAll}>
+              <ClipboardCopy />
+              {copied ? 'Copied!' : 'Copy'}
+            </button>
+            <button type="button" className="notepad-export-btn" title="Export as plain text (.txt)" onClick={exportTxt}>
+              <Download />
+              .txt
+            </button>
+            <button type="button" className="notepad-export-btn" title="Export as HTML (.html)" onClick={exportHtml}>
+              <Download />
+              .html
+            </button>
+          </span>
+        )}
       </div>
     </div>
   );

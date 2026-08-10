@@ -651,7 +651,23 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
 .notepad-textarea-fill { flex: 1; min-height: 0; resize: none; }
 .notepad-textarea:focus { border-color: hsl(var(--primary) / .6); box-shadow: 0 0 0 3px hsl(var(--primary) / .09); }
 .notepad-textarea::placeholder { color: hsl(var(--muted-foreground) / .6); }
-.notepad-footer { margin-top: 8px; color: hsl(var(--muted-foreground)); font-size: 11px; flex-shrink: 0; }
+.notepad-footer { margin-top: 8px; color: hsl(var(--muted-foreground)); font-size: 11px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; min-height: 22px; }
+.notepad-footer-count { flex-shrink: 0; }
+.notepad-export-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.notepad-export-btn {
+  display: inline-flex; align-items: center; gap: 3px;
+  height: 22px; padding: 0 7px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 6px;
+  background: transparent;
+  color: hsl(var(--muted-foreground));
+  font-family: var(--app-font-sans); font-size: 10px; font-weight: 700;
+  cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
+  white-space: nowrap;
+}
+.notepad-export-btn svg { width: 10px; height: 10px; flex-shrink: 0; }
+.notepad-export-btn:hover { background: hsl(var(--primary) / .08); color: hsl(var(--primary)); border-color: hsl(var(--primary) / .35); }
 
 /* Spreadsheet tool extras (unchanged, included for completeness) */
 .spreadsheet-tool-icon { color: hsl(31 75% 43%); background: hsl(31 75% 43% / .13); }
