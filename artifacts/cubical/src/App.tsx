@@ -79,6 +79,16 @@ import {
 } from 'lucide-react';
 import { Link, Route, Router, Switch, useLocation } from 'wouter';
 
+// ─── Tiptap (headless rich-text engine) ───────────────────────────────────────
+import { Editor } from '@tiptap/core';
+import StarterKit from '@tiptap/starter-kit';
+import TiptapUnderline from '@tiptap/extension-underline';
+import TextAlign from '@tiptap/extension-text-align';
+import TiptapLink from '@tiptap/extension-link';
+import TaskList from '@tiptap/extension-task-list';
+import TaskItem from '@tiptap/extension-task-item';
+import Placeholder from '@tiptap/extension-placeholder';
+
 // ─── File Finder — shared types & helpers ─────────────────────────────────────
 
 interface FileResult {
@@ -1384,14 +1394,23 @@ function ClockWidget({ gridH }: { gridH: number }) {
 }
 
 // ── Notepad HTML sanitizer ─────────────────────────────────────────────────
-// Allowlist of tags and their permitted attributes. Event handlers, style
-// attributes, and javascript: URLs are stripped on every save/load cycle.
+// Allowlist of tags and their permitted attributes. Event handlers and
+// javascript: URLs are stripped on every save/load cycle.
+// `style` is allowed on block elements but trimmed to `text-align` only.
+// `data-type` / `data-checked` on <li> support Tiptap task-list items.
 
 const NOTEPAD_ALLOWED_TAGS = new Set([
   'b','strong','i','em','u','s','h1','h2','h3',
   'ul','ol','li','p','br','a','span','div','blockquote',
 ]);
+const NOTEPAD_BLOCK_TAGS = new Set(['p','h1','h2','h3','div','blockquote','ul','ol','li']);
 const NOTEPAD_ALLOWED_ATTRS: Record<string, string[]> = { a: ['href', 'target', 'rel'] };
+
+/** Keep only a `text-align` declaration from a raw style string. */
+function sanitizeStyle(style: string): string {
+  const m = /text-align\s*:\s*(left|center|right|justify)/i.exec(style);
+  return m ? `text-align: ${m[1].toLowerCase()}` : '';
+}
 
 function sanitizeNotepadHtml(raw: string): string {
   try {
@@ -1412,14 +1431,38 @@ function sanitizeNotepadHtml(raw: string): string {
         return frag.hasChildNodes() ? frag : null;
       }
       const out = document.createElement(tag);
+
+      // Standard attr allowlist
       for (const attr of (NOTEPAD_ALLOWED_ATTRS[tag] ?? [])) {
         const val = el.getAttribute(attr);
         if (val !== null) {
-          // Block javascript: and data: URLs in href
           if (attr === 'href' && /^\s*(javascript|data):/i.test(val)) continue;
           out.setAttribute(attr, val);
         }
       }
+
+      // text-align style on block elements
+      if (NOTEPAD_BLOCK_TAGS.has(tag)) {
+        const rawStyle = el.getAttribute('style') ?? '';
+        const safe = sanitizeStyle(rawStyle);
+        if (safe) out.setAttribute('style', safe);
+      }
+
+      // Tiptap task-list data attributes on <li>
+      if (tag === 'li') {
+        const dtype = el.getAttribute('data-type');
+        if (dtype === 'taskItem') {
+          out.setAttribute('data-type', 'taskItem');
+          const checked = el.getAttribute('data-checked');
+          if (checked !== null) out.setAttribute('data-checked', checked === 'true' ? 'true' : 'false');
+        }
+      }
+      // data-type="taskList" on <ul>
+      if (tag === 'ul') {
+        const dtype = el.getAttribute('data-type');
+        if (dtype === 'taskList') out.setAttribute('data-type', 'taskList');
+      }
+
       for (const child of Array.from(el.childNodes)) {
         const c = cleanNode(child);
         if (c) out.appendChild(c);
@@ -1436,86 +1479,136 @@ function sanitizeNotepadHtml(raw: string): string {
   } catch { return ''; }
 }
 
-// ── NotepadWidget (rich-text editor) ──────────────────────────────────────
+// ── NotepadWidget (Tiptap-backed rich-text editor) ────────────────────────
+// Uses @tiptap/core (ProseMirror) headlessly — no execCommand anywhere.
+
+function readNotepadHtml(): string {
+  try {
+    const h = window.localStorage.getItem(NOTEPAD_HTML_KEY);
+    if (h !== null) return sanitizeNotepadHtml(h);
+    const plain = window.localStorage.getItem(NOTEPAD_STORAGE_KEY) ?? '';
+    if (plain) {
+      const escaped = plain
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+      const migrated = sanitizeNotepadHtml(escaped);
+      window.localStorage.setItem(NOTEPAD_HTML_KEY, migrated);
+      return migrated;
+    }
+    return '';
+  } catch { return ''; }
+}
 
 function NotepadWidget({ compact = false }: { compact?: boolean }) {
-  const editorRef  = useRef<HTMLDivElement>(null);
-  const saveTimer  = useRef<number | null>(null);
-  const [charCount, setCharCount] = useState(0);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const tiptap       = useRef<Editor | null>(null);
+  const saveTimer    = useRef<number | null>(null);
+  const [charCount,      setCharCount]      = useState(0);
   const [toolbarVisible, setToolbarVisible] = useState(true);
+  // Increment to re-render toolbar active-states on every selection / transaction
+  const [tick, setTick] = useState(0);
 
-  // Load HTML on mount (migrate from old plain-text key if needed)
-  useEffect(() => {
-    const html = (() => {
-      try {
-        const h = window.localStorage.getItem(NOTEPAD_HTML_KEY);
-        if (h !== null) return sanitizeNotepadHtml(h);   // sanitize on load
-        const plain = window.localStorage.getItem(NOTEPAD_STORAGE_KEY) ?? '';
-        if (plain) {
-          // Escape the plain text before treating it as HTML
-          const escaped = plain
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/\n/g, '<br>');
-          const migrated = sanitizeNotepadHtml(escaped);
-          window.localStorage.setItem(NOTEPAD_HTML_KEY, migrated);
-          return migrated;
-        }
-        return '';
-      } catch { return ''; }
-    })();
-    if (editorRef.current) {
-      editorRef.current.innerHTML = html;
-      setCharCount(editorRef.current.innerText.replace(/\n/g, '').length);
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const schedSave = () => {
+  const schedSave = useCallback(() => {
     if (saveTimer.current) window.clearTimeout(saveTimer.current);
     saveTimer.current = window.setTimeout(() => {
-      if (editorRef.current) {
-        try {
-          // Sanitize before persisting so stored HTML is always clean
-          const safe = sanitizeNotepadHtml(editorRef.current.innerHTML);
-          window.localStorage.setItem(NOTEPAD_HTML_KEY, safe);
-        } catch {}
-      }
+      const ed = tiptap.current;
+      if (!ed) return;
+      try {
+        const safe = sanitizeNotepadHtml(ed.getHTML());
+        window.localStorage.setItem(NOTEPAD_HTML_KEY, safe);
+      } catch {}
     }, 400);
-  };
+  }, []);
 
-  const handleInput = () => {
-    schedSave();
-    if (editorRef.current) setCharCount(editorRef.current.innerText.replace(/\n/g, '').length);
-  };
+  // Mount Tiptap once on first render
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const initialHtml = readNotepadHtml();
 
-  const exec = (cmd: string, val?: string) => {
-    editorRef.current?.focus();
-    // eslint-disable-next-line @typescript-eslint/no-deprecated
-    document.execCommand(cmd, false, val);
-    schedSave();
-  };
+    const ed = new Editor({
+      element: containerRef.current,
+      extensions: [
+        StarterKit.configure({
+          heading:    { levels: [1, 2] },
+          // Disabled here because we add our own configured versions below
+          link:       false,
+          underline:  false,
+        }),
+        TiptapUnderline,
+        TextAlign.configure({ types: ['heading', 'paragraph'] }),
+        TiptapLink.configure({ openOnClick: false }),
+        TaskList,
+        TaskItem.configure({ nested: false }),
+        Placeholder.configure({
+          placeholder: 'Type freely. Notes save automatically and stay after refresh.',
+        }),
+      ],
+      content: initialHtml || '<p></p>',
+      editorProps: {
+        attributes: {
+          class:             'notepad-editor',
+          'data-testid':     'notepad-editor',
+          spellcheck:        'true',
+        },
+      },
+    });
+
+    ed.on('update', () => {
+      setCharCount(ed.getText().replace(/\n/g, '').length);
+      schedSave();
+      setTick((n) => n + 1);
+    });
+    ed.on('selectionUpdate', () => setTick((n) => n + 1));
+    ed.on('transaction',     () => setTick((n) => n + 1));
+
+    setCharCount(ed.getText().replace(/\n/g, '').length);
+    tiptap.current = ed;
+
+    return () => {
+      if (saveTimer.current) window.clearTimeout(saveTimer.current);
+      ed.destroy();
+      tiptap.current = null;
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const ed = tiptap.current; // convenience alias (re-read on every render via tick)
+  void tick;                  // silence unused-variable lint
 
   const clearEditor = () => {
-    if (editorRef.current) { editorRef.current.innerHTML = ''; }
+    ed?.commands.clearContent(true);
     setCharCount(0);
     try { window.localStorage.setItem(NOTEPAD_HTML_KEY, ''); } catch {}
     if (saveTimer.current) window.clearTimeout(saveTimer.current);
   };
 
   const insertLink = () => {
-    const sel = window.getSelection();
-    const selectedText = sel?.toString() ?? '';
-    const url = window.prompt('Enter URL:', 'https://');
-    if (url) exec('createLink', url);
-    else if (selectedText) exec('createLink', selectedText);
+    if (!ed) return;
+    const prev = ed.getAttributes('link').href as string | undefined;
+    const url  = window.prompt('Enter URL:', prev ?? 'https://');
+    if (url === null) return;
+    if (url.trim() === '') {
+      ed.chain().focus().unsetLink().run();
+    } else {
+      ed.chain().focus().extendMarkRange('link').setLink({ href: url.trim() }).run();
+    }
+    schedSave();
   };
 
   const showToolbar = toolbarVisible && !compact;
 
-  const tbBtn = (title: string, cmd: string, val?: string, children?: ReactNode) => (
-    <button type="button" title={title} className="notepad-tb-btn" onMouseDown={(e) => { e.preventDefault(); exec(cmd, val); }}>
-      {children}
+  /** Toolbar button — highlights when the format is active at the cursor. */
+  const tbBtn = (
+    title:    string,
+    onClick:  () => void,
+    isActive: boolean,
+    icon:     ReactNode,
+  ) => (
+    <button
+      type="button"
+      title={title}
+      className={`notepad-tb-btn${isActive ? ' is-active' : ''}`}
+      onMouseDown={(e) => { e.preventDefault(); onClick(); }}
+    >
+      {icon}
     </button>
   );
 
@@ -1524,45 +1617,52 @@ function NotepadWidget({ compact = false }: { compact?: boolean }) {
       <div className="widget-header">
         <span className="widget-label"><StickyNote /> Notepad</span>
         <div className="notepad-header-actions">
-          <button type="button" className={`notepad-toolbar-toggle${showToolbar ? ' active' : ''}`} title="Toggle toolbar" onClick={() => setToolbarVisible((v) => !v)}>
+          <button
+            type="button"
+            className={`notepad-toolbar-toggle${showToolbar ? ' active' : ''}`}
+            title="Toggle toolbar"
+            onClick={() => setToolbarVisible((v) => !v)}
+          >
             <Bold />
           </button>
           {charCount > 0 && (
-            <button type="button" className="text-button" onClick={clearEditor}><Trash2 /> Clear</button>
+            <button type="button" className="text-button" onClick={clearEditor}>
+              <Trash2 /> Clear
+            </button>
           )}
         </div>
       </div>
 
       {showToolbar && (
         <div className="notepad-toolbar">
-          {tbBtn('Bold', 'bold', undefined, <Bold />)}
-          {tbBtn('Italic', 'italic', undefined, <Italic />)}
-          {tbBtn('Underline', 'underline', undefined, <Underline />)}
+          {tbBtn('Bold',      () => ed?.chain().focus().toggleBold().run(),      !!ed?.isActive('bold'),      <Bold />)}
+          {tbBtn('Italic',    () => ed?.chain().focus().toggleItalic().run(),    !!ed?.isActive('italic'),    <Italic />)}
+          {tbBtn('Underline', () => ed?.chain().focus().toggleUnderline().run(), !!ed?.isActive('underline'), <Underline />)}
           <span className="notepad-tb-sep" />
-          {tbBtn('Heading 1', 'formatBlock', 'h1', <Heading1 />)}
-          {tbBtn('Heading 2', 'formatBlock', 'h2', <Heading2 />)}
+          {tbBtn('Heading 1', () => ed?.chain().focus().toggleHeading({ level: 1 }).run(), !!ed?.isActive('heading', { level: 1 }), <Heading1 />)}
+          {tbBtn('Heading 2', () => ed?.chain().focus().toggleHeading({ level: 2 }).run(), !!ed?.isActive('heading', { level: 2 }), <Heading2 />)}
           <span className="notepad-tb-sep" />
-          {tbBtn('Bullet list', 'insertUnorderedList', undefined, <List />)}
-          {tbBtn('Numbered list', 'insertOrderedList', undefined, <ListOrdered />)}
-          {tbBtn('Task list', 'insertUnorderedList', undefined, <ListChecks />)}
+          {tbBtn('Bullet list',   () => ed?.chain().focus().toggleBulletList().run(),  !!ed?.isActive('bulletList'),  <List />)}
+          {tbBtn('Numbered list', () => ed?.chain().focus().toggleOrderedList().run(), !!ed?.isActive('orderedList'), <ListOrdered />)}
+          {tbBtn('Task list',     () => ed?.chain().focus().toggleTaskList().run(),     !!ed?.isActive('taskList'),    <ListChecks />)}
           <span className="notepad-tb-sep" />
-          {tbBtn('Align left', 'justifyLeft', undefined, <AlignLeft />)}
-          {tbBtn('Align centre', 'justifyCenter', undefined, <AlignCenter />)}
-          {tbBtn('Align right', 'justifyRight', undefined, <AlignRight />)}
+          {tbBtn('Align left',   () => ed?.chain().focus().setTextAlign('left').run(),   !!ed?.isActive({ textAlign: 'left' }),   <AlignLeft />)}
+          {tbBtn('Align centre', () => ed?.chain().focus().setTextAlign('center').run(), !!ed?.isActive({ textAlign: 'center' }), <AlignCenter />)}
+          {tbBtn('Align right',  () => ed?.chain().focus().setTextAlign('right').run(),  !!ed?.isActive({ textAlign: 'right' }),  <AlignRight />)}
           <span className="notepad-tb-sep" />
-          <button type="button" title="Insert link" className="notepad-tb-btn" onMouseDown={(e) => { e.preventDefault(); insertLink(); }}><Link2 /></button>
+          <button
+            type="button"
+            title="Insert link"
+            className={`notepad-tb-btn${ed?.isActive('link') ? ' is-active' : ''}`}
+            onMouseDown={(e) => { e.preventDefault(); insertLink(); }}
+          >
+            <Link2 />
+          </button>
         </div>
       )}
 
-      <div
-        ref={editorRef}
-        className="notepad-editor"
-        contentEditable
-        suppressContentEditableWarning
-        onInput={handleInput}
-        data-placeholder="Type freely. Notes save automatically and stay after refresh."
-        data-testid="notepad-editor"
-      />
+      {/* Tiptap mounts its ProseMirror contenteditable inside this div */}
+      <div ref={containerRef} className="notepad-editor-wrap" />
 
       <div className="notepad-footer">
         {charCount > 0 ? `${charCount} char${charCount !== 1 ? 's' : ''} · saved locally` : 'Empty · start typing'}
