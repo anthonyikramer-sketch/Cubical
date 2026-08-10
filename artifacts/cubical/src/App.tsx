@@ -1900,7 +1900,7 @@ const COMPLETION_LINES = [
   'Inbox can wait. Snake cannot.',
 ];
 
-function DailyGameCard() {
+function DailyGameCard({ onFirstPlay }: { onFirstPlay?: () => void }) {
   const gameId = getDailyGameId();
   const meta   = GAME_META[gameId];
 
@@ -1930,6 +1930,7 @@ function DailyGameCard() {
     if (!playedToday) {
       setPlayedToday(true);
       try { localStorage.setItem(getDailyPlayedKey(gameId), 'true'); } catch {}
+      onFirstPlay?.();
     }
   };
 
@@ -2569,10 +2570,11 @@ function CosmeticCard({ cosmetic, isOwned, isEquipped, onAcquire, onEquip }: {
 
 // ── Breakroom page ─────────────────────────────────────────────────────────
 
-function BreakroomStatsPanel({ ownedGames, ownedCosmetics, equippedCosmetic }: {
+function BreakroomStatsPanel({ ownedGames, ownedCosmetics, equippedCosmetic, streakVersion }: {
   ownedGames: string[];
   ownedCosmetics: string[];
   equippedCosmetic: string;
+  streakVersion: number;
 }) {
   const streak = useMemo(() => {
     let count = 0;
@@ -2590,7 +2592,7 @@ function BreakroomStatsPanel({ ownedGames, ownedCosmetics, equippedCosmetic }: {
       } catch { break; }
     }
     return count;
-  }, []);
+  }, [streakVersion]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const equippedName = COSMETICS.find((c) => c.id === equippedCosmetic)?.name ?? 'Default';
 
@@ -2647,6 +2649,7 @@ function BreakroomPage() {
   const [equippedCosmetic, setEquippedCosmetic] = useState<string>(getEquippedCosmetic);
   const [toast, setToast]                   = useState<string | null>(null);
   const [activeGameId, setActiveGameId]     = useState<string | null>(null);
+  const [streakVersion, setStreakVersion]   = useState(0);
 
   useEffect(() => { storeOwnedGames(ownedGames); }, [ownedGames]);
   useEffect(() => { storeOwnedCosmetics(ownedCosmetics); }, [ownedCosmetics]);
@@ -2688,11 +2691,12 @@ function BreakroomPage() {
 
       {/* Daily game + stats */}
       <div className="breakroom-top-row">
-        <DailyGameCard />
+        <DailyGameCard onFirstPlay={() => setStreakVersion((v) => v + 1)} />
         <BreakroomStatsPanel
           ownedGames={ownedGames}
           ownedCosmetics={ownedCosmetics}
           equippedCosmetic={equippedCosmetic}
+          streakVersion={streakVersion}
         />
       </div>
 
