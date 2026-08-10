@@ -1810,18 +1810,18 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
   position: relative;
   border-radius: 22px;
   overflow: hidden;
-  /* Fallback bg matches warm wood tones at image edges */
-  background: hsl(22 38% 52%);
+  /* Warm dark wood — sampled from the outer frame of the artwork */
+  background: hsl(22 35% 18%);
   min-height: 540px;
 }
 
-/* The pixel-art environment image — fills the frame, maintains aspect ratio */
+/* The pixel-art environment image — contained so the full artwork is always visible */
 .sakura-env-img {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;          /* full image always visible, no cropping */
   object-position: center;
   image-rendering: pixelated;   /* preserve pixel-art crispness */
   pointer-events: none;         /* never intercept widget interactions */
