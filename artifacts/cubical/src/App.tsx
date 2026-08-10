@@ -1886,6 +1886,12 @@ function NotepadWidget({ compact = false }: { compact?: boolean }) {
         )}
       </div>
 
+      {copied && (
+        <div className="toast-message" role="status">
+          <Check />
+          Copied to clipboard
+        </div>
+      )}
       {importedFile && (
         <div className="toast-message" role="status">
           <Check />
