@@ -1888,6 +1888,70 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
 .skin-active-label { font-size: 11px; font-weight: 700; color: hsl(var(--primary)); font-family: var(--app-font-mono); }
 .skin-soon-label   { font-size: 11px; color: hsl(var(--muted-foreground)); }
 
+/* Preview button & actions row */
+.skin-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.skin-preview-btn { font-size: 11px; padding: 5px 10px; border-radius: 8px; }
+
+/* Skin card in preview state */
+.skin-card.skin-previewing { border-color: hsl(var(--accent)); box-shadow: 0 0 0 3px hsl(var(--accent) / .18); }
+
+/* "Previewing" badge (replaces Equipped badge during preview) */
+.skin-previewing-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: hsl(var(--accent));
+  color: hsl(222 35% 18%);
+  border-radius: 20px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.skin-previewing-badge svg { width: 9px; height: 9px; }
+
+/* ─── Skin preview banner (fixed, portal-rendered) ──────────────────────── */
+.skin-preview-banner {
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 18px;
+  border-radius: 16px;
+  background: hsl(162 30% 17%);
+  color: hsl(42 43% 95%);
+  box-shadow: 0 16px 40px hsl(162 30% 10% / .35), 0 0 0 1px hsl(42 43% 95% / .08);
+  font-size: 13px;
+  white-space: nowrap;
+  animation: toast-in .25s both;
+}
+.skin-preview-banner-icon { width: 16px; height: 16px; flex: 0 0 16px; color: hsl(var(--accent)); }
+.skin-preview-banner-text { flex: 1; }
+.skin-preview-banner-text strong { font-weight: 800; }
+.skin-preview-banner-actions { display: flex; align-items: center; gap: 8px; margin-left: 8px; }
+.skin-preview-cancel-btn {
+  border: 1px solid hsl(42 43% 95% / .22);
+  background: transparent;
+  color: hsl(42 43% 95% / .8);
+  border-radius: 9px;
+  padding: 6px 13px;
+  font-family: var(--app-font-sans);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.skin-preview-cancel-btn:hover { background: hsl(42 43% 95% / .1); border-color: hsl(42 43% 95% / .4); color: hsl(42 43% 95%); }
+.skin-preview-equip-btn { min-height: 34px; font-size: 12px; padding: 0 14px; border-radius: 9px; }
+
 /* ─── Settings page ────────────────────────────────────────────────────────── */
 
 .settings-page {

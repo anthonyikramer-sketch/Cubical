@@ -5186,8 +5186,25 @@ function ProfilePage() {
   const [equippedSkin,  setEquippedSkin]  = useState<string>(
     () => { try { return window.localStorage.getItem(PROFILE_SKIN_KEY) ?? 'default'; } catch { return 'default'; } }
   );
-  const [saved, setSaved]   = useState(false);
-  const fileInputRef        = useRef<HTMLInputElement>(null);
+  const [saved,        setSaved]        = useState(false);
+  const [previewSkin,  setPreviewSkin]  = useState<string | null>(null);
+  const fileInputRef                    = useRef<HTMLInputElement>(null);
+
+  // Keep refs pointing at the latest values so the unmount cleanup is never stale.
+  const equippedSkinRef = useRef(equippedSkin);
+  const previewSkinRef  = useRef(previewSkin);
+  useEffect(() => { equippedSkinRef.current = equippedSkin; }, [equippedSkin]);
+  useEffect(() => { previewSkinRef.current  = previewSkin;  }, [previewSkin]);
+
+  // If the user navigates away while a preview is active, revert to the
+  // equipped skin so no uncommitted skin is left applied on the document root.
+  useEffect(() => {
+    return () => {
+      if (previewSkinRef.current !== null) {
+        applySkin(equippedSkinRef.current);
+      }
+    };
+  }, []);
 
   const update = (patch: Partial<ProfileData>) => {
     setProfile_((p) => { const next = { ...p, ...patch }; writeProfile(next); return next; });
@@ -5211,13 +5228,26 @@ function ProfilePage() {
 
   const equipSkin = (id: string) => {
     setEquippedSkin(id);
+    setPreviewSkin(null);
     try { window.localStorage.setItem(PROFILE_SKIN_KEY, id); } catch {}
     applySkin(id);
     setSaved(true);
     setTimeout(() => setSaved(false), 1800);
   };
 
+  const handlePreview = (id: string) => {
+    setPreviewSkin(id);
+    applySkin(id);
+  };
+
+  const handleCancelPreview = () => {
+    setPreviewSkin(null);
+    applySkin(equippedSkin);
+  };
+
   const displayInitial = profile.name.trim() ? profile.name.trim()[0].toUpperCase() : '?';
+
+  const previewingSkinName = previewSkin ? (CUBICAL_SKINS.find((s) => s.id === previewSkin)?.name ?? previewSkin) : null;
 
   return (
     <section className="profile-page">
@@ -5281,47 +5311,76 @@ function ProfilePage() {
         <div className="eyebrow mt-10 mb-1">Your skins</div>
         <p className="settings-hint mb-5">Choose how Cubical looks and feels. More skins coming soon.</p>
         <div className="skins-grid">
-          {CUBICAL_SKINS.map((skin) => (
-            <div
-              key={skin.id}
-              className={`skin-card${skin.comingSoon ? ' skin-locked' : ''}${equippedSkin === skin.id && !skin.comingSoon ? ' skin-equipped' : ''}`}
-              data-testid={`card-skin-${skin.id}`}
-            >
-              <div className="skin-preview">
-                {skin.id === 'default' && (
-                  <div className="skin-preview-default">
-                    <div className="spd-sidebar" />
-                    <div className="spd-main">
-                      <div className="spd-bar" />
-                      <div className="spd-card" />
-                      <div className="spd-card spd-card-sm" />
+          {CUBICAL_SKINS.map((skin) => {
+            const isPreviewing = previewSkin === skin.id;
+            const isEquipped   = equippedSkin === skin.id && !skin.comingSoon;
+            return (
+              <div
+                key={skin.id}
+                className={`skin-card${skin.comingSoon ? ' skin-locked' : ''}${isEquipped ? ' skin-equipped' : ''}${isPreviewing ? ' skin-previewing' : ''}`}
+                data-testid={`card-skin-${skin.id}`}
+              >
+                <div className="skin-preview">
+                  {skin.id === 'default' && (
+                    <div className="skin-preview-default">
+                      <div className="spd-sidebar" />
+                      <div className="spd-main">
+                        <div className="spd-bar" />
+                        <div className="spd-card" />
+                        <div className="spd-card spd-card-sm" />
+                      </div>
                     </div>
+                  )}
+                  {skin.id === 'sakura' && (
+                    <img src="/sakura-env.png" className="skin-preview-sakura-img" alt="Sakura environment" draggable={false} />
+                  )}
+                  {skin.comingSoon && <div className="skin-coming-soon-badge">Coming soon</div>}
+                  {isEquipped && !isPreviewing && (
+                    <div className="skin-equipped-badge"><Check className="w-3 h-3" /> Equipped</div>
+                  )}
+                  {isPreviewing && (
+                    <div className="skin-previewing-badge"><Sparkles className="w-3 h-3" /> Previewing</div>
+                  )}
+                </div>
+                <div className="skin-body">
+                  <div className="skin-name">{skin.name}</div>
+                  <p className="skin-desc">{skin.description}</p>
+                  <div className="skin-footer">
+                    {skin.comingSoon
+                      ? <span className="skin-soon-label">Not yet available</span>
+                      : isEquipped
+                        ? <span className="skin-active-label">Currently equipped</span>
+                        : (
+                          <div className="skin-actions">
+                            {!isPreviewing && (
+                              <button className="button-quiet skin-preview-btn" onClick={() => handlePreview(skin.id)}>Preview</button>
+                            )}
+                            <button className="button-quiet skin-equip-btn" onClick={() => equipSkin(skin.id)}>Equip</button>
+                          </div>
+                        )
+                    }
                   </div>
-                )}
-                {skin.id === 'sakura' && (
-                  <img src="/sakura-env.png" className="skin-preview-sakura-img" alt="Sakura environment" draggable={false} />
-                )}
-                {skin.comingSoon && <div className="skin-coming-soon-badge">Coming soon</div>}
-                {equippedSkin === skin.id && !skin.comingSoon && (
-                  <div className="skin-equipped-badge"><Check className="w-3 h-3" /> Equipped</div>
-                )}
-              </div>
-              <div className="skin-body">
-                <div className="skin-name">{skin.name}</div>
-                <p className="skin-desc">{skin.description}</p>
-                <div className="skin-footer">
-                  {skin.comingSoon
-                    ? <span className="skin-soon-label">Not yet available</span>
-                    : equippedSkin === skin.id
-                      ? <span className="skin-active-label">Currently equipped</span>
-                      : <button className="button-quiet skin-equip-btn" onClick={() => equipSkin(skin.id)}>Equip</button>
-                  }
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
+
+      {/* Preview banner — rendered into document.body so it floats above everything */}
+      {previewSkin && previewingSkinName && createPortal(
+        <div className="skin-preview-banner" role="status" aria-live="polite">
+          <Sparkles className="skin-preview-banner-icon" />
+          <span className="skin-preview-banner-text">
+            Previewing <strong>{previewingSkinName}</strong> — equip to keep it
+          </span>
+          <div className="skin-preview-banner-actions">
+            <button className="skin-preview-cancel-btn" onClick={handleCancelPreview}>Cancel</button>
+            <button className="button-primary skin-preview-equip-btn" onClick={() => equipSkin(previewSkin)}>Equip</button>
+          </div>
+        </div>,
+        document.body,
+      )}
 
     </section>
   );
