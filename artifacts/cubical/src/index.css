@@ -258,15 +258,170 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
 .desktop-note strong { color: hsl(var(--foreground)); }
 /* ─── Home page ─────────────────────────────────────────────────────────────── */
 .home-page { animation: rise-in .45s both; }
-.home-sub { color: hsl(var(--muted-foreground)); font-size: 15px; line-height: 1.65; margin: 14px 0 0; max-width: 480px; }
-.home-grid { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); gap: 20px; margin-top: 36px; align-items: start; }
-.home-col-main, .home-col-side { display: flex; flex-direction: column; gap: 20px; }
 
-/* Widget card shell */
-.widget-card { border: 1px solid hsl(var(--border)); border-radius: 20px; background: hsl(var(--card)); padding: 22px; box-shadow: 0 6px 20px hsl(32 20% 35% / .05); }
-.widget-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+/* Header row: title + Edit Layout button */
+.home-header-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin-bottom: 28px; }
+.home-edit-hint { margin-top: 10px; font-size: 11px; color: hsl(var(--primary)); font-weight: 600; animation: rise-in .3s both; }
+.home-edit-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  min-height: 42px; padding: 0 18px;
+  border-radius: 12px; border: 2px solid hsl(var(--border));
+  background: hsl(var(--card)); color: hsl(var(--foreground));
+  font-family: var(--app-font-sans); font-size: 13px; font-weight: 800;
+  cursor: pointer; white-space: nowrap; flex-shrink: 0;
+  box-shadow: 0 2px 8px hsl(32 20% 35% / .07);
+  transition: border-color .2s, background .2s, color .2s, box-shadow .2s, transform .15s;
+}
+.home-edit-btn svg { width: 15px; height: 15px; }
+.home-edit-btn:hover { border-color: hsl(var(--primary) / .5); background: hsl(var(--primary) / .06); color: hsl(var(--primary)); box-shadow: 0 4px 14px hsl(var(--primary) / .12); transform: translateY(-1px); }
+.home-edit-btn-done { border-color: hsl(var(--primary) / .45); background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); box-shadow: 0 4px 14px hsl(var(--primary) / .25); }
+.home-edit-btn-done:hover { background: hsl(164 48% 27%); border-color: hsl(164 48% 27%); color: hsl(var(--primary-foreground)); }
+
+/* ─── Grid workspace ─────────────────────────────────────────────────────────── */
+.home-workspace {
+  position: relative;
+  width: 100%;
+  overflow: visible; /* widgets are absolutely positioned, let them breathe */
+  user-select: none;
+}
+.home-workspace.is-editing {
+  background-image: radial-gradient(circle, hsl(var(--primary) / .14) 1.5px, transparent 1.5px);
+  background-size: 46px 46px;
+  border-radius: 18px;
+  padding: 0;
+}
+
+/* ─── Grid widget shell ──────────────────────────────────────────────────────── */
+.grid-widget {
+  position: absolute;
+  border: 1px solid hsl(var(--border));
+  border-radius: 20px;
+  background: hsl(var(--card));
+  box-shadow: 0 6px 20px hsl(32 20% 35% / .05);
+  overflow: hidden;
+  transition: border-color .2s, box-shadow .2s;
+}
+.grid-widget.is-editable {
+  border: 2px dashed hsl(var(--primary) / .35);
+  cursor: grab;
+  box-shadow: 0 6px 20px hsl(32 20% 35% / .08);
+}
+.grid-widget.is-editable:active { cursor: grabbing; }
+.grid-widget.is-active {
+  box-shadow: 0 22px 55px hsl(var(--primary) / .2);
+  z-index: 50;
+  transition: none; /* instant movement during drag */
+  border-color: hsl(var(--primary) / .55);
+  border-style: solid;
+}
+.grid-widget.is-conflict {
+  border-color: hsl(var(--destructive) / .6) !important;
+  border-style: solid !important;
+  box-shadow: 0 8px 22px hsl(var(--destructive) / .14);
+}
+
+/* Content area */
+.grid-widget-content { width: 100%; height: 100%; overflow: hidden; display: flex; flex-direction: column; }
+.grid-widget-content.is-locked { pointer-events: none; user-select: none; }
+
+/* Edit badge (grip + label shown while editing) */
+.widget-edit-badge {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px 4px 8px;
+  border-radius: 20px;
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  white-space: nowrap;
+  z-index: 20;
+  pointer-events: none;
+  box-shadow: 0 3px 10px hsl(var(--primary) / .3);
+}
+.widget-edit-badge svg { width: 11px; height: 11px; opacity: .8; }
+
+/* Resize handle — bottom-right corner */
+.widget-resize-handle {
+  position: absolute;
+  bottom: 5px;
+  right: 5px;
+  width: 22px;
+  height: 22px;
+  border-bottom: 3px solid hsl(var(--primary) / .5);
+  border-right: 3px solid hsl(var(--primary) / .5);
+  border-bottom-right-radius: 6px;
+  cursor: nwse-resize;
+  z-index: 25;
+  transition: border-color .15s;
+}
+.widget-resize-handle:hover { border-color: hsl(var(--primary)); }
+
+/* ─── Widget internals ───────────────────────────────────────────────────────── */
+
+/* Shared inner padding wrapper used by all widgets */
+.widget-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; flex-shrink: 0; }
 .widget-label { display: flex; align-items: center; gap: 8px; font-family: var(--app-font-display); font-size: 13px; font-weight: 700; letter-spacing: -.02em; color: hsl(var(--foreground)); }
 .widget-label svg { width: 15px; height: 15px; color: hsl(var(--primary)); }
+
+/* ─── Calendar ───────────────────────────────────────────────────────────────── */
+
+/* Full / compact inner wrapper (fills grid widget content) */
+.cal-widget-inner { display: flex; flex-direction: column; height: 100%; padding: 22px; overflow: hidden; }
+.cal-widget-full .cal-day-panel { flex: 1; overflow-y: auto; min-height: 0; }
+.cal-header-compact { margin-bottom: 10px; }
+.cal-grid-compact { gap: 1px; }
+.cal-grid-compact .cal-dow { padding-bottom: 4px; font-size: 8px; }
+.cal-grid-compact .cal-cell { font-size: 10px; border-radius: 6px; }
+
+/* Tile mode — minimal date display */
+.cal-tile {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  height: 100%; width: 100%;
+  gap: 2px; text-align: center; padding: 12px;
+  border: 0; background: transparent; cursor: pointer;
+  transition: background .15s;
+}
+.cal-tile:hover { background: hsl(var(--primary) / .05); }
+.cal-tile-month { font-family: var(--app-font-mono); font-size: 11px; font-weight: 700; color: hsl(var(--primary)); letter-spacing: .16em; }
+.cal-tile-day { font-family: var(--app-font-display); font-size: clamp(30px, 4vw, 52px); font-weight: 700; letter-spacing: -.06em; line-height: 1; color: hsl(var(--foreground)); }
+.cal-tile-weekday { font-family: var(--app-font-mono); font-size: 8px; color: hsl(var(--muted-foreground)); letter-spacing: .13em; text-transform: uppercase; }
+.cal-tile-events { margin-top: 8px; font-size: 10px; font-weight: 700; color: hsl(var(--accent)); }
+.cal-tile-hint { margin-top: 6px; font-size: 9px; color: hsl(var(--muted-foreground) / .6); letter-spacing: .04em; }
+
+/* Calendar expanded overlay (portal, renders at document.body) */
+.cal-overlay {
+  position: fixed; inset: 0; z-index: 9999;
+  background: hsl(var(--foreground) / .28);
+  display: flex; align-items: center; justify-content: center;
+  animation: fade-in .2s both;
+}
+.cal-overlay-panel {
+  width: min(520px, calc(100vw - 40px));
+  max-height: calc(100dvh - 72px);
+  overflow-y: auto;
+  border-radius: 22px;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  box-shadow: 0 28px 70px hsl(var(--foreground) / .12);
+  padding: 24px;
+  animation: rise-in .25s both;
+}
+.cal-overlay-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
+.cal-overlay-close {
+  display: flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border: 0; border-radius: 8px;
+  background: hsl(var(--secondary)); color: hsl(var(--foreground));
+  cursor: pointer; transition: background .15s;
+}
+.cal-overlay-close:hover { background: hsl(var(--muted)); }
+.cal-overlay-close svg { width: 15px; height: 15px; }
 
 /* Calendar */
 .cal-nav { display: flex; align-items: center; gap: 8px; }
@@ -304,24 +459,33 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
 .cal-form { margin-top: 12px; padding: 14px; border: 1px solid hsl(var(--primary) / .2); border-radius: 13px; background: hsl(var(--primary) / .04); display: flex; flex-direction: column; gap: 10px; }
 .cal-form-actions { display: flex; justify-content: flex-end; gap: 8px; }
 
-/* Clock */
+/* ─── Clock ───────────────────────────────────────────────────────────────────── */
+
+/* Fill wrapper — makes clock occupy the full grid widget */
+.clock-fill { display: flex; flex-direction: column; height: 100%; padding: 22px; overflow: hidden; }
+.clock-minimal { align-items: center; justify-content: center; padding: 12px; }
+.clock-time-sm { font-family: var(--app-font-display); font-size: clamp(22px, 3vw, 34px); font-weight: 700; letter-spacing: -.06em; }
 .clock-toggle { display: flex; align-items: center; gap: 6px; cursor: pointer; color: hsl(var(--muted-foreground)); font-size: 11px; font-weight: 700; }
 .clock-toggle input { accent-color: hsl(var(--primary)); }
-.clock-display { text-align: center; padding: 12px 0 6px; }
+.clock-display { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; text-align: center; padding: 8px 0; }
 .clock-time { font-family: var(--app-font-display); font-size: clamp(36px, 5vw, 52px); font-weight: 700; letter-spacing: -.06em; line-height: 1; }
 .clock-ampm { font-size: .45em; letter-spacing: -.02em; color: hsl(var(--primary)); vertical-align: middle; margin-left: 4px; }
-.clock-date { margin-top: 8px; color: hsl(var(--muted-foreground)); font-size: 13px; }
+.clock-date { margin-top: 10px; color: hsl(var(--muted-foreground)); font-size: 13px; }
 
-/* Notepad */
+/* ─── Notepad ─────────────────────────────────────────────────────────────────── */
+
+/* Fill wrapper — makes notepad fill the full grid widget */
+.notepad-fill { display: flex; flex-direction: column; height: 100%; padding: 22px; overflow: hidden; }
 .notepad-header-actions { display: flex; align-items: center; gap: 8px; }
 .notepad-confirm { display: flex; align-items: center; gap: 6px; font-size: 11px; color: hsl(var(--muted-foreground)); }
 .notepad-confirm button { border: 0; padding: 2px 8px; border-radius: 6px; font-size: 10px; font-weight: 800; cursor: pointer; }
 .notepad-confirm button:first-of-type { background: hsl(var(--destructive)); color: hsl(var(--destructive-foreground)); }
 .notepad-confirm button:last-of-type { background: hsl(var(--secondary)); color: hsl(var(--foreground)); }
-.notepad-textarea { width: 100%; min-height: 160px; border: 1px solid hsl(var(--border)); border-radius: 12px; padding: 12px 14px; background: hsl(var(--background) / .6); color: hsl(var(--foreground)); font: inherit; font-size: 13px; line-height: 1.65; resize: vertical; outline: none; transition: border-color .2s, box-shadow .2s; }
+.notepad-textarea { width: 100%; min-height: 80px; border: 1px solid hsl(var(--border)); border-radius: 12px; padding: 12px 14px; background: hsl(var(--background) / .6); color: hsl(var(--foreground)); font: inherit; font-size: 13px; line-height: 1.65; resize: none; outline: none; transition: border-color .2s, box-shadow .2s; }
+.notepad-textarea-fill { flex: 1; min-height: 0; resize: none; }
 .notepad-textarea:focus { border-color: hsl(var(--primary) / .6); box-shadow: 0 0 0 3px hsl(var(--primary) / .09); }
 .notepad-textarea::placeholder { color: hsl(var(--muted-foreground) / .6); }
-.notepad-footer { margin-top: 8px; color: hsl(var(--muted-foreground)); font-family: var(--app-font-mono); font-size: 10px; }
+.notepad-footer { margin-top: 8px; color: hsl(var(--muted-foreground)); font-family: var(--app-font-mono); font-size: 10px; flex-shrink: 0; }
 
 /* Spreadsheet tool extras (unchanged, included for completeness) */
 .spreadsheet-tool-icon { color: hsl(31 75% 43%); background: hsl(31 75% 43% / .13); }
@@ -347,6 +511,7 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
 .table-more { margin: 10px 0 0; color: hsl(var(--muted-foreground)); font-size: 11px; }
 
 @keyframes rise-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes settle-in { from { opacity: 0; transform: rotate(2deg) translateY(15px); } to { opacity: 1; transform: rotate(2deg) translateY(0); } }
 @keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 @media (max-width: 800px) {

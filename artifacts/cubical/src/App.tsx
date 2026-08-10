@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties, type ReactNode } from 'react';
 import {
   ArrowLeft,
@@ -16,6 +17,7 @@ import {
   Files,
   FolderCog,
   Grid2X2,
+  GripHorizontal,
   House,
   Library as LibraryIcon,
   PackageOpen,
@@ -27,6 +29,7 @@ import {
   StickyNote,
   TableProperties,
   Trash2,
+  X,
 } from 'lucide-react';
 import { Link, Route, Switch, useLocation } from 'wouter';
 
@@ -55,16 +58,9 @@ const TOOL_ROUTES: Partial<Record<Product['id'], string>> = {
   'spreadsheet-cleaner': '/tool/spreadsheet-cleaner',
 };
 
-function getToolRoute(product: Product) {
-  return TOOL_ROUTES[product.id];
-}
+function getToolRoute(product: Product) { return TOOL_ROUTES[product.id]; }
 
-// ─── Local storage helpers ────────────────────────────────────────────────────
-
-const LIBRARY_STORAGE_KEY = 'cubical-library';
-const CALENDAR_STORAGE_KEY = 'cubical-calendar-events';
-const NOTEPAD_STORAGE_KEY = 'cubical-notepad';
-const CLOCK_SECONDS_KEY = 'cubical-clock-seconds';
+// ─── Local-storage helpers ────────────────────────────────────────────────────
 
 function readLocal<T>(key: string, fallback: T, validate: (v: unknown) => v is T): T {
   try {
@@ -80,6 +76,12 @@ function writeLocal(key: string, value: unknown) {
   try { if (typeof window !== 'undefined') window.localStorage.setItem(key, JSON.stringify(value)); } catch {}
 }
 
+const LIBRARY_STORAGE_KEY   = 'cubical-library';
+const CALENDAR_STORAGE_KEY  = 'cubical-calendar-events';
+const NOTEPAD_STORAGE_KEY   = 'cubical-notepad';
+const CLOCK_SECONDS_KEY     = 'cubical-clock-seconds';
+const LAYOUT_STORAGE_KEY    = 'cubical-home-layout';
+
 function isStringArray(v: unknown): v is string[] {
   return Array.isArray(v) && v.every((x) => typeof x === 'string');
 }
@@ -88,26 +90,79 @@ function getStoredLibrary(): string[] {
   const validIds = new Set(PRODUCTS.map((p) => p.id));
   return readLocal<string[]>(LIBRARY_STORAGE_KEY, [], isStringArray).filter((id) => validIds.has(id));
 }
-
 function storeLibrary(ids: string[]) { writeLocal(LIBRARY_STORAGE_KEY, ids); }
 
 // ─── Calendar types & storage ─────────────────────────────────────────────────
 
-type CalendarEvent = {
-  id: string;
-  date: string;   // 'YYYY-MM-DD'
-  title: string;
-  time: string;   // 'HH:MM' or ''
-  note: string;
-};
+type CalendarEvent = { id: string; date: string; title: string; time: string; note: string; };
 
 function isEventArray(v: unknown): v is CalendarEvent[] {
   if (!Array.isArray(v)) return false;
   return v.every((e) => e && typeof e === 'object' && 'id' in e && 'date' in e && 'title' in e);
 }
-
 function getStoredEvents(): CalendarEvent[] { return readLocal(CALENDAR_STORAGE_KEY, [], isEventArray); }
 function storeEvents(events: CalendarEvent[]) { writeLocal(CALENDAR_STORAGE_KEY, events); }
+
+// ─── Grid layout system ───────────────────────────────────────────────────────
+
+const GRID_COLS = 12;
+const GRID_ROWS = 10;
+const GRID_GAP  = 10; // px
+const CELL_H    = 82; // px, fixed row height
+
+type WidgetId = 'calendar' | 'clock' | 'notepad';
+
+type LayoutItem = { id: WidgetId; x: number; y: number; w: number; h: number; };
+
+const WIDGET_LABELS: Record<WidgetId, string> = { calendar: 'Calendar', clock: 'Clock', notepad: 'Notepad' };
+
+const WIDGET_MIN: Record<WidgetId, { w: number; h: number }> = {
+  calendar: { w: 2, h: 2 },
+  clock:    { w: 2, h: 1 },
+  notepad:  { w: 2, h: 2 },
+};
+
+const DEFAULT_LAYOUT: LayoutItem[] = [
+  { id: 'calendar', x: 0, y: 0, w: 7, h: 7 },
+  { id: 'clock',    x: 7, y: 0, w: 5, h: 3 },
+  { id: 'notepad',  x: 7, y: 3, w: 5, h: 5 },
+];
+
+function getStoredLayout(): LayoutItem[] {
+  try {
+    if (typeof window === 'undefined') return DEFAULT_LAYOUT;
+    const raw = window.localStorage.getItem(LAYOUT_STORAGE_KEY);
+    if (!raw) return DEFAULT_LAYOUT;
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return DEFAULT_LAYOUT;
+    const ids: WidgetId[] = ['calendar', 'clock', 'notepad'];
+    const result: LayoutItem[] = [];
+    for (const id of ids) {
+      const found = parsed.find((item: unknown) => item && typeof item === 'object' && (item as Record<string, unknown>).id === id);
+      if (!found || typeof (found as Record<string, unknown>).x !== 'number') {
+        result.push(DEFAULT_LAYOUT.find((d) => d.id === id)!);
+        continue;
+      }
+      const f = found as Record<string, number>;
+      const min = WIDGET_MIN[id];
+      const w = Math.max(min.w, Math.min(GRID_COLS, f.w ?? min.w));
+      const h = Math.max(min.h, Math.min(GRID_ROWS, f.h ?? min.h));
+      result.push({
+        id,
+        x: Math.max(0, Math.min(GRID_COLS - w, f.x ?? 0)),
+        y: Math.max(0, Math.min(GRID_ROWS - h, f.y ?? 0)),
+        w,
+        h,
+      });
+    }
+    return result;
+  } catch { return DEFAULT_LAYOUT; }
+}
+function storeLayout(layout: LayoutItem[]) { writeLocal(LAYOUT_STORAGE_KEY, layout); }
+
+function rectsOverlap(a: LayoutItem, b: LayoutItem): boolean {
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+}
 
 // ─── App shell ────────────────────────────────────────────────────────────────
 
@@ -131,12 +186,10 @@ function AppShell({ children, libraryCount }: { children: ReactNode; libraryCoun
     { href: '/settings', label: 'Settings', icon: Settings },
   ];
   const crumb = CRUMB_MAP[location] ?? `SHELF / ${location.slice(1).toUpperCase().replace(/\//g, ' / ')}`;
-  // Mark Library active when inside a tool route too
   const isActive = (href: string) => {
     if (href === '/library') return location === '/library' || location.startsWith('/tool/');
     return location === href;
   };
-
   return (
     <div className="cubical-shell">
       <aside className="cubical-sidebar" data-testid="sidebar-navigation">
@@ -180,14 +233,23 @@ function AppShell({ children, libraryCount }: { children: ReactNode; libraryCoun
 
 function ProductIcon({ product, size = 'normal' }: { product: Product; size?: 'normal' | 'large' }) {
   const Icon = product.icon;
-  return <span className={`tool-icon ${size === 'large' ? 'h-[66px] w-[66px] rounded-[19px]' : ''}`} style={{ '--icon-color': product.iconColor, '--icon-bg': product.iconBg } as CSSProperties} data-testid={`icon-product-${product.id}`}><Icon /></span>;
+  return (
+    <span
+      className={`tool-icon ${size === 'large' ? 'h-[66px] w-[66px] rounded-[19px]' : ''}`}
+      style={{ '--icon-color': product.iconColor, '--icon-bg': product.iconBg } as CSSProperties}
+      data-testid={`icon-product-${product.id}`}
+    ><Icon /></span>
+  );
 }
 
 function ProductCard({ product }: { product: Product }) {
   return (
     <Link href={`/product/${product.id}`} className="product-card" data-testid={`card-product-${product.id}`}>
       <ProductIcon product={product} />
-      <div className="card-meta"><span className="card-name" data-testid={`text-product-name-${product.id}`}>{product.name}</span><span className="price" data-testid={`text-product-price-${product.id}`}>{product.price}</span></div>
+      <div className="card-meta">
+        <span className="card-name" data-testid={`text-product-name-${product.id}`}>{product.name}</span>
+        <span className="price" data-testid={`text-product-price-${product.id}`}>{product.price}</span>
+      </div>
       <p className="card-description" data-testid={`text-product-description-${product.id}`}>{product.description}</p>
       <div className="card-footer"><span>View tool</span><ArrowRight /></div>
     </Link>
@@ -202,8 +264,13 @@ function StorePage() {
         <h1 className="display-title mt-4">Tools worth<br /><em className="not-italic" style={{ color: 'hsl(var(--primary))' }}>keeping around.</em></h1>
         <p>Browse focused desktop tools made to do one thing well. Pick the ones that feel like you.</p>
       </div>
-      <div className="mb-5 flex items-center justify-between"><span className="eyebrow" style={{ color: 'hsl(var(--muted-foreground))' }}>The current edit</span><span className="library-count">05 tools · no noise</span></div>
-      <div className="product-grid" data-testid="product-catalog">{PRODUCTS.map((product) => <ProductCard key={product.id} product={product} />)}</div>
+      <div className="mb-5 flex items-center justify-between">
+        <span className="eyebrow" style={{ color: 'hsl(var(--muted-foreground))' }}>The current edit</span>
+        <span className="library-count">05 tools · no noise</span>
+      </div>
+      <div className="product-grid" data-testid="product-catalog">
+        {PRODUCTS.map((product) => <ProductCard key={product.id} product={product} />)}
+      </div>
     </section>
   );
 }
@@ -240,7 +307,9 @@ function ProductDetail({ product, isAdded, onAdd, onOpen }: { product: Product; 
               <button className="button-primary" onClick={onOpen} data-testid="button-open-added"><Check /> In your library · Open</button>
             )
           ) : (
-            <button className="button-primary" onClick={onAdd} data-testid={isBulkFileRenamer ? 'button-get-free' : 'button-add-library'}>{isBulkFileRenamer ? 'Get Free' : 'Add to library'} <ArrowRight /></button>
+            <button className="button-primary" onClick={onAdd} data-testid={isBulkFileRenamer ? 'button-get-free' : 'button-add-library'}>
+              {isBulkFileRenamer ? 'Get Free' : 'Add to library'} <ArrowRight />
+            </button>
           )}
         </div>
         <ScreenshotPlaceholder product={product} />
@@ -265,53 +334,75 @@ function EmptyLibrary() {
 function LibraryPage({ products, onOpen }: { products: Product[]; onOpen: (product: Product) => void }) {
   return (
     <section>
-      <div className="library-head"><div className="page-intro !mb-0"><div className="eyebrow">Your chosen tools</div><h1 className="display-title mt-4">Your library.</h1><p>Everything you decided was worth keeping, in one quiet place.</p></div><span className="library-count" data-testid="text-library-count">{String(products.length).padStart(2, '0')} saved</span></div>
-      {products.length === 0 ? <EmptyLibrary /> : <div className="library-list" data-testid="library-list">{products.map((product, index) => {
-        const toolRoute = getToolRoute(product);
-        return (
-          <div className="library-row" style={{ animationDelay: `${index * 60}ms` }} key={product.id} data-testid={`row-library-${product.id}`}>
-            <ProductIcon product={product} />
-            <div className="library-row-main"><div className="library-row-name">{product.name}</div><div className="library-row-description">{product.description}</div></div>
-            {toolRoute ? (
-              <Link className="button-quiet" href={toolRoute} data-testid={`button-open-${product.id}`}>Open <ArrowRight className="ml-1 inline-block h-3 w-3" /></Link>
-            ) : (
-              <button className="button-quiet" onClick={() => onOpen(product)} data-testid={`button-open-${product.id}`}>Open <ArrowRight className="ml-1 inline-block h-3 w-3" /></button>
-            )}
-          </div>
-        );
-      })}</div>}
+      <div className="library-head">
+        <div className="page-intro !mb-0">
+          <div className="eyebrow">Your chosen tools</div>
+          <h1 className="display-title mt-4">Your library.</h1>
+          <p>Everything you decided was worth keeping, in one quiet place.</p>
+        </div>
+        <span className="library-count" data-testid="text-library-count">{String(products.length).padStart(2, '0')} saved</span>
+      </div>
+      {products.length === 0 ? <EmptyLibrary /> : (
+        <div className="library-list" data-testid="library-list">
+          {products.map((product, index) => {
+            const toolRoute = getToolRoute(product);
+            return (
+              <div className="library-row" style={{ animationDelay: `${index * 60}ms` }} key={product.id} data-testid={`row-library-${product.id}`}>
+                <ProductIcon product={product} />
+                <div className="library-row-main">
+                  <div className="library-row-name">{product.name}</div>
+                  <div className="library-row-description">{product.description}</div>
+                </div>
+                {toolRoute ? (
+                  <Link className="button-quiet" href={toolRoute} data-testid={`button-open-${product.id}`}>Open <ArrowRight className="ml-1 inline-block h-3 w-3" /></Link>
+                ) : (
+                  <button className="button-quiet" onClick={() => onOpen(product)} data-testid={`button-open-${product.id}`}>Open <ArrowRight className="ml-1 inline-block h-3 w-3" /></button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </section>
   );
 }
 
 // ─── Home widgets ─────────────────────────────────────────────────────────────
 
-// Pad to 'YYYY-MM-DD'
+const DAY_LABELS   = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+const MONTH_NAMES  = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const MONTH_SHORT  = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+const DOW_LONG     = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+
 function toDateStr(year: number, month: number, day: number) {
   return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
-
 function todayStr() {
   const d = new Date();
   return toDateStr(d.getFullYear(), d.getMonth(), d.getDate());
 }
 
-const DAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
-const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+type CalendarMode = 'tile' | 'compact' | 'full';
 
-function CalendarWidget() {
+function getCalendarMode(w: number, h: number): CalendarMode {
+  if (w <= 2 || h <= 2) return 'tile';
+  if (w >= 5 && h >= 5) return 'full';
+  return 'compact';
+}
+
+// ── Shared calendar state hook ─────────────────────────────────────────────
+
+function useCalendarState() {
   const now = new Date();
-  const [viewYear, setViewYear] = useState(now.getFullYear());
-  const [viewMonth, setViewMonth] = useState(now.getMonth());
+  const [viewYear, setViewYear]     = useState(now.getFullYear());
+  const [viewMonth, setViewMonth]   = useState(now.getMonth());
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [events, setEvents] = useState<CalendarEvent[]>(getStoredEvents);
-
-  // Form state
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [showForm, setShowForm] = useState(false);
-  const [formTitle, setFormTitle] = useState('');
-  const [formTime, setFormTime] = useState('');
-  const [formNote, setFormNote] = useState('');
+  const [events, setEvents]         = useState<CalendarEvent[]>(getStoredEvents);
+  const [editingId, setEditingId]   = useState<string | null>(null);
+  const [showForm, setShowForm]     = useState(false);
+  const [formTitle, setFormTitle]   = useState('');
+  const [formTime, setFormTime]     = useState('');
+  const [formNote, setFormNote]     = useState('');
 
   useEffect(() => { storeEvents(events); }, [events]);
 
@@ -319,81 +410,88 @@ function CalendarWidget() {
   const nextMonth = () => { if (viewMonth === 11) { setViewYear((y) => y + 1); setViewMonth(0); } else { setViewMonth((m) => m + 1); } };
 
   const firstDayOfWeek = new Date(viewYear, viewMonth, 1).getDay();
-  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
-  const today = todayStr();
-
-  const eventsOnDate = (date: string) => events.filter((e) => e.date === date);
-
-  const openNew = () => {
-    setEditingId(null);
-    setFormTitle(''); setFormTime(''); setFormNote('');
-    setShowForm(true);
-  };
-
-  const openEdit = (ev: CalendarEvent) => {
-    setEditingId(ev.id);
-    setFormTitle(ev.title); setFormTime(ev.time); setFormNote(ev.note);
-    setShowForm(true);
-  };
-
-  const cancelForm = () => { setShowForm(false); setEditingId(null); };
-
-  const saveEvent = () => {
-    if (!formTitle.trim() || !selectedDate) return;
-    if (editingId) {
-      setEvents((evs) => evs.map((e) => e.id === editingId ? { ...e, title: formTitle.trim(), time: formTime, note: formNote } : e));
-    } else {
-      const newEvent: CalendarEvent = { id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, date: selectedDate, title: formTitle.trim(), time: formTime, note: formNote };
-      setEvents((evs) => [...evs, newEvent]);
-    }
-    cancelForm();
-  };
-
-  const deleteEvent = (id: string) => { setEvents((evs) => evs.filter((e) => e.id !== id)); };
-
-  const selectDate = (date: string) => {
-    setSelectedDate(date);
-    setShowForm(false);
-    setEditingId(null);
-  };
+  const daysInMonth    = new Date(viewYear, viewMonth + 1, 0).getDate();
+  const today          = todayStr();
+  const eventsOnDate   = (date: string) => events.filter((e) => e.date === date);
 
   const cells: Array<string | null> = [
     ...Array.from({ length: firstDayOfWeek }, () => null),
     ...Array.from({ length: daysInMonth }, (_, i) => toDateStr(viewYear, viewMonth, i + 1)),
   ];
 
+  const openNew = () => { setEditingId(null); setFormTitle(''); setFormTime(''); setFormNote(''); setShowForm(true); };
+  const openEdit = (ev: CalendarEvent) => { setEditingId(ev.id); setFormTitle(ev.title); setFormTime(ev.time); setFormNote(ev.note); setShowForm(true); };
+  const cancelForm = () => { setShowForm(false); setEditingId(null); };
+
+  const saveEvent = (overrideDate?: string) => {
+    const targetDate = overrideDate ?? selectedDate;
+    if (!formTitle.trim() || !targetDate) return;
+    if (editingId) {
+      setEvents((evs) => evs.map((e) => e.id === editingId ? { ...e, title: formTitle.trim(), time: formTime, note: formNote } : e));
+    } else {
+      setEvents((evs) => [...evs, { id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, date: targetDate, title: formTitle.trim(), time: formTime, note: formNote }]);
+    }
+    cancelForm();
+  };
+
+  const deleteEvent = (id: string) => { setEvents((evs) => evs.filter((e) => e.id !== id)); };
+
+  const selectDate = (date: string) => { setSelectedDate(date); setShowForm(false); setEditingId(null); };
+
+  return {
+    viewYear, viewMonth, selectedDate, events, editingId, showForm,
+    formTitle, setFormTitle, formTime, setFormTime, formNote, setFormNote,
+    prevMonth, nextMonth, firstDayOfWeek, daysInMonth, today, eventsOnDate,
+    cells, openNew, openEdit, cancelForm, saveEvent, deleteEvent, selectDate, setSelectedDate,
+    monthLabel: MONTH_NAMES[viewMonth],
+  };
+}
+
+// ── Calendar body (shared between full/compact/overlay) ─────────────────────
+
+function CalendarBody({
+  state,
+  compact = false,
+}: {
+  state: ReturnType<typeof useCalendarState>;
+  compact?: boolean;
+}) {
+  const {
+    viewYear, viewMonth, selectedDate, editingId, showForm,
+    formTitle, setFormTitle, formTime, setFormTime, formNote, setFormNote,
+    prevMonth, nextMonth, today, eventsOnDate, cells,
+    openNew, openEdit, cancelForm, saveEvent, deleteEvent, selectDate, monthLabel,
+  } = state;
+
   const selectedEvents = selectedDate ? eventsOnDate(selectedDate) : [];
-  const selectedLabel = selectedDate
+  const selectedLabel  = selectedDate
     ? new Date(selectedDate + 'T00:00:00').toLocaleDateString('default', { weekday: 'short', month: 'short', day: 'numeric' })
     : '';
 
   return (
-    <div className="widget-card calendar-widget" data-testid="widget-calendar">
-      <div className="widget-header">
-        <span className="widget-label"><CalendarDays /> Calendar</span>
+    <>
+      {/* Month navigation */}
+      <div className={`widget-header ${compact ? 'cal-header-compact' : ''}`}>
+        <span className="widget-label"><CalendarDays /> {compact ? '' : 'Calendar'}</span>
         <div className="cal-nav">
           <button type="button" onClick={prevMonth} aria-label="Previous month"><ChevronLeft /></button>
-          <span>{MONTH_NAMES[viewMonth]} {viewYear}</span>
+          <span>{monthLabel} {viewYear}</span>
           <button type="button" onClick={nextMonth} aria-label="Next month"><ChevronRight /></button>
         </div>
       </div>
 
-      <div className="cal-grid">
+      {/* Day grid */}
+      <div className={`cal-grid ${compact ? 'cal-grid-compact' : ''}`}>
         {DAY_LABELS.map((d) => <span key={d} className="cal-dow">{d}</span>)}
         {cells.map((date, i) => {
           if (!date) return <span key={`e-${i}`} className="cal-cell cal-empty" />;
           const hasEvents = eventsOnDate(date).length > 0;
-          const isToday = date === today;
+          const isToday    = date === today;
           const isSelected = date === selectedDate;
           return (
-            <button
-              key={date}
-              type="button"
+            <button key={date} type="button"
               className={`cal-cell${isToday ? ' is-today' : ''}${isSelected ? ' is-selected' : ''}`}
-              onClick={() => selectDate(date)}
-              aria-label={date}
-              aria-pressed={isSelected}
-            >
+              onClick={() => selectDate(date)} aria-label={date} aria-pressed={isSelected}>
               {Number(date.slice(8))}
               {hasEvents && <i className="cal-dot" />}
             </button>
@@ -401,17 +499,14 @@ function CalendarWidget() {
         })}
       </div>
 
-      {selectedDate && (
+      {/* Day panel — only in full mode (not compact) */}
+      {!compact && selectedDate && (
         <div className="cal-day-panel">
           <div className="cal-day-header">
             <span className="cal-day-label">{selectedLabel}</span>
             {!showForm && <button type="button" className="cal-add-btn" onClick={openNew}><Plus /> Add</button>}
           </div>
-
-          {selectedEvents.length === 0 && !showForm && (
-            <p className="cal-no-events">No events on this day.</p>
-          )}
-
+          {selectedEvents.length === 0 && !showForm && <p className="cal-no-events">No events on this day.</p>}
           {selectedEvents.map((ev) => (
             <div key={ev.id} className="cal-event">
               <div className="cal-event-body">
@@ -420,17 +515,17 @@ function CalendarWidget() {
                 {ev.note && <span className="cal-event-meta">{ev.note}</span>}
               </div>
               <div className="cal-event-actions">
-                <button type="button" onClick={() => openEdit(ev)} aria-label="Edit event"><Pencil /></button>
-                <button type="button" onClick={() => deleteEvent(ev.id)} aria-label="Delete event"><Trash2 /></button>
+                <button type="button" onClick={() => openEdit(ev)} aria-label="Edit"><Pencil /></button>
+                <button type="button" onClick={() => deleteEvent(ev.id)} aria-label="Delete"><Trash2 /></button>
               </div>
             </div>
           ))}
-
           {showForm && (
             <div className="cal-form">
               <label className="rename-field">
                 <span>Title</span>
-                <input autoFocus value={formTitle} onChange={(e) => setFormTitle(e.target.value)} placeholder="Event title" onKeyDown={(e) => { if (e.key === 'Enter') saveEvent(); if (e.key === 'Escape') cancelForm(); }} />
+                <input autoFocus value={formTitle} onChange={(e) => setFormTitle(e.target.value)} placeholder="Event title"
+                  onKeyDown={(e) => { if (e.key === 'Enter') saveEvent(); if (e.key === 'Escape') cancelForm(); }} />
               </label>
               <div className="rename-field-pair">
                 <label className="rename-field"><span>Time (optional)</span><input type="time" value={formTime} onChange={(e) => setFormTime(e.target.value)} /></label>
@@ -438,17 +533,77 @@ function CalendarWidget() {
               </div>
               <div className="cal-form-actions">
                 <button type="button" className="button-quiet" onClick={cancelForm}>Cancel</button>
-                <button type="button" className="button-primary" onClick={saveEvent} disabled={!formTitle.trim()}>{editingId ? 'Save changes' : 'Add event'}</button>
+                <button type="button" className="button-primary" onClick={() => saveEvent()} disabled={!formTitle.trim()}>
+                  {editingId ? 'Save changes' : 'Add event'}
+                </button>
               </div>
             </div>
           )}
         </div>
       )}
+    </>
+  );
+}
+
+// ── CalendarWidget ─────────────────────────────────────────────────────────
+
+function CalendarWidget({ gridW, gridH }: { gridW: number; gridH: number }) {
+  const mode  = getCalendarMode(gridW, gridH);
+  const state = useCalendarState();
+  const [overlayOpen, setOverlayOpen] = useState(false);
+  const now   = new Date();
+
+  // Tile mode: just a date display + click to expand
+  if (mode === 'tile') {
+    const todayDate = now.getDate();
+    const todayDow  = DOW_LONG[now.getDay()].toUpperCase();
+    const todayMon  = MONTH_SHORT[now.getMonth()];
+    const todayEvents = state.eventsOnDate(todayStr());
+    return (
+      <>
+        <button type="button" className="cal-tile" onClick={() => setOverlayOpen(true)} aria-label="Open calendar">
+          <span className="cal-tile-month">{todayMon}</span>
+          <span className="cal-tile-day">{todayDate}</span>
+          <span className="cal-tile-weekday">{todayDow}</span>
+          {todayEvents.length > 0 && <span className="cal-tile-events">{todayEvents.length} event{todayEvents.length !== 1 ? 's' : ''}</span>}
+          <span className="cal-tile-hint">Tap to open</span>
+        </button>
+        {overlayOpen && createPortal(
+          <div className="cal-overlay" onClick={() => setOverlayOpen(false)}>
+            <div className="cal-overlay-panel" onClick={(e) => e.stopPropagation()}>
+              <div className="cal-overlay-header">
+                <span className="widget-label"><CalendarDays /> Calendar</span>
+                <button type="button" className="cal-overlay-close" onClick={() => setOverlayOpen(false)}><X /></button>
+              </div>
+              <CalendarBody state={state} />
+            </div>
+          </div>,
+          document.body,
+        )}
+      </>
+    );
+  }
+
+  // Compact mode: calendar grid only, no day panel
+  if (mode === 'compact') {
+    return (
+      <div className="cal-widget-inner">
+        <CalendarBody state={state} compact />
+      </div>
+    );
+  }
+
+  // Full mode: calendar + day event panel
+  return (
+    <div className="cal-widget-inner cal-widget-full">
+      <CalendarBody state={state} />
     </div>
   );
 }
 
-function ClockWidget() {
+// ── ClockWidget ────────────────────────────────────────────────────────────
+
+function ClockWidget({ gridH }: { gridH: number }) {
   const [now, setNow] = useState(() => new Date());
   const [showSeconds, setShowSeconds] = useState(() => {
     try { return window.localStorage.getItem(CLOCK_SECONDS_KEY) === 'true'; } catch { return false; }
@@ -458,19 +613,42 @@ function ClockWidget() {
     const id = window.setInterval(() => setNow(new Date()), 1000);
     return () => window.clearInterval(id);
   }, []);
-
   useEffect(() => { writeLocal(CLOCK_SECONDS_KEY, showSeconds); }, [showSeconds]);
 
-  const hours = now.getHours();
+  const hours   = now.getHours();
   const minutes = now.getMinutes();
   const seconds = now.getSeconds();
-  const ampm = hours >= 12 ? 'PM' : 'AM';
-  const displayHours = hours % 12 || 12;
-  const timeStr = `${displayHours}:${String(minutes).padStart(2, '0')}${showSeconds ? `:${String(seconds).padStart(2, '0')}` : ''}`;
-  const dateLabel = now.toLocaleDateString('default', { weekday: 'long', month: 'long', day: 'numeric' });
+  const ampm    = hours >= 12 ? 'PM' : 'AM';
+  const h12     = hours % 12 || 12;
+  const timeStr = `${h12}:${String(minutes).padStart(2, '0')}${(showSeconds && gridH >= 3) ? `:${String(seconds).padStart(2, '0')}` : ''}`;
+  const dateStr = now.toLocaleDateString('default', { weekday: 'long', month: 'long', day: 'numeric' });
 
+  // Minimal: just time (h=1)
+  if (gridH <= 1) {
+    return (
+      <div className="clock-fill clock-minimal">
+        <div className="clock-time clock-time-sm">{timeStr}<span className="clock-ampm">{ampm}</span></div>
+      </div>
+    );
+  }
+
+  // Standard: time + AM/PM (h=2)
+  if (gridH <= 2) {
+    return (
+      <div className="clock-fill">
+        <div className="widget-header">
+          <span className="widget-label"><Clock /> Clock</span>
+        </div>
+        <div className="clock-display">
+          <div className="clock-time">{timeStr}<span className="clock-ampm">{ampm}</span></div>
+        </div>
+      </div>
+    );
+  }
+
+  // Full: time + AM/PM + date + seconds toggle (h>=3)
   return (
-    <div className="widget-card clock-widget" data-testid="widget-clock">
+    <div className="clock-fill">
       <div className="widget-header">
         <span className="widget-label"><Clock /> Clock</span>
         <label className="clock-toggle">
@@ -480,11 +658,13 @@ function ClockWidget() {
       </div>
       <div className="clock-display">
         <div className="clock-time">{timeStr}<span className="clock-ampm">{ampm}</span></div>
-        <div className="clock-date">{dateLabel}</div>
+        <div className="clock-date">{dateStr}</div>
       </div>
     </div>
   );
 }
+
+// ── NotepadWidget ──────────────────────────────────────────────────────────
 
 function NotepadWidget() {
   const [content, setContent] = useState<string>(() => {
@@ -508,7 +688,7 @@ function NotepadWidget() {
   };
 
   return (
-    <div className="widget-card notepad-widget" data-testid="widget-notepad">
+    <div className="notepad-fill">
       <div className="widget-header">
         <span className="widget-label"><StickyNote /> Notepad</span>
         <div className="notepad-header-actions">
@@ -517,7 +697,7 @@ function NotepadWidget() {
           )}
           {confirmClear && (
             <span className="notepad-confirm">
-              Clear note?&nbsp;
+              Clear?&nbsp;
               <button type="button" onClick={clearNote}>Yes</button>
               <button type="button" onClick={() => setConfirmClear(false)}>No</button>
             </span>
@@ -525,7 +705,7 @@ function NotepadWidget() {
         </div>
       </div>
       <textarea
-        className="notepad-textarea"
+        className="notepad-textarea notepad-textarea-fill"
         value={content}
         onChange={(e) => handleChange(e.target.value)}
         placeholder="Type freely. Notes save automatically and stay after refresh."
@@ -538,23 +718,275 @@ function NotepadWidget() {
   );
 }
 
+// ─── Grid widget shell ────────────────────────────────────────────────────────
+
+function GridWidget({
+  item, cellW, isEditing, isActive, isConflict,
+  onDragStart, onResizeStart,
+}: {
+  item: LayoutItem;
+  cellW: number;
+  isEditing: boolean;
+  isActive: boolean;
+  isConflict: boolean;
+  onDragStart: (e: React.PointerEvent) => void;
+  onResizeStart: (e: React.PointerEvent) => void;
+}) {
+  const left   = item.x * (cellW + GRID_GAP);
+  const top    = item.y * (CELL_H + GRID_GAP);
+  const width  = item.w * cellW + (item.w - 1) * GRID_GAP;
+  const height = item.h * CELL_H + (item.h - 1) * GRID_GAP;
+
+  return (
+    <div
+      className={`grid-widget${isEditing ? ' is-editable' : ''}${isActive ? ' is-active' : ''}${isConflict ? ' is-conflict' : ''}`}
+      style={{ left, top, width, height }}
+      onPointerDown={isEditing ? onDragStart : undefined}
+      data-testid={`grid-widget-${item.id}`}
+    >
+      {/* Edit-mode drag indicator badge */}
+      {isEditing && (
+        <div className="widget-edit-badge" aria-hidden>
+          <GripHorizontal />
+          <span>{WIDGET_LABELS[item.id]}</span>
+        </div>
+      )}
+
+      {/* Widget content */}
+      <div className={`grid-widget-content${isEditing ? ' is-locked' : ''}`}>
+        {item.id === 'calendar' && <CalendarWidget gridW={item.w} gridH={item.h} />}
+        {item.id === 'clock'    && <ClockWidget gridH={item.h} />}
+        {item.id === 'notepad'  && <NotepadWidget />}
+      </div>
+
+      {/* Resize handle */}
+      {isEditing && (
+        <div
+          className="widget-resize-handle"
+          onPointerDown={(e) => { e.stopPropagation(); onResizeStart(e); }}
+          aria-label={`Resize ${WIDGET_LABELS[item.id]}`}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── Home workspace (grid engine) ─────────────────────────────────────────────
+
+function HomeWorkspace({ isEditing }: { isEditing: boolean }) {
+  const containerRef  = useRef<HTMLDivElement>(null);
+  const cellWRef      = useRef(76);
+  const activeItemRef = useRef<LayoutItem | null>(null);
+  const isConflictRef = useRef(false);
+
+  const [cellW, setCellW]           = useState(76);
+  const [layout, setLayout]         = useState<LayoutItem[]>(() => getStoredLayout());
+  const [activeItem, setActiveItem] = useState<LayoutItem | null>(null);
+  const [activeMode, setActiveMode] = useState<'drag' | 'resize' | null>(null);
+  const [isConflict, setIsConflict] = useState(false);
+
+  // Measure container width and keep cellW in sync
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const measure = () => {
+      const w = el.getBoundingClientRect().width;
+      const cw = Math.max(40, Math.floor((w - (GRID_COLS - 1) * GRID_GAP) / GRID_COLS));
+      setCellW(cw);
+      cellWRef.current = cw;
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const workspaceH = GRID_ROWS * CELL_H + (GRID_ROWS - 1) * GRID_GAP;
+
+  // Display layout: show activeItem at its preview position
+  const displayLayout = layout.map((item) => (activeItem?.id === item.id ? activeItem : item));
+
+  // ── Drag ──────────────────────────────────────────────────────────────────
+
+  const startDrag = (id: WidgetId, e: React.PointerEvent) => {
+    if (!isEditing) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    const currentLayout = layout;
+    const item = currentLayout.find((l) => l.id === id)!;
+    const { x: origX, y: origY } = item;
+    const startMX = e.clientX;
+    const startMY = e.clientY;
+
+    const preview = { ...item };
+    setActiveItem(preview);
+    activeItemRef.current = preview;
+    setActiveMode('drag');
+    setIsConflict(false);
+    isConflictRef.current = false;
+
+    const onMove = (ev: PointerEvent) => {
+      const cw = cellWRef.current;
+      const dx = Math.round((ev.clientX - startMX) / (cw + GRID_GAP));
+      const dy = Math.round((ev.clientY - startMY) / (CELL_H + GRID_GAP));
+      const proposed: LayoutItem = {
+        ...item,
+        x: Math.max(0, Math.min(GRID_COLS - item.w, origX + dx)),
+        y: Math.max(0, Math.min(GRID_ROWS - item.h, origY + dy)),
+      };
+      const conflict = currentLayout.some((other) => other.id !== id && rectsOverlap(proposed, other));
+      setActiveItem(proposed);
+      activeItemRef.current = proposed;
+      setIsConflict(conflict);
+      isConflictRef.current = conflict;
+    };
+
+    const onUp = () => {
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      const finalItem    = activeItemRef.current;
+      const finalConflict = isConflictRef.current;
+      if (finalItem && !finalConflict) {
+        setLayout((prev) => {
+          const next = prev.map((l) => (l.id === finalItem.id ? finalItem : l));
+          storeLayout(next);
+          return next;
+        });
+      }
+      setActiveItem(null);
+      activeItemRef.current = null;
+      setActiveMode(null);
+      setIsConflict(false);
+      isConflictRef.current = false;
+    };
+
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+  };
+
+  // ── Resize ────────────────────────────────────────────────────────────────
+
+  const startResize = (id: WidgetId, e: React.PointerEvent) => {
+    if (!isEditing) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    const currentLayout = layout;
+    const item = currentLayout.find((l) => l.id === id)!;
+    const { w: origW, h: origH, x, y } = item;
+    const startMX = e.clientX;
+    const startMY = e.clientY;
+    const min = WIDGET_MIN[id];
+
+    setActiveItem({ ...item });
+    activeItemRef.current = { ...item };
+    setActiveMode('resize');
+    setIsConflict(false);
+    isConflictRef.current = false;
+
+    const onMove = (ev: PointerEvent) => {
+      const cw = cellWRef.current;
+      const dx = Math.round((ev.clientX - startMX) / (cw + GRID_GAP));
+      const dy = Math.round((ev.clientY - startMY) / (CELL_H + GRID_GAP));
+      const newW = Math.max(min.w, Math.min(GRID_COLS - x, origW + dx));
+      const newH = Math.max(min.h, Math.min(GRID_ROWS - y, origH + dy));
+      const proposed: LayoutItem = { ...item, w: newW, h: newH };
+      const conflict = currentLayout.some((other) => other.id !== id && rectsOverlap(proposed, other));
+      setActiveItem(proposed);
+      activeItemRef.current = proposed;
+      setIsConflict(conflict);
+      isConflictRef.current = conflict;
+    };
+
+    const onUp = () => {
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      const finalItem    = activeItemRef.current;
+      const finalConflict = isConflictRef.current;
+      if (finalItem && !finalConflict) {
+        setLayout((prev) => {
+          const next = prev.map((l) => (l.id === finalItem.id ? finalItem : l));
+          storeLayout(next);
+          return next;
+        });
+      }
+      setActiveItem(null);
+      activeItemRef.current = null;
+      setActiveMode(null);
+      setIsConflict(false);
+      isConflictRef.current = false;
+    };
+
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+  };
+
+  return (
+    <div
+      ref={containerRef}
+      className={`home-workspace${isEditing ? ' is-editing' : ''}`}
+      style={{ height: workspaceH }}
+      data-testid="home-workspace"
+    >
+      {displayLayout.map((item) => {
+        const isActive   = activeItem?.id === item.id && activeMode !== null;
+        const showConflict = isActive && isConflict;
+        return (
+          <GridWidget
+            key={item.id}
+            item={item}
+            cellW={cellW}
+            isEditing={isEditing}
+            isActive={isActive}
+            isConflict={showConflict}
+            onDragStart={(e) => startDrag(item.id, e)}
+            onResizeStart={(e) => startResize(item.id, e)}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Home page ────────────────────────────────────────────────────────────────
+
 function HomePage() {
+  const [isEditing, setIsEditing] = useState(false);
   return (
     <div className="home-page" data-testid="home-page">
-      <div className="home-intro">
-        <div className="eyebrow">Your workspace</div>
-        <h1 className="display-title" style={{ marginTop: '1rem' }}>Good to be back.</h1>
-        <p className="home-sub">Your personal corner of Cubical. Widgets below save locally — no accounts required.</p>
-      </div>
-      <div className="home-grid">
-        <div className="home-col-main">
-          <CalendarWidget />
+
+      {/* Header row */}
+      <div className="home-header-row">
+        <div>
+          <div className="eyebrow">Your workspace</div>
+          <h1 className="display-title" style={{ marginTop: '0.75rem' }}>Good to be back.</h1>
+          {isEditing && <p className="home-edit-hint">Drag widgets to reposition · drag the corner ↘ to resize · widgets snap to the grid</p>}
         </div>
-        <div className="home-col-side">
-          <ClockWidget />
-          <NotepadWidget />
-        </div>
+
+        {/* Edit Layout button — always visible */}
+        {!isEditing ? (
+          <button
+            type="button"
+            className="home-edit-btn"
+            onClick={() => setIsEditing(true)}
+            data-testid="button-customize-layout"
+          >
+            <Pencil /> Edit Layout
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="home-edit-btn home-edit-btn-done"
+            onClick={() => setIsEditing(false)}
+            data-testid="button-done-editing"
+          >
+            <Check /> Done
+          </button>
+        )}
       </div>
+
+      <HomeWorkspace isEditing={isEditing} />
     </div>
   );
 }
@@ -562,18 +994,8 @@ function HomePage() {
 // ─── Bulk File Renamer ────────────────────────────────────────────────────────
 
 type RenameMethod = 'full' | 'prefix' | 'suffix' | 'replace' | 'sequence';
-
-type SelectedFile = {
-  key: string;
-  file: File;
-};
-
-type RenamePreview = {
-  key: string;
-  originalName: string;
-  proposedName: string;
-  conflict: boolean;
-};
+type SelectedFile = { key: string; file: File; };
+type RenamePreview = { key: string; originalName: string; proposedName: string; conflict: boolean; };
 
 function fileStemAndExtension(fileName: string) {
   const extensionIndex = fileName.lastIndexOf('.');
@@ -606,13 +1028,9 @@ function getProposedName(
   return `${sequence} - ${fileName}`;
 }
 
-function ToolIconBadge() {
-  return <span className="renamer-tool-icon"><FileArchive /></span>;
-}
+function ToolIconBadge() { return <span className="renamer-tool-icon"><FileArchive /></span>; }
 
-function RenameMethodCard({
-  method, active, title, description, onSelect,
-}: {
+function RenameMethodCard({ method, active, title, description, onSelect }: {
   method: RenameMethod; active: boolean; title: string; description: string; onSelect: (method: RenameMethod) => void;
 }) {
   return (
@@ -625,37 +1043,34 @@ function RenameMethodCard({
 
 function BulkFileRenamer() {
   const [selectedFiles, setSelectedFiles] = useState<SelectedFile[]>([]);
-  const [method, setMethod] = useState<RenameMethod>('full');
-  const [prefix, setPrefix] = useState('project-');
-  const [suffix, setSuffix] = useState('-final');
-  const [search, setSearch] = useState('');
-  const [replacement, setReplacement] = useState('');
+  const [method, setMethod]               = useState<RenameMethod>('full');
+  const [prefix, setPrefix]               = useState('project-');
+  const [suffix, setSuffix]               = useState('-final');
+  const [search, setSearch]               = useState('');
+  const [replacement, setReplacement]     = useState('');
   const [sequenceStart, setSequenceStart] = useState(1);
   const [sequenceDigits, setSequenceDigits] = useState(2);
   const [fullRenameNames, setFullRenameNames] = useState<Record<string, string>>({});
-  const [completion, setCompletion] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
+  const [completion, setCompletion]       = useState<string | null>(null);
+  const [actionError, setActionError]     = useState<string | null>(null);
 
   const options = { prefix, suffix, search, replacement, sequenceStart, sequenceDigits };
   const previews = useMemo<RenamePreview[]>(() => {
-    const originalNames = new Set(selectedFiles.map(({ file }) => file.name.toLowerCase()));
-    const proposedNames = selectedFiles.map(({ key, file }, index) => getProposedName(file.name, method, options, index, fullRenameNames[key]));
+    const originalNames  = new Set(selectedFiles.map(({ file }) => file.name.toLowerCase()));
+    const proposedNames  = selectedFiles.map(({ key, file }, index) => getProposedName(file.name, method, options, index, fullRenameNames[key]));
     const proposedCounts = proposedNames.reduce((counts, name) => {
-      const normalizedName = name.toLowerCase();
-      counts.set(normalizedName, (counts.get(normalizedName) ?? 0) + 1);
-      return counts;
+      const n = name.toLowerCase(); counts.set(n, (counts.get(n) ?? 0) + 1); return counts;
     }, new Map<string, number>());
-
     return selectedFiles.map(({ key, file }, index) => {
-      const proposedName = proposedNames[index];
+      const proposedName         = proposedNames[index];
       const normalizedProposedName = proposedName.toLowerCase();
-      const isSameName = normalizedProposedName === file.name.toLowerCase();
+      const isSameName           = normalizedProposedName === file.name.toLowerCase();
       const conflict = !proposedName.trim() || (!isSameName && originalNames.has(normalizedProposedName)) || (proposedCounts.get(normalizedProposedName) ?? 0) > 1;
       return { key, originalName: file.name, proposedName, conflict };
     });
   }, [fullRenameNames, method, options.prefix, options.replacement, options.search, options.sequenceDigits, options.sequenceStart, options.suffix, selectedFiles]);
 
-  const conflictCount = previews.filter((preview) => preview.conflict).length;
+  const conflictCount = previews.filter((p) => p.conflict).length;
   const blockingReason = selectedFiles.length === 0
     ? 'Select at least one file to preview new names.'
     : conflictCount > 0
@@ -665,25 +1080,25 @@ function BulkFileRenamer() {
         : null;
 
   const updateOption = (update: () => void) => { update(); setCompletion(null); setActionError(null); };
-  const setFullRenameName = (key: string, value: string) => { updateOption(() => setFullRenameNames((current) => ({ ...current, [key]: value }))); };
+  const setFullRenameName = (key: string, value: string) => updateOption(() => setFullRenameNames((c) => ({ ...c, [key]: value })));
 
   const selectFiles = (event: ChangeEvent<HTMLInputElement>) => {
-    const incomingFiles = Array.from(event.target.files ?? []);
+    const incoming = Array.from(event.target.files ?? []);
     setSelectedFiles((current) => {
-      const existingKeys = new Set(current.map(({ key }) => key));
-      return [...current, ...incomingFiles.map((file) => ({ key: `${file.name}-${file.size}-${file.lastModified}`, file })).filter(({ key }) => !existingKeys.has(key))];
+      const existing = new Set(current.map(({ key }) => key));
+      return [...current, ...incoming.map((file) => ({ key: `${file.name}-${file.size}-${file.lastModified}`, file })).filter(({ key }) => !existing.has(key))];
     });
     setFullRenameNames((current) => {
       const next = { ...current };
-      incomingFiles.forEach((file) => { const key = `${file.name}-${file.size}-${file.lastModified}`; if (!(key in next)) next[key] = fileStemAndExtension(file.name).stem; });
+      incoming.forEach((file) => { const key = `${file.name}-${file.size}-${file.lastModified}`; if (!(key in next)) next[key] = fileStemAndExtension(file.name).stem; });
       return next;
     });
     setCompletion(null); setActionError(null); event.target.value = '';
   };
 
   const removeFile = (key: string) => {
-    setSelectedFiles((current) => current.filter((sf) => sf.key !== key));
-    setFullRenameNames((current) => { const next = { ...current }; delete next[key]; return next; });
+    setSelectedFiles((c) => c.filter((sf) => sf.key !== key));
+    setFullRenameNames((c) => { const next = { ...c }; delete next[key]; return next; });
     setCompletion(null); setActionError(null);
   };
 
@@ -724,11 +1139,11 @@ function BulkFileRenamer() {
           )}
           <div className="renamer-section-heading method-heading"><span className="eyebrow">02 · Rename method</span></div>
           <div className="rename-method-grid">
-            <RenameMethodCard method="full" active={method === 'full'} title="Full Rename" description="Type a complete filename" onSelect={(m) => updateOption(() => setMethod(m))} />
-            <RenameMethodCard method="prefix" active={method === 'prefix'} title="Add before" description="Put text at the start" onSelect={(m) => updateOption(() => setMethod(m))} />
-            <RenameMethodCard method="suffix" active={method === 'suffix'} title="Add after" description="Put text before extension" onSelect={(m) => updateOption(() => setMethod(m))} />
-            <RenameMethodCard method="replace" active={method === 'replace'} title="Replace text" description="Swap a specific phrase" onSelect={(m) => updateOption(() => setMethod(m))} />
-            <RenameMethodCard method="sequence" active={method === 'sequence'} title="Number files" description="Add an ordered number" onSelect={(m) => updateOption(() => setMethod(m))} />
+            <RenameMethodCard method="full"     active={method === 'full'}     title="Full Rename"  description="Type a complete filename"    onSelect={(m) => updateOption(() => setMethod(m))} />
+            <RenameMethodCard method="prefix"   active={method === 'prefix'}   title="Add before"   description="Put text at the start"       onSelect={(m) => updateOption(() => setMethod(m))} />
+            <RenameMethodCard method="suffix"   active={method === 'suffix'}   title="Add after"    description="Put text before extension"   onSelect={(m) => updateOption(() => setMethod(m))} />
+            <RenameMethodCard method="replace"  active={method === 'replace'}  title="Replace text" description="Swap a specific phrase"      onSelect={(m) => updateOption(() => setMethod(m))} />
+            <RenameMethodCard method="sequence" active={method === 'sequence'} title="Number files" description="Add an ordered number"       onSelect={(m) => updateOption(() => setMethod(m))} />
           </div>
           <div className="rename-options">
             {method === 'full' && selectedFiles.length === 0 && <p className="rename-mode-note">Select one file to type its complete filename. The extension stays protected.</p>}
@@ -738,9 +1153,9 @@ function BulkFileRenamer() {
               return <label className="rename-field"><span>Filename</span><div className="filename-input-row"><input value={fullRenameNames[sf.key] ?? stem} onChange={(e) => setFullRenameName(sf.key, e.target.value)} placeholder={stem} data-testid="input-full-rename" /><span>{extension || 'no extension'}</span></div><small className="rename-field-hint">The file extension is protected and stays unchanged.</small></label>;
             })()}
             {method === 'full' && selectedFiles.length > 1 && <p className="rename-mode-note">Full Rename is for manual per-file editing. Edit each proposed filename directly in the preview table; use the batch methods for larger groups.</p>}
-            {method === 'prefix' && <label className="rename-field"><span>Text before filename</span><input value={prefix} onChange={(e) => updateOption(() => setPrefix(e.target.value))} placeholder="project-" data-testid="input-prefix" /></label>}
-            {method === 'suffix' && <label className="rename-field"><span>Text after filename</span><input value={suffix} onChange={(e) => updateOption(() => setSuffix(e.target.value))} placeholder="-final" data-testid="input-suffix" /></label>}
-            {method === 'replace' && <div className="rename-field-pair"><label className="rename-field"><span>Find</span><input value={search} onChange={(e) => updateOption(() => setSearch(e.target.value))} placeholder="draft" data-testid="input-replace-search" /></label><label className="rename-field"><span>Replace with</span><input value={replacement} onChange={(e) => updateOption(() => setReplacement(e.target.value))} placeholder="final" data-testid="input-replace-value" /></label></div>}
+            {method === 'prefix'   && <label className="rename-field"><span>Text before filename</span><input value={prefix} onChange={(e) => updateOption(() => setPrefix(e.target.value))} placeholder="project-" data-testid="input-prefix" /></label>}
+            {method === 'suffix'   && <label className="rename-field"><span>Text after filename</span><input value={suffix} onChange={(e) => updateOption(() => setSuffix(e.target.value))} placeholder="-final" data-testid="input-suffix" /></label>}
+            {method === 'replace'  && <div className="rename-field-pair"><label className="rename-field"><span>Find</span><input value={search} onChange={(e) => updateOption(() => setSearch(e.target.value))} placeholder="draft" data-testid="input-replace-search" /></label><label className="rename-field"><span>Replace with</span><input value={replacement} onChange={(e) => updateOption(() => setReplacement(e.target.value))} placeholder="final" data-testid="input-replace-value" /></label></div>}
             {method === 'sequence' && <div className="rename-field-pair"><label className="rename-field"><span>Start at</span><input type="number" min="0" value={sequenceStart} onChange={(e) => updateOption(() => setSequenceStart(Math.max(0, Number(e.target.value) || 0)))} data-testid="input-sequence-start" /></label><label className="rename-field"><span>Number width</span><input type="number" min="1" max="6" value={sequenceDigits} onChange={(e) => updateOption(() => setSequenceDigits(Math.min(6, Math.max(1, Number(e.target.value) || 1))))} data-testid="input-sequence-digits" /></label></div>}
           </div>
         </div>
@@ -785,74 +1200,43 @@ function BulkFileRenamer() {
 // ─── Spreadsheet Cleaner ──────────────────────────────────────────────────────
 
 type SpreadsheetRow = string[];
-
-type CleanedSpreadsheet = {
-  rows: SpreadsheetRow[];
-  emptyRowsRemoved: number;
-  duplicateRowsRemoved: number;
-  textCellsCleaned: number;
-};
+type CleanedSpreadsheet = { rows: SpreadsheetRow[]; emptyRowsRemoved: number; duplicateRowsRemoved: number; textCellsCleaned: number; };
 
 function parseCsv(csv: string): SpreadsheetRow[] {
-  const rows: SpreadsheetRow[] = [];
-  let row: string[] = [];
-  let cell = '';
-  let insideQuotes = false;
-
-  for (let index = 0; index < csv.length; index += 1) {
-    const character = csv[index];
-    const nextCharacter = csv[index + 1];
-    if (character === '"') {
-      if (insideQuotes && nextCharacter === '"') { cell += '"'; index += 1; } else { insideQuotes = !insideQuotes; }
-    } else if (character === ',' && !insideQuotes) {
-      row.push(cell); cell = '';
-    } else if ((character === '\n' || character === '\r') && !insideQuotes) {
-      if (character === '\r' && nextCharacter === '\n') index += 1;
-      row.push(cell); rows.push(row); row = []; cell = '';
-    } else { cell += character; }
+  const rows: SpreadsheetRow[] = []; let row: string[] = []; let cell = ''; let insideQuotes = false;
+  for (let i = 0; i < csv.length; i += 1) {
+    const ch = csv[i]; const nx = csv[i + 1];
+    if (ch === '"') { if (insideQuotes && nx === '"') { cell += '"'; i += 1; } else { insideQuotes = !insideQuotes; } }
+    else if (ch === ',' && !insideQuotes) { row.push(cell); cell = ''; }
+    else if ((ch === '\n' || ch === '\r') && !insideQuotes) { if (ch === '\r' && nx === '\n') i += 1; row.push(cell); rows.push(row); row = []; cell = ''; }
+    else { cell += ch; }
   }
   if (cell !== '' || row.length > 0) { row.push(cell); rows.push(row); }
   while (rows.length > 0 && rows[rows.length - 1].every((v) => v === '')) rows.pop();
   return rows;
 }
 
-function csvEscape(value: string) {
-  return /[",\r\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value;
-}
-
-function toCsv(headers: string[], rows: SpreadsheetRow[]) {
-  return [headers, ...rows].map((row) => row.map(csvEscape).join(',')).join('\r\n');
-}
-
-function titleCase(value: string) {
-  return value.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
-}
+function csvEscape(value: string) { return /[",\r\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value; }
+function toCsv(headers: string[], rows: SpreadsheetRow[]) { return [headers, ...rows].map((row) => row.map(csvEscape).join(',')).join('\r\n'); }
+function titleCase(value: string) { return value.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase()); }
 
 function SpreadsheetCleaner() {
-  const [fileName, setFileName] = useState<string | null>(null);
-  const [headers, setHeaders] = useState<string[]>([]);
-  const [sourceRows, setSourceRows] = useState<SpreadsheetRow[]>([]);
-  const [parseError, setParseError] = useState<string | null>(null);
-  const [removeEmptyRows, setRemoveEmptyRows] = useState(true);
+  const [fileName, setFileName]       = useState<string | null>(null);
+  const [headers, setHeaders]         = useState<string[]>([]);
+  const [sourceRows, setSourceRows]   = useState<SpreadsheetRow[]>([]);
+  const [parseError, setParseError]   = useState<string | null>(null);
+  const [removeEmptyRows, setRemoveEmptyRows]         = useState(true);
   const [removeDuplicateRows, setRemoveDuplicateRows] = useState(true);
-  const [trimText, setTrimText] = useState(true);
-  const [collapseSpaces, setCollapseSpaces] = useState(true);
+  const [trimText, setTrimText]                       = useState(true);
+  const [collapseSpaces, setCollapseSpaces]           = useState(true);
   const [capitalization, setCapitalization] = useState<'unchanged' | 'uppercase' | 'lowercase' | 'title'>('unchanged');
-  const [sortColumn, setSortColumn] = useState('');
+  const [sortColumn, setSortColumn]   = useState('');
   const [exportStatus, setExportStatus] = useState<string | null>(null);
 
   const cleaned = useMemo<CleanedSpreadsheet>(() => {
     let rows = sourceRows.map((row) => [...row]);
-    let emptyRowsRemoved = 0;
-    let duplicateRowsRemoved = 0;
-    let textCellsCleaned = 0;
-
-    if (removeEmptyRows) {
-      const before = rows.length;
-      rows = rows.filter((row) => !row.every((cell) => cell.trim() === ''));
-      emptyRowsRemoved = before - rows.length;
-    }
-
+    let emptyRowsRemoved = 0; let duplicateRowsRemoved = 0; let textCellsCleaned = 0;
+    if (removeEmptyRows) { const before = rows.length; rows = rows.filter((row) => !row.every((cell) => cell.trim() === '')); emptyRowsRemoved = before - rows.length; }
     rows = rows.map((row) => row.map((cell) => {
       let next = cell;
       if (trimText) next = next.trim();
@@ -863,48 +1247,32 @@ function SpreadsheetCleaner() {
       if (next !== cell) textCellsCleaned += 1;
       return next;
     }));
-
     if (removeDuplicateRows) {
       const seen = new Set<string>();
       rows = rows.filter((row) => { const id = JSON.stringify(row); if (seen.has(id)) { duplicateRowsRemoved += 1; return false; } seen.add(id); return true; });
     }
-
-    if (sortColumn) {
-      const sortIndex = headers.indexOf(sortColumn);
-      if (sortIndex >= 0) rows.sort((a, b) => (a[sortIndex] ?? '').localeCompare(b[sortIndex] ?? '', undefined, { numeric: true, sensitivity: 'base' }));
-    }
-
+    if (sortColumn) { const si = headers.indexOf(sortColumn); if (si >= 0) rows.sort((a, b) => (a[si] ?? '').localeCompare(b[si] ?? '', undefined, { numeric: true, sensitivity: 'base' })); }
     return { rows, emptyRowsRemoved, duplicateRowsRemoved, textCellsCleaned };
   }, [capitalization, collapseSpaces, headers, removeDuplicateRows, removeEmptyRows, sortColumn, sourceRows, trimText]);
 
   const selectSpreadsheet = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-    if (!file) return;
+    const file = event.target.files?.[0]; event.target.value = ''; if (!file) return;
     setExportStatus(null); setParseError(null);
     try {
       const parsedRows = parseCsv(await file.text());
-      if (parsedRows.length === 0 || parsedRows[0].length === 0) {
-        setFileName(null); setHeaders([]); setSourceRows([]);
-        setParseError('This CSV does not contain any data to preview.'); return;
-      }
+      if (parsedRows.length === 0 || parsedRows[0].length === 0) { setFileName(null); setHeaders([]); setSourceRows([]); setParseError('This CSV does not contain any data to preview.'); return; }
       const nextHeaders = parsedRows[0].map((h, i) => h.trim() || `Column ${i + 1}`);
       setFileName(file.name); setHeaders(nextHeaders);
       setSourceRows(parsedRows.slice(1).map((row) => nextHeaders.map((_, i) => row[i] ?? '')));
-    } catch {
-      setFileName(null); setHeaders([]); setSourceRows([]);
-      setParseError('This file could not be read as a CSV.');
-    }
+    } catch { setFileName(null); setHeaders([]); setSourceRows([]); setParseError('This file could not be read as a CSV.'); }
   };
 
   const exportCleanedFile = () => {
     if (!fileName || headers.length === 0) return;
-    const cleanedCsv = toCsv(headers, cleaned.rows);
-    const url = URL.createObjectURL(new Blob([cleanedCsv], { type: 'text/csv;charset=utf-8' }));
+    const url = URL.createObjectURL(new Blob([toCsv(headers, cleaned.rows)], { type: 'text/csv;charset=utf-8' }));
     const link = document.createElement('a');
     const baseName = fileName.replace(/\.csv$/i, '');
-    link.href = url; link.download = `${baseName}-cleaned.csv`; link.click();
-    URL.revokeObjectURL(url);
+    link.href = url; link.download = `${baseName}-cleaned.csv`; link.click(); URL.revokeObjectURL(url);
     setExportStatus(`Downloaded ${baseName}-cleaned.csv. Your original file remains unchanged.`);
   };
 
@@ -918,10 +1286,7 @@ function SpreadsheetCleaner() {
         </div>
         <span className="tool-status"><i className="status-dot" /> Original stays safe</span>
       </div>
-      <div className="renamer-notice">
-        <FilePlus2 />
-        <div><strong>Safe copy mode</strong><span>Spreadsheet Cleaner reads your CSV and creates a new cleaned download. The original uploaded file is never modified.</span></div>
-      </div>
+      <div className="renamer-notice"><FilePlus2 /><div><strong>Safe copy mode</strong><span>Spreadsheet Cleaner reads your CSV and creates a new cleaned download. The original uploaded file is never modified.</span></div></div>
       <div className="spreadsheet-workspace">
         <div className="spreadsheet-controls">
           <div className="renamer-section-heading"><span className="eyebrow">01 · Choose a CSV</span>{fileName && <span className="library-count">{fileName}</span>}</div>
@@ -992,8 +1357,8 @@ function NotFound() {
 
 function App() {
   const [libraryIds, setLibraryIds] = useState<string[]>(getStoredLibrary);
-  const [toast, setToast] = useState<string | null>(null);
-  const [, setLocation] = useLocation();
+  const [toast, setToast]           = useState<string | null>(null);
+  const [, setLocation]             = useLocation();
   const libraryProducts = useMemo(() => PRODUCTS.filter((product) => libraryIds.includes(product.id)), [libraryIds]);
 
   useEffect(() => { storeLibrary(libraryIds); }, [libraryIds]);
@@ -1003,7 +1368,6 @@ function App() {
     setLibraryIds((current) => current.includes(product.id) ? current : [...current, product.id]);
     setToast(`${product.name} added to your library`);
   };
-
   const openProduct = (product: Product) => {
     const toolRoute = getToolRoute(product);
     if (toolRoute) { setLocation(toolRoute); return; }
