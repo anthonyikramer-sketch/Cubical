@@ -510,6 +510,31 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
   right: -14px;
 }
 
+/* Link Shelf: small blossom branch draped along the top-left edge */
+.sakura-deco--link-shelf {
+  height: clamp(40px, 12%, 60px);
+  width: auto;
+  top: -30px;
+  left: -8px;
+  transform: scaleX(-1);
+}
+
+/* Decision Maker: flower cluster at the top-right corner */
+.sakura-deco--decision-maker {
+  height: clamp(40px, 12%, 58px);
+  width: auto;
+  top: -24px;
+  right: -10px;
+}
+
+/* Calculator: cat on branch peeking over the top-right edge */
+.sakura-deco--calculator {
+  height: clamp(44px, 16%, 64px);
+  width: auto;
+  top: -36px;
+  right: -8px;
+}
+
 /* Content area */
 .grid-widget-content { width: 100%; height: 100%; overflow: hidden; display: flex; flex-direction: column; }
 .grid-widget-content.is-locked { pointer-events: none; user-select: none; }

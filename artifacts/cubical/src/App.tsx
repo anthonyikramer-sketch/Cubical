@@ -2215,6 +2215,30 @@ const SAKURA_DECOS: Partial<Record<WidgetId, React.ReactNode>> = {
       alt="" aria-hidden draggable={false}
     />
   ),
+  // Small blossom branch draping over the top-left of the link shelf
+  'link-shelf': (
+    <img
+      src="/sakura/branch-wide.png"
+      className="sakura-deco sakura-deco--link-shelf"
+      alt="" aria-hidden draggable={false}
+    />
+  ),
+  // Flower petal cluster at the top-right of the decision maker
+  'decision-maker': (
+    <img
+      src="/sakura/flower-corner.png"
+      className="sakura-deco sakura-deco--decision-maker"
+      alt="" aria-hidden draggable={false}
+    />
+  ),
+  // Cat on branch peeking over the top-right of the calculator
+  calculator: (
+    <img
+      src="/sakura/cat-branch.png"
+      className="sakura-deco sakura-deco--calculator"
+      alt="" aria-hidden draggable={false}
+    />
+  ),
 };
 
 function SakuraWidgetDecoration({ widgetId }: { widgetId: WidgetId }) {
