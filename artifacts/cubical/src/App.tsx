@@ -1540,6 +1540,7 @@ function NotepadWidget({ compact = false }: { compact?: boolean }) {
   const saveTimer    = useRef<number | null>(null);
   const [charCount,      setCharCount]      = useState(0);
   const [toolbarVisible, setToolbarVisible] = useState(true);
+  const [confirmClear,   setConfirmClear]   = useState(false);
   // Increment to re-render toolbar active-states on every selection / transaction
   const [tick, setTick] = useState(0);
 
@@ -1771,9 +1772,17 @@ function NotepadWidget({ compact = false }: { compact?: boolean }) {
             <Bold />
           </button>
           {charCount > 0 && (
-            <button type="button" className="text-button" onClick={clearEditor}>
-              <Trash2 /> Clear
-            </button>
+            confirmClear ? (
+              <div className="notepad-confirm">
+                <span>Clear all notes?</span>
+                <button type="button" onClick={() => { clearEditor(); setConfirmClear(false); }}>Yes</button>
+                <button type="button" onClick={() => setConfirmClear(false)}>Cancel</button>
+              </div>
+            ) : (
+              <button type="button" className="text-button" onClick={() => setConfirmClear(true)}>
+                <Trash2 /> Clear
+              </button>
+            )
           )}
         </div>
       </div>
