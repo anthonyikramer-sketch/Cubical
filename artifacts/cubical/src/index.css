@@ -152,6 +152,34 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
 .card-description { margin: 10px 0 0; color: hsl(var(--muted-foreground)); font-size: 12px; line-height: 1.6; max-width: 240px; }
 .card-footer { margin-top: auto; padding-top: 23px; display: flex; justify-content: space-between; align-items: center; color: hsl(var(--primary)); font-size: 12px; font-weight: 800; }
 .card-footer svg { width: 16px; transition: transform .2s ease; } .product-card:hover .card-footer svg { transform: translateX(4px); }
+
+/* ── Owned / installed state ─────────────────────────────────────────────── */
+.product-card.is-owned { opacity: .72; }
+.product-card.is-owned:hover { opacity: 1; }
+
+.product-owned-badge {
+  position: absolute;
+  top: 13px;
+  right: 13px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: hsl(142 52% 40%);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px hsl(142 52% 25% / .30);
+  z-index: 1;
+  cursor: default;
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+.product-owned-badge svg { width: 12px; height: 12px; stroke-width: 2.5; }
+.product-card:hover .product-owned-badge {
+  transform: scale(1.1);
+  box-shadow: 0 3px 10px hsl(142 52% 25% / .38);
+}
+
 .detail-back { display: inline-flex; align-items: center; gap: 8px; color: hsl(var(--muted-foreground)); font-size: 12px; text-decoration: none; margin-bottom: 34px; }
 .detail-back:hover { color: hsl(var(--primary)); }
 .detail-layout { display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(300px, .92fr); gap: clamp(30px, 5vw, 78px); align-items: center; }

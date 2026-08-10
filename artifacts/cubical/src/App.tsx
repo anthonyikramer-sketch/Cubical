@@ -845,21 +845,30 @@ function ProductIcon({ product, size = 'normal' }: { product: Product; size?: 'n
   );
 }
 
-function ProductCard({ product }: { product: Product }) {
+function ProductCard({ product, isOwned }: { product: Product; isOwned?: boolean }) {
   return (
-    <Link href={`/product/${product.id}`} className="product-card" data-testid={`card-product-${product.id}`}>
+    <Link
+      href={`/product/${product.id}`}
+      className={`product-card${isOwned ? ' is-owned' : ''}`}
+      data-testid={`card-product-${product.id}`}
+    >
+      {isOwned && (
+        <div className="product-owned-badge" title="Installed" aria-label="Installed">
+          <Check />
+        </div>
+      )}
       <ProductIcon product={product} />
       <div className="card-meta">
         <span className="card-name" data-testid={`text-product-name-${product.id}`}>{product.name}</span>
         <span className="price" data-testid={`text-product-price-${product.id}`}>{product.price}</span>
       </div>
       <p className="card-description" data-testid={`text-product-description-${product.id}`}>{product.description}</p>
-      <div className="card-footer"><span>View tool</span><ArrowRight /></div>
+      <div className="card-footer"><span>{isOwned ? 'Installed' : 'View tool'}</span><ArrowRight /></div>
     </Link>
   );
 }
 
-function StorePage() {
+function StorePage({ libraryIds }: { libraryIds: string[] }) {
   const [query, setQuery] = useState('');
   const filtered = useMemo(() => {
     if (!query.trim()) return PRODUCTS;
@@ -887,7 +896,7 @@ function StorePage() {
       </div>
       {filtered.length === 0
         ? <div className="tool-search-empty">No tools found for "{query}"</div>
-        : <div className="product-grid" data-testid="product-catalog">{filtered.map((product) => <ProductCard key={product.id} product={product} />)}</div>}
+        : <div className="product-grid" data-testid="product-catalog">{filtered.map((product) => <ProductCard key={product.id} product={product} isOwned={libraryIds.includes(product.id)} />)}</div>}
     </section>
   );
 }
@@ -6832,7 +6841,7 @@ function App() {
           <AppShell libraryCount={libraryProducts.length}>
             <Switch>
               <Route path="/"><HomePage /></Route>
-              <Route path="/store"><StorePage /></Route>
+              <Route path="/store"><StorePage libraryIds={libraryIds} /></Route>
               <Route path="/product/:id">{(params) => {
                 const product = PRODUCTS.find((item) => item.id === params.id);
                 if (!product) return <NotFound />;
