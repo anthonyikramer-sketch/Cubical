@@ -1003,6 +1003,49 @@ function NotepadWidget() {
 
 // ─── Grid widget shell ────────────────────────────────────────────────────────
 
+// ─── Sakura widget decorations ────────────────────────────────────────────────
+// Renders a skin-specific decoration layer on top of the widget card.
+// pointer-events: none — never blocks interaction.
+// Positioned absolutely relative to .grid-widget-outer (overflow: visible),
+// so decorations can overhang the widget edge.
+
+const SAKURA_DECOS: Partial<Record<WidgetId, React.ReactNode>> = {
+  // Wide blossom branch draped along the top-centre of the calendar
+  calendar: (
+    <img
+      src="/sakura/branch-wide.png"
+      className="sakura-deco sakura-deco--calendar"
+      alt="" aria-hidden draggable={false}
+    />
+  ),
+  // Cat resting on a branch, peeking over the top-right of the clock
+  clock: (
+    <img
+      src="/sakura/cat-branch.png"
+      className="sakura-deco sakura-deco--clock"
+      alt="" aria-hidden draggable={false}
+    />
+  ),
+  // Single large sakura flower at the top-right corner of the notepad
+  notepad: (
+    <img
+      src="/sakura/flower-corner.png"
+      className="sakura-deco sakura-deco--notepad"
+      alt="" aria-hidden draggable={false}
+    />
+  ),
+};
+
+function SakuraWidgetDecoration({ widgetId }: { widgetId: WidgetId }) {
+  const deco = SAKURA_DECOS[widgetId];
+  if (!deco) return null;
+  return (
+    <div className="sakura-deco-layer" aria-hidden>
+      {deco}
+    </div>
+  );
+}
+
 function GridWidget({
   item, cellW, isEditing, isActive, isConflict,
   onDragStart, onResizeStart,
@@ -1019,38 +1062,48 @@ function GridWidget({
   const top    = item.y * (CELL_H + GRID_GAP);
   const width  = item.w * cellW + (item.w - 1) * GRID_GAP;
   const height = item.h * CELL_H + (item.h - 1) * GRID_GAP;
+  const isSakura = readEquippedSkin() === 'sakura';
 
   return (
+    // Outer wrapper: carries position + allows decorations to overhang
     <div
-      className={`grid-widget${isEditing ? ' is-editable' : ''}${isActive ? ' is-active' : ''}${isConflict ? ' is-conflict' : ''}`}
+      className={`grid-widget-outer${isActive ? ' is-active-outer' : ''}`}
       style={{ left, top, width, height }}
-      onPointerDown={isEditing ? onDragStart : undefined}
       data-testid={`grid-widget-${item.id}`}
     >
-      {/* Edit-mode drag indicator badge */}
-      {isEditing && (
-        <div className="widget-edit-badge" aria-hidden>
-          <GripHorizontal />
-          <span>{WIDGET_LABELS[item.id]}</span>
-        </div>
-      )}
+      {/* Visual card — keeps overflow: hidden for its own rounded corners */}
+      <div
+        className={`grid-widget${isEditing ? ' is-editable' : ''}${isActive ? ' is-active' : ''}${isConflict ? ' is-conflict' : ''}`}
+        onPointerDown={isEditing ? onDragStart : undefined}
+      >
+        {/* Edit-mode drag indicator badge */}
+        {isEditing && (
+          <div className="widget-edit-badge" aria-hidden>
+            <GripHorizontal />
+            <span>{WIDGET_LABELS[item.id]}</span>
+          </div>
+        )}
 
-      {/* Widget content */}
-      <div className={`grid-widget-content${isEditing ? ' is-locked' : ''}`}>
-        {item.id === 'calendar'     && <CalendarWidget gridW={item.w} gridH={item.h} />}
-        {item.id === 'clock'        && <ClockWidget gridH={item.h} />}
-        {item.id === 'notepad'      && <NotepadWidget />}
-        {item.id === 'file-finder'  && <FileFinderWidget gridW={item.w} gridH={item.h} />}
+        {/* Widget content */}
+        <div className={`grid-widget-content${isEditing ? ' is-locked' : ''}`}>
+          {item.id === 'calendar'     && <CalendarWidget gridW={item.w} gridH={item.h} />}
+          {item.id === 'clock'        && <ClockWidget gridH={item.h} />}
+          {item.id === 'notepad'      && <NotepadWidget />}
+          {item.id === 'file-finder'  && <FileFinderWidget gridW={item.w} gridH={item.h} />}
+        </div>
+
+        {/* Resize handle */}
+        {isEditing && (
+          <div
+            className="widget-resize-handle"
+            onPointerDown={(e) => { e.stopPropagation(); onResizeStart(e); }}
+            aria-label={`Resize ${WIDGET_LABELS[item.id]}`}
+          />
+        )}
       </div>
 
-      {/* Resize handle */}
-      {isEditing && (
-        <div
-          className="widget-resize-handle"
-          onPointerDown={(e) => { e.stopPropagation(); onResizeStart(e); }}
-          aria-label={`Resize ${WIDGET_LABELS[item.id]}`}
-        />
-      )}
+      {/* Sakura decoration layer — only with Sakura skin, above the card */}
+      {isSakura && <SakuraWidgetDecoration widgetId={item.id} />}
     </div>
   );
 }

@@ -1,0 +1,279 @@
+I have uploaded a collection of individual transparent PNG decorative assets for the Sakura skin.
+
+These include Sakura flowers, branches, cats, lanterns, plants, dividers, corner decorations, and other small pixel-art elements.
+
+I want you to use these assets to decorate the existing Home widgets when the Sakura skin is equipped.
+
+IMPORTANT:
+Do not simply place every asset on screen.
+
+Use the assets selectively and strategically to make the widgets feel physically integrated into the Sakura environment.
+
+The result should feel polished, restrained, cozy, and intentional rather than cluttered.
+
+--------------------------------------------------
+1. CREATE A SAKURA WIDGET DECORATION SYSTEM
+--------------------------------------------------
+
+Treat these PNGs as decorative assets belonging specifically to the Sakura skin.
+
+Do not permanently bake these decorations into the base Clock, Calendar, or Notepad components.
+
+Instead, create a reusable skin-decoration layer/configuration so:
+
+Default skin:
+No Sakura decorations.
+
+Sakura skin:
+Sakura decorations appear.
+
+Future skins should eventually be able to provide their own widget decorations without rewriting the widget components.
+
+Do not build a large universal skin engine right now. Just structure this implementation cleanly enough that more skins can use the same concept later.
+
+--------------------------------------------------
+2. DECORATE STRATEGICALLY
+--------------------------------------------------
+
+Inspect the uploaded assets and choose appropriate ones for the existing widgets.
+
+You have artistic freedom over WHICH assets are used and WHERE they are positioned, but follow these rules.
+
+Good placement examples:
+
+- flowers resting partially over a corner
+- a small Sakura branch following part of a top border
+- a cat peeking over the top of a widget
+- a cat resting along the bottom edge
+- a lantern hanging slightly from a corner
+- petals extending just beyond an edge
+- small floral clusters connecting naturally with corners
+
+Decorations should generally interact with the OUTER EDGES of widgets.
+
+They should look like they are sitting on, growing around, hanging from, or peeking over the widget.
+
+Avoid simply placing decorative images inside the middle of the widget.
+
+--------------------------------------------------
+3. DO NOT COVER FUNCTIONAL CONTENT
+--------------------------------------------------
+
+This is extremely important.
+
+Decorations must NOT obstruct:
+
+- Clock numbers
+- Calendar dates
+- Calendar events
+- Notepad text
+- widget titles
+- buttons
+- Clear
+- resize controls
+- drag controls
+- clickable areas that users need
+
+The actual information inside each widget remains the priority.
+
+Decorations should mostly occupy borders, corners, and small areas immediately outside the widget.
+
+If an asset is too large, scale it down.
+
+--------------------------------------------------
+4. USE RESTRAINT
+--------------------------------------------------
+
+Do NOT use every uploaded asset simultaneously.
+
+Start with approximately 1 decorative composition per widget.
+
+A composition can contain one asset or a very small combination of complementary assets.
+
+For example:
+
+Notepad:
+one Sakura branch or flower cluster along a corner/top edge.
+
+Clock:
+one small floral element or cat interacting with an edge.
+
+Calendar:
+one appropriate branch/cat/lantern arrangement.
+
+Do not cover every edge.
+
+Leave negative space.
+
+The decorations should make someone notice the details gradually rather than immediately overwhelm the interface.
+
+--------------------------------------------------
+5. ATTACH DECORATIONS TO WIDGETS
+--------------------------------------------------
+
+Decorations must belong to their widget container.
+
+If the user drags a widget:
+the decorations move WITH the widget.
+
+If the user resizes a widget:
+the decorations remain attached to the correct edge/corner.
+
+If the widget changes between compact and expanded states:
+the decoration should remain visually appropriate.
+
+Do not position these assets using fixed coordinates relative to the entire Home page.
+
+Position them relative to their widget.
+
+For example, use a structure conceptually similar to:
+
+Widget
+ ├ Content
+ └ Decoration Layer
+      ├ top-left decoration
+      ├ top-right decoration
+      ├ bottom-left decoration
+      └ etc.
+
+The decorative layer should use pointer-events: none so it never interferes with widget interaction.
+
+--------------------------------------------------
+6. ALLOW DECORATIONS TO OVERHANG
+--------------------------------------------------
+
+Decorations should be allowed to extend slightly OUTSIDE the widget boundary.
+
+Do not clip them unnecessarily.
+
+For example, a flower positioned on the top-left corner might be:
+
+50% inside the widget
+50% outside the widget
+
+A cat could appear to rest directly on the top border.
+
+A branch could extend beyond the side.
+
+Use overflow behavior that allows this where appropriate.
+
+The effect should make the decorations feel physically attached to the widgets rather than printed inside them.
+
+--------------------------------------------------
+7. PRESERVE PIXEL ART
+--------------------------------------------------
+
+These are pixel-art PNG assets.
+
+Keep them crisp.
+
+Do not blur them.
+
+Do not apply smoothing effects that destroy the pixel-art appearance.
+
+Preserve their aspect ratios.
+
+Never stretch an asset disproportionately.
+
+--------------------------------------------------
+8. RESPONSIVE SCALING
+--------------------------------------------------
+
+Decorations should scale within sensible limits based on widget size.
+
+Do NOT allow a tiny widget to retain an enormous decoration.
+
+Use reasonable minimum/maximum sizes.
+
+If a widget becomes too small for a particular decoration, either:
+
+- use a smaller version/scaling
+or
+- temporarily hide that decoration
+
+rather than covering the widget's content.
+
+--------------------------------------------------
+9. SAKURA ONLY
+--------------------------------------------------
+
+These decorations must ONLY appear when Sakura is equipped.
+
+Switching back to Default should remove all Sakura decorative assets immediately.
+
+Switching back to Sakura should restore them.
+
+Do not change saved widget content or layout when switching skins.
+
+--------------------------------------------------
+10. DO NOT CHANGE THE CURRENT SAKURA ENVIRONMENT
+--------------------------------------------------
+
+The current full-bleed Sakura Home background is correct.
+
+DO NOT change:
+
+- background sizing
+- background positioning
+- sidebar
+- widget dragging
+- widget resizing
+- snapping
+- saved widget positions
+- current Sakura colors
+- navigation
+- Profile
+- Store
+- Library
+- Settings
+
+This task is specifically about adding the uploaded transparent decorative PNG assets to Sakura widgets.
+
+--------------------------------------------------
+11. FIRST PASS DESIGN GOAL
+--------------------------------------------------
+
+Make the first pass tasteful rather than elaborate.
+
+I would rather have:
+
+3 beautifully placed decorations
+
+than:
+
+15 decorations covering everything.
+
+Use the artwork itself as inspiration for placement.
+
+The widgets should feel like little physical objects that exist INSIDE the Sakura cubby.
+
+Flowers might grow around them.
+Cats might sit on them.
+Branches might rest across their edges.
+Lanterns might hang from them.
+
+But the widgets must remain clearly functional UI.
+
+--------------------------------------------------
+12. VERIFY
+--------------------------------------------------
+
+Before finishing, verify:
+
+1. Decorations only appear with Sakura equipped.
+2. Default skin remains unchanged.
+3. Decorations have transparent backgrounds.
+4. Decorations move with widgets.
+5. Decorations remain attached while resizing.
+6. Decorations do not block mouse input.
+7. Decorations do not cover important widget content.
+8. Pixel artwork remains crisp.
+9. Assets maintain their original proportions.
+10. Widget persistence still works.
+11. Calendar still works.
+12. Notepad still works.
+13. Clock still works.
+14. Edit Layout still works.
+15. Sakura full-bleed background remains unchanged.
+
+Do not add unrelated features.
