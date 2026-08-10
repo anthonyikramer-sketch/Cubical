@@ -40,7 +40,7 @@ import {
   X,
   Zap,
 } from 'lucide-react';
-import { Link, Route, Switch, useLocation } from 'wouter';
+import { Link, Route, Router, Switch, useLocation } from 'wouter';
 
 // ─── Product catalog ──────────────────────────────────────────────────────────
 
@@ -2000,12 +2000,31 @@ function NotFound() {
   return <section className="placeholder-page"><div className="eyebrow">Shelf / missing</div><h1 className="display-title mt-4">That page wandered off.</h1><div className="mt-8"><Link href="/store" className="button-primary" data-testid="link-not-found-store">Back to store <ArrowRight /></Link></div></section>;
 }
 
+// ─── Hash location hook ───────────────────────────────────────────────────────
+// Inline implementation — avoids importing from the wouter/use-hash-location
+// sub-path which triggers Vite HMR deduplication issues. Works identically in
+// the web browser and in Electron (file:// URLs where path routing breaks).
+
+function useHashLocation(): [string, (to: string, opts?: { replace?: boolean }) => void] {
+  const getPath = () => decodeURIComponent(window.location.hash.replace(/^#/, '')) || '/';
+  const [path, setPath] = useState(getPath);
+  useEffect(() => {
+    const handler = () => setPath(getPath());
+    window.addEventListener('hashchange', handler);
+    return () => window.removeEventListener('hashchange', handler);
+  }, []);
+  const navigate = (to: string, { replace = false } = {}) => {
+    if (replace) window.history.replaceState(null, '', '#' + to);
+    else window.location.hash = to;
+  };
+  return [path, navigate];
+}
+
 // ─── Root app ─────────────────────────────────────────────────────────────────
 
 function App() {
   const [libraryIds, setLibraryIds] = useState<string[]>(getStoredLibrary);
   const [toast, setToast]           = useState<string | null>(null);
-  const [, setLocation]             = useLocation();
   const libraryProducts = useMemo(() => PRODUCTS.filter((product) => libraryIds.includes(product.id)), [libraryIds]);
 
   useEffect(() => { storeLibrary(libraryIds); }, [libraryIds]);
@@ -2017,30 +2036,37 @@ function App() {
   };
   const openProduct = (product: Product) => {
     const toolRoute = getToolRoute(product);
-    if (toolRoute) { setLocation(toolRoute); return; }
+    if (toolRoute) { window.location.hash = toolRoute; return; }
     setToast(`${product.name} would launch here`);
   };
 
+  // useHashLocation makes all routes use hash-based URLs (e.g. /#/store).
+  // This is required for Electron, which loads the app as a file:// URL where
+  // path-based routing would 404. It also works identically in the web browser.
+  // All existing useLocation() calls, CRUMB_MAP keys, and isActive() checks are
+  // unaffected — useHashLocation returns the path portion without the '#'.
   return (
-    <AppShell libraryCount={libraryProducts.length}>
-      <Switch>
-        <Route path="/"><HomePage /></Route>
-        <Route path="/store"><StorePage /></Route>
-        <Route path="/product/:id">{(params) => {
-          const product = PRODUCTS.find((item) => item.id === params.id);
-          if (!product) return <NotFound />;
-          return <ProductDetail product={product} isAdded={libraryIds.includes(product.id)} onAdd={() => addToLibrary(product)} onOpen={() => openProduct(product)} />;
-        }}</Route>
-        <Route path="/library"><LibraryPage products={libraryProducts} onOpen={openProduct} /></Route>
-        <Route path="/breakroom"><BreakroomPage /></Route>
-        <Route path="/tool/bulk-file-renamer"><BulkFileRenamer /></Route>
-        <Route path="/tool/spreadsheet-cleaner"><SpreadsheetCleaner /></Route>
-        <Route path="/profile"><PlaceholderPage type="profile" /></Route>
-        <Route path="/settings"><PlaceholderPage type="settings" /></Route>
-        <Route><NotFound /></Route>
-      </Switch>
-      {toast && <div className="toast-message" role="status" data-testid="status-toast"><Check /> {toast}</div>}
-    </AppShell>
+    <Router hook={useHashLocation}>
+      <AppShell libraryCount={libraryProducts.length}>
+        <Switch>
+          <Route path="/"><HomePage /></Route>
+          <Route path="/store"><StorePage /></Route>
+          <Route path="/product/:id">{(params) => {
+            const product = PRODUCTS.find((item) => item.id === params.id);
+            if (!product) return <NotFound />;
+            return <ProductDetail product={product} isAdded={libraryIds.includes(product.id)} onAdd={() => addToLibrary(product)} onOpen={() => openProduct(product)} />;
+          }}</Route>
+          <Route path="/library"><LibraryPage products={libraryProducts} onOpen={openProduct} /></Route>
+          <Route path="/breakroom"><BreakroomPage /></Route>
+          <Route path="/tool/bulk-file-renamer"><BulkFileRenamer /></Route>
+          <Route path="/tool/spreadsheet-cleaner"><SpreadsheetCleaner /></Route>
+          <Route path="/profile"><PlaceholderPage type="profile" /></Route>
+          <Route path="/settings"><PlaceholderPage type="settings" /></Route>
+          <Route><NotFound /></Route>
+        </Switch>
+        {toast && <div className="toast-message" role="status" data-testid="status-toast"><Check /> {toast}</div>}
+      </AppShell>
+    </Router>
   );
 }
 

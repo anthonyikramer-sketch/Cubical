@@ -1,13 +1,48 @@
 {
   "name": "@workspace/cubical",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
+  "main": "electron/main.cjs",
   "scripts": {
     "dev": "vite --config vite.config.ts --host 0.0.0.0",
     "build": "vite build --config vite.config.ts",
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "electron:dev": "ELECTRON_DEV=true electron .",
+    "electron:build": "vite build --config vite.config.ts",
+    "electron:dist": "npm run electron:build && electron-builder --win",
+    "electron:dist:nsis": "npm run electron:build && electron-builder --win nsis",
+    "electron:dist:portable": "npm run electron:build && electron-builder --win portable"
+  },
+  "build": {
+    "appId": "com.cubical.desktop",
+    "productName": "Cubical",
+    "copyright": "Copyright © 2025 Cubical",
+    "directories": {
+      "output": "dist/installer",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/public/**",
+      "electron/**",
+      "build/icon.ico"
+    ],
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Cubical"
+    }
   },
   "devDependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -51,6 +86,8 @@
     "@workspace/api-client-react": "workspace:*",
     "class-variance-authority": "catalog:",
     "clsx": "catalog:",
+    "electron": "^33.0.2",
+    "electron-builder": "^25.1.8",
     "cmdk": "^1.1.1",
     "date-fns": "^3.6.0",
     "embla-carousel-react": "^8.6.0",
