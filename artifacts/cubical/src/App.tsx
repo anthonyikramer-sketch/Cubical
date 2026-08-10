@@ -6346,16 +6346,26 @@ function mimeCategory(type: string) {
 }
 
 function FileInspector() {
-  const [entry,   setEntry]   = useState<ToolboxEntry | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [copied,  setCopied]  = useState<string | null>(null);
-  const [imgSrc,  setImgSrc]  = useState<string | null>(null);
+  const [entry,    setEntry]    = useState<ToolboxEntry | null>(null);
+  const [loading,  setLoading]  = useState(false);
+  const [copied,   setCopied]   = useState<string | null>(null);
+  const [imgSrc,   setImgSrc]   = useState<string | null>(null);
+  const [mediaUrl, setMediaUrl] = useState<string | null>(null);
+
+  const clearMedia = () => {
+    if (mediaUrl) { URL.revokeObjectURL(mediaUrl); setMediaUrl(null); }
+    if (imgSrc)   { URL.revokeObjectURL(imgSrc);   setImgSrc(null);   }
+  };
 
   const loadFile = async (file: File) => {
+    clearMedia();
     setLoading(true);
-    setImgSrc(null);
     const built = await buildToolboxEntry(file);
-    if (built.dims) setImgSrc(URL.createObjectURL(file));
+    if (built.dims) {
+      setImgSrc(URL.createObjectURL(file));
+    } else if (file.type.startsWith('video/') || file.type.startsWith('audio/')) {
+      setMediaUrl(URL.createObjectURL(file));
+    }
     setEntry(built);
     setLoading(false);
   };
@@ -6365,6 +6375,8 @@ function FileInspector() {
   };
 
   const ext = entry ? (entry.file.name.includes('.') ? `.${entry.file.name.split('.').pop()}` : '—') : '';
+  const isVideo = entry?.file.type.startsWith('video/');
+  const isAudio = entry?.file.type.startsWith('audio/');
 
   return (
     <section className="renamer-page" data-testid="file-inspector">
@@ -6413,10 +6425,28 @@ function FileInspector() {
               {entry.mediaCodec && (<><span className="toolbox-info-label">Codec</span><span className="toolbox-info-value">{entry.mediaCodec}</span></>)}
               {entry.hash && (<><span className="toolbox-info-label">SHA-256</span><span className="toolbox-info-value toolbox-hash">{entry.hash}</span></>)}
             </div>
+            {mediaUrl && isVideo && (
+              <video
+                key={mediaUrl}
+                src={mediaUrl}
+                controls
+                className="inspector-media-player"
+                style={{ width: '100%', maxHeight: 360, borderRadius: 8, marginTop: 12, background: '#000' }}
+              />
+            )}
+            {mediaUrl && isAudio && (
+              <audio
+                key={mediaUrl}
+                src={mediaUrl}
+                controls
+                className="inspector-media-player"
+                style={{ width: '100%', marginTop: 12 }}
+              />
+            )}
             <div className="toolbox-actions">
               <button type="button" className="button-quiet" onClick={() => copyText(entry.file.name, 'name')}><ClipboardCopy /> {copied === 'name' ? 'Copied!' : 'Copy filename'}</button>
               {entry.hash && <button type="button" className="button-quiet" onClick={() => copyText(entry.hash!, 'hash')}><ClipboardCopy /> {copied === 'hash' ? 'Copied!' : 'Copy SHA-256'}</button>}
-              <button type="button" className="button-quiet" onClick={() => { setEntry(null); setCopied(null); setImgSrc(null); }}>Inspect another file</button>
+              <button type="button" className="button-quiet" onClick={() => { setEntry(null); setCopied(null); clearMedia(); }}>Inspect another file</button>
             </div>
           </div>
         )}
