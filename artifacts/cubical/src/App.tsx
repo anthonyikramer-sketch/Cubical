@@ -5827,7 +5827,14 @@ function ImageConverter() {
 
 // ─── File Toolbox ─────────────────────────────────────────────────────────────
 
-type ToolboxEntry = { file: File; hash: string | null; dims: { w: number; h: number } | null };
+type ToolboxEntry = {
+  file: File;
+  hash: string | null;
+  dims: { w: number; h: number } | null;
+  mediaDuration: number | null;
+  videoDims: { w: number; h: number } | null;
+  mediaCodec: string | null;
+};
 
 function formatFileBytes(n: number) {
   if (n < 1024) return `${n} B`;
@@ -5836,9 +5843,80 @@ function formatFileBytes(n: number) {
   return `${(n / 1024 ** 3).toFixed(2)} GB`;
 }
 
+async function detectMediaCodec(file: File): Promise<string | null> {
+  const mime = file.type;
+  // Formats where MIME type is conclusive
+  if (mime === 'audio/mpeg' || mime === 'audio/mp3') return 'MP3';
+  if (mime === 'audio/flac' || mime === 'audio/x-flac') return 'FLAC';
+  if (mime === 'audio/wav'  || mime === 'audio/x-wav') return 'PCM';
+  if (mime === 'audio/aac') return 'AAC';
+  try {
+    const buf   = await file.slice(0, 65536).arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    // Search for an ASCII tag sequence verbatim in binary data
+    function findSeq(tag: string): boolean {
+      const codes = Array.from(tag).map((c) => c.charCodeAt(0));
+      outer: for (let i = 0; i <= bytes.length - codes.length; i++) {
+        for (let j = 0; j < codes.length; j++) { if (bytes[i + j] !== codes[j]) continue outer; }
+        return true;
+      }
+      return false;
+    }
+    // MP4 / MOV / M4A — fourcc codec codes live in the stsd box
+    if (mime.includes('mp4') || mime === 'video/quicktime' || mime === 'audio/m4a' || mime === 'audio/x-m4a') {
+      if (findSeq('avc1') || findSeq('avc3')) return 'H.264';
+      if (findSeq('hvc1') || findSeq('hev1')) return 'H.265 / HEVC';
+      if (findSeq('av01')) return 'AV1';
+      if (findSeq('vp08')) return 'VP8';
+      if (findSeq('vp09')) return 'VP9';
+      if (findSeq('ap4h') || findSeq('apch') || findSeq('apcn') || findSeq('apco')) return 'Apple ProRes';
+      if (findSeq('mp4a')) return 'AAC';
+      return null;
+    }
+    // WebM / MKV — codec IDs stored as ASCII strings in the EBML structure
+    if (mime === 'video/webm' || mime === 'audio/webm' || mime === 'video/x-matroska' || mime === 'video/mkv') {
+      if (findSeq('V_AV1'))             return 'AV1';
+      if (findSeq('V_VP9'))             return 'VP9';
+      if (findSeq('V_VP8'))             return 'VP8';
+      if (findSeq('V_MPEG4/ISO/AVC'))   return 'H.264';
+      if (findSeq('V_MPEGH/ISO/HEVC'))  return 'H.265 / HEVC';
+      if (findSeq('A_OPUS'))            return 'Opus';
+      if (findSeq('A_VORBIS'))          return 'Vorbis';
+      if (findSeq('A_FLAC'))            return 'FLAC';
+      return null;
+    }
+    // OGG container — magic bytes near the start
+    if (mime === 'audio/ogg' || mime === 'video/ogg' || mime === 'audio/x-ogg') {
+      if (findSeq('OpusHead')) return 'Opus';
+      if (findSeq('vorbis'))   return 'Vorbis';
+      if (findSeq('fLaC'))     return 'FLAC';
+      return 'Vorbis';
+    }
+    // AVI container
+    if (mime === 'video/avi' || mime === 'video/x-msvideo') {
+      if (findSeq('xvid') || findSeq('XVID')) return 'Xvid';
+      if (findSeq('DIVX') || findSeq('divx')) return 'DivX';
+      if (findSeq('H264') || findSeq('avc1')) return 'H.264';
+      return 'MPEG-4';
+    }
+    return null;
+  } catch { return null; }
+}
+
+function formatDuration(secs: number): string {
+  if (!isFinite(secs) || secs < 0) return '—';
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = Math.floor(secs % 60);
+  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
 async function buildToolboxEntry(file: File): Promise<ToolboxEntry> {
   let hash: string | null = null;
   let dims: { w: number; h: number } | null = null;
+  let mediaDuration: number | null = null;
+  let videoDims: { w: number; h: number } | null = null;
   try {
     const buf    = await file.arrayBuffer();
     const digest = await crypto.subtle.digest('SHA-256', buf);
@@ -5852,8 +5930,30 @@ async function buildToolboxEntry(file: File): Promise<ToolboxEntry> {
       img.onerror = () => { URL.revokeObjectURL(url); res(null); };
       img.src = url;
     });
+  } else if (file.type.startsWith('video/') || file.type.startsWith('audio/')) {
+    const isVideo = file.type.startsWith('video/');
+    const url = URL.createObjectURL(file);
+    const result = await new Promise<{ duration: number; vw: number; vh: number } | null>((res) => {
+      const el = isVideo ? document.createElement('video') : document.createElement('audio');
+      el.preload = 'metadata';
+      el.onloadedmetadata = () => {
+        URL.revokeObjectURL(url);
+        const vw = isVideo ? (el as HTMLVideoElement).videoWidth  : 0;
+        const vh = isVideo ? (el as HTMLVideoElement).videoHeight : 0;
+        res({ duration: el.duration, vw, vh });
+      };
+      el.onerror = () => { URL.revokeObjectURL(url); res(null); };
+      el.src = url;
+    });
+    if (result !== null) {
+      mediaDuration = isFinite(result.duration) ? result.duration : null;
+      if (isVideo && result.vw > 0 && result.vh > 0) videoDims = { w: result.vw, h: result.vh };
+    }
   }
-  return { file, hash, dims };
+  const mediaCodec = (file.type.startsWith('video/') || file.type.startsWith('audio/'))
+    ? await detectMediaCodec(file)
+    : null;
+  return { file, hash, dims, mediaDuration, videoDims, mediaCodec };
 }
 
 function FileToolbox() {
@@ -5922,6 +6022,9 @@ function FileToolbox() {
               <span className="toolbox-info-label">Extension</span> <span className="toolbox-info-value">{ext}</span>
               <span className="toolbox-info-label">Modified</span>  <span className="toolbox-info-value">{new Date(entry.file.lastModified).toLocaleString()}</span>
               {entry.dims && (<><span className="toolbox-info-label">Dimensions</span><span className="toolbox-info-value">{entry.dims.w} × {entry.dims.h} px</span></>)}
+              {entry.videoDims && (<><span className="toolbox-info-label">Resolution</span><span className="toolbox-info-value">{entry.videoDims.w} × {entry.videoDims.h} px</span></>)}
+              {entry.mediaDuration !== null && (<><span className="toolbox-info-label">Duration</span><span className="toolbox-info-value">{formatDuration(entry.mediaDuration)}</span></>)}
+              {entry.mediaCodec && (<><span className="toolbox-info-label">Codec</span><span className="toolbox-info-value">{entry.mediaCodec}</span></>)}
               {entry.hash && (<><span className="toolbox-info-label">SHA-256</span><span className="toolbox-info-value toolbox-hash">{entry.hash}</span></>)}
             </div>
             <div className="toolbox-actions">
@@ -6071,6 +6174,9 @@ function FileInspector() {
               <span className="toolbox-info-label">Size</span>       <span className="toolbox-info-value">{formatFileBytes(entry.file.size)} ({entry.file.size.toLocaleString()} bytes)</span>
               <span className="toolbox-info-label">Modified</span>   <span className="toolbox-info-value">{new Date(entry.file.lastModified).toLocaleString()}</span>
               {entry.dims && (<><span className="toolbox-info-label">Dimensions</span><span className="toolbox-info-value">{entry.dims.w} × {entry.dims.h} px</span></>)}
+              {entry.videoDims && (<><span className="toolbox-info-label">Resolution</span><span className="toolbox-info-value">{entry.videoDims.w} × {entry.videoDims.h} px</span></>)}
+              {entry.mediaDuration !== null && (<><span className="toolbox-info-label">Duration</span><span className="toolbox-info-value">{formatDuration(entry.mediaDuration)}</span></>)}
+              {entry.mediaCodec && (<><span className="toolbox-info-label">Codec</span><span className="toolbox-info-value">{entry.mediaCodec}</span></>)}
               {entry.hash && (<><span className="toolbox-info-label">SHA-256</span><span className="toolbox-info-value toolbox-hash">{entry.hash}</span></>)}
             </div>
             <div className="toolbox-actions">
