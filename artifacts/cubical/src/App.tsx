@@ -361,6 +361,7 @@ function AppShell({ children, libraryCount }: { children: ReactNode; libraryCoun
   sidebarPinnedRef.current  = sidebarPinned;
 
   const scheduleCollapse = () => {
+    if (window.innerWidth <= 800) return;
     if (sidebarPinnedRef.current || !readSettings().sidebarAutoCollapse) return;
     if (collapseTimerRef.current) clearTimeout(collapseTimerRef.current);
     collapseTimerRef.current = setTimeout(() => {
@@ -370,7 +371,19 @@ function AppShell({ children, libraryCount }: { children: ReactNode; libraryCoun
 
   useEffect(() => {
     scheduleCollapse();
-    return () => { if (collapseTimerRef.current) clearTimeout(collapseTimerRef.current); };
+
+    const handleResize = () => {
+      if (window.innerWidth <= 800) {
+        if (collapseTimerRef.current) clearTimeout(collapseTimerRef.current);
+        setSidebarCollapsed(false);
+      }
+    };
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      if (collapseTimerRef.current) clearTimeout(collapseTimerRef.current);
+      window.removeEventListener('resize', handleResize);
+    };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSidebarEnter = () => {
