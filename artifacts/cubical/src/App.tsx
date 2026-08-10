@@ -1875,9 +1875,17 @@ type DailyGamePhase = 'idle' | 'playing' | 'ended';
 
 const DAILY_GAME_ROTATION: DailyGameId[] = ['snake', 'memory'];
 
-function getTodayKey(): string {
-  const d = new Date();
+/**
+ * Converts a Date to the shared daily-key date segment: "YYYY-M-D" (no zero-padding).
+ * ALL localStorage keys for daily game plays must be built through this function so
+ * that write-side (getDailyPlayedKey) and read-side (streak loop) can never drift.
+ */
+function dateToKey(d: Date): string {
   return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+}
+
+function getTodayKey(): string {
+  return dateToKey(new Date());
 }
 
 /** Returns a YYYY-M-D string that updates automatically when the calendar date rolls over. */
@@ -1893,6 +1901,8 @@ function useTodayKey(): string {
   return todayKey;
 }
 
+/** Returns the localStorage key used to record that a game was played on a given day.
+ *  Pass a pre-built dateKey (from dateToKey / getTodayKey) or omit for today. */
 function getDailyPlayedKey(gameId: DailyGameId, dateKey?: string) {
   const key = dateKey ?? getTodayKey();
   return `cubical-breakroom-played-${gameId}-${key}`;
@@ -2642,9 +2652,9 @@ function BreakroomStatsPanel({ ownedGames, ownedCosmetics, equippedCosmetic, str
     const today = new Date();
     for (let i = 0; i < 90; i++) {
       const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - i);
-      const y = d.getFullYear(), m = d.getMonth() + 1, day = d.getDate();
-      const snakeKey  = `cubical-breakroom-played-snake-${y}-${m}-${day}`;
-      const memoryKey = `cubical-breakroom-played-memory-${y}-${m}-${day}`;
+      const dk = dateToKey(d);
+      const snakeKey  = getDailyPlayedKey('snake', dk);
+      const memoryKey = getDailyPlayedKey('memory', dk);
       try {
         const played = localStorage.getItem(snakeKey) === 'true' || localStorage.getItem(memoryKey) === 'true';
         if (played) { count++; }
