@@ -1543,6 +1543,7 @@ function NotepadWidget({ compact = false }: { compact?: boolean }) {
   const [confirmClear,   setConfirmClear]   = useState(false);
   const [importPending,  setImportPending]  = useState<string | null>(null);
   const [importedFile,   setImportedFile]   = useState<string | null>(null);
+  const [exportedFile,   setExportedFile]   = useState<string | null>(null);
   const importFileNameRef = useRef<string>('');
   // Increment to re-render toolbar active-states on every selection / transaction
   const [tick, setTick] = useState(0);
@@ -1646,6 +1647,8 @@ function NotepadWidget({ compact = false }: { compact?: boolean }) {
     a.download = 'notepad.txt';
     a.click();
     URL.revokeObjectURL(url);
+    setExportedFile('notepad.txt');
+    window.setTimeout(() => setExportedFile(null), 2000);
   };
 
   const exportHtml = () => {
@@ -1659,6 +1662,8 @@ function NotepadWidget({ compact = false }: { compact?: boolean }) {
     a.download = 'notepad.html';
     a.click();
     URL.revokeObjectURL(url);
+    setExportedFile('notepad.html');
+    window.setTimeout(() => setExportedFile(null), 2000);
   };
 
   const copyAll = async () => {
@@ -1885,6 +1890,12 @@ function NotepadWidget({ compact = false }: { compact?: boolean }) {
         <div className="toast-message" role="status">
           <Check />
           Imported {importedFile}
+        </div>
+      )}
+      {exportedFile && (
+        <div className="toast-message" role="status">
+          <Check />
+          Exported {exportedFile}
         </div>
       )}
     </div>
