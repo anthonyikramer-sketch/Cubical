@@ -313,12 +313,10 @@ function isEventArray(v: unknown): v is CalendarEvent[] {
 function getStoredEvents(): CalendarEvent[] { return readLocal(CALENDAR_STORAGE_KEY, [], isEventArray); }
 function storeEvents(events: CalendarEvent[]) { writeLocal(CALENDAR_STORAGE_KEY, events); }
 
-// ─── Grid layout system ───────────────────────────────────────────────────────
-
-const GRID_COLS = 12;
-const GRID_ROWS = 10;
-const GRID_GAP  = 10; // px
-const CELL_H    = 82; // px, fixed row height
+// ─── Widget layout system (pixel-based, free-floating) ─────────────────────────
+// LayoutItem.x/y are pixel offsets from the canvas top-left.
+// LayoutItem.w/h are pixel dimensions.
+// No grid, no snapping — widgets float freely and stop where released.
 
 type WidgetId = 'calendar' | 'clock' | 'notepad' | 'file-finder' | 'link-shelf' | 'decision-maker' | 'calculator';
 
@@ -334,31 +332,30 @@ const WIDGET_LABELS: Record<WidgetId, string> = {
   calculator:       'Calculator',
 };
 
+// Minimum pixel dimensions — below these a widget cannot be resized
 const WIDGET_MIN: Record<WidgetId, { w: number; h: number }> = {
-  calendar:         { w: 2, h: 2 },
-  clock:            { w: 2, h: 2 },
-  notepad:          { w: 2, h: 2 },
-  'file-finder':    { w: 2, h: 1 },
-  'link-shelf':     { w: 2, h: 2 },
-  'decision-maker': { w: 2, h: 2 },
-  calculator:       { w: 2, h: 3 },
+  calendar:         { w: 280, h: 280 },
+  clock:            { w: 220, h: 180 },
+  notepad:          { w: 220, h: 160 },
+  'file-finder':    { w: 220, h: 120 },
+  'link-shelf':     { w: 220, h: 180 },
+  'decision-maker': { w: 220, h: 180 },
+  calculator:       { w: 180, h: 280 },
 };
 
 // Portable widgets can be dragged from Home to other pages
 const PORTABLE_WIDGETS = new Set<WidgetId>(['notepad', 'calendar', 'link-shelf', 'decision-maker', 'calculator']);
 
+// Default pixel layout — sized for a ~970 px wide canvas (1280 px viewport, expanded sidebar).
 const DEFAULT_LAYOUT: LayoutItem[] = [
-  { id: 'calendar', x: 0, y: 0, w: 7, h: 7 },
-  { id: 'clock',    x: 7, y: 0, w: 5, h: 3 },
-  { id: 'notepad',  x: 7, y: 3, w: 5, h: 5 },
+  { id: 'calendar', x: 0,   y: 0,   w: 560, h: 630 },
+  { id: 'clock',    x: 575, y: 0,   w: 390, h: 264 },
+  { id: 'notepad',  x: 575, y: 274, w: 390, h: 450 },
 ];
 
 // ── Widget registry ────────────────────────────────────────────────────────────
-// Single source of truth for manageable widgets. To add a future widget:
-// 1. Add its WidgetId to the type above.
-// 2. Register it here with its default size/position.
-// 3. Render it inside GridWidget's content switch.
-// The Add/Remove UI will pick it up automatically.
+// Single source of truth for manageable widgets. All sizes/positions are pixels.
+// To add a future widget: add WidgetId, register here, render in GridWidget.
 
 type WidgetDef = {
   id: WidgetId;
@@ -370,12 +367,12 @@ type WidgetDef = {
 };
 
 const WIDGET_REGISTRY: WidgetDef[] = [
-  { id: 'calendar',       label: 'Calendar',       defaultW: 7, defaultH: 7, defaultX: 0, defaultY: 0 },
-  { id: 'clock',          label: 'Clock',          defaultW: 5, defaultH: 3, defaultX: 7, defaultY: 0 },
-  { id: 'notepad',        label: 'Notepad',        defaultW: 5, defaultH: 5, defaultX: 7, defaultY: 3 },
-  { id: 'link-shelf',     label: 'Link Shelf',     defaultW: 5, defaultH: 3, defaultX: 0, defaultY: 7 },
-  { id: 'decision-maker', label: 'Decision Maker', defaultW: 4, defaultH: 4, defaultX: 5, defaultY: 7 },
-  { id: 'calculator',     label: 'Calculator',     defaultW: 3, defaultH: 5, defaultX: 9, defaultY: 5 },
+  { id: 'calendar',       label: 'Calendar',       defaultW: 560, defaultH: 630, defaultX: 0,   defaultY: 0   },
+  { id: 'clock',          label: 'Clock',          defaultW: 390, defaultH: 264, defaultX: 575, defaultY: 0   },
+  { id: 'notepad',        label: 'Notepad',        defaultW: 390, defaultH: 450, defaultX: 575, defaultY: 274 },
+  { id: 'link-shelf',     label: 'Link Shelf',     defaultW: 390, defaultH: 264, defaultX: 0,   defaultY: 644 },
+  { id: 'decision-maker', label: 'Decision Maker', defaultW: 310, defaultH: 360, defaultX: 400, defaultY: 644 },
+  { id: 'calculator',     label: 'Calculator',     defaultW: 240, defaultH: 450, defaultX: 720, defaultY: 274 },
 ];
 
 const DEFAULT_ACTIVE_WIDGETS: WidgetId[] = ['calendar', 'clock', 'notepad'];
@@ -407,47 +404,30 @@ function getStoredLayout(): LayoutItem[] {
     for (const id of ids) {
       const found = parsed.find((item: unknown) => item && typeof item === 'object' && (item as Record<string, unknown>).id === id);
       if (!found || typeof (found as Record<string, unknown>).x !== 'number') {
-        // Prefer a hard-coded default; fall back to registry entry so new widgets always get a slot
         const dflt = DEFAULT_LAYOUT.find((d) => d.id === id);
         if (dflt) { result.push(dflt); continue; }
         const reg = WIDGET_REGISTRY.find((r) => r.id === id);
-        if (!reg) continue; // file-finder and other non-registry widgets — skip
+        if (!reg) continue;
         result.push({ id, x: reg.defaultX, y: reg.defaultY, w: reg.defaultW, h: reg.defaultH });
         continue;
       }
       const f = found as Record<string, number>;
+      let x = f.x ?? 0, y = f.y ?? 0, w = f.w ?? 300, h = f.h ?? 300;
+      // Migrate old grid-unit values: grid w/h were always < 15; pixel values are >> 100
+      if (w < 100 && h < 100) {
+        const cw = 78, ch = 82, gap = 10;
+        x = Math.round(x * (cw + gap));
+        y = Math.round(y * (ch + gap));
+        w = Math.round(w * cw + Math.max(0, w - 1) * gap);
+        h = Math.round(h * ch + Math.max(0, h - 1) * gap);
+      }
       const min = WIDGET_MIN[id];
-      const w = Math.max(min.w, Math.min(GRID_COLS, f.w ?? min.w));
-      const h = Math.max(min.h, Math.min(GRID_ROWS, f.h ?? min.h));
-      result.push({
-        id,
-        x: Math.max(0, Math.min(GRID_COLS - w, f.x ?? 0)),
-        y: Math.max(0, Math.min(GRID_ROWS - h, f.y ?? 0)),
-        w,
-        h,
-      });
+      result.push({ id, x: Math.max(0, x), y: Math.max(0, y), w: Math.max(min.w, w), h: Math.max(min.h, h) });
     }
     return result;
   } catch { return DEFAULT_LAYOUT; }
 }
 function storeLayout(layout: LayoutItem[]) { writeLocal(LAYOUT_STORAGE_KEY, layout); }
-
-function rectsOverlap(a: LayoutItem, b: LayoutItem): boolean {
-  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
-}
-
-/** Find a non-overlapping grid position for `item` given a list of occupied items.
- *  Tries the item's current position first; scans row-by-row if it overlaps. */
-function findFreePosition(item: LayoutItem, occupied: LayoutItem[]): LayoutItem {
-  if (!occupied.some((o) => rectsOverlap(item, o))) return item;
-  for (let y = 0; y <= GRID_ROWS - item.h; y++) {
-    for (let x = 0; x <= GRID_COLS - item.w; x++) {
-      const candidate = { ...item, x, y };
-      if (!occupied.some((o) => rectsOverlap(candidate, o))) return candidate;
-    }
-  }
-  return item; // fallback: original position
-}
 
 // ─── Portable widget system ───────────────────────────────────────────────────
 
@@ -639,8 +619,8 @@ function AppShell({ children, libraryCount }: { children: ReactNode; libraryCoun
     }
   };
 
-  // Drop-target pages for portable drag (exclude Home — widgets live there)
-  const portableDropPages = ['/store', '/library', '/breakroom', '/profile', '/settings'];
+  // Drop-target pages for portable drag (store, library, breakroom only — not profile/settings)
+  const portableDropPages = ['/store', '/library', '/breakroom'];
 
   const navItems = [
     { href: '/',          label: 'Home',      icon: House       },
@@ -771,6 +751,7 @@ function StorePage() {
         <h1 className="display-title mt-4">Tools worth<br /><em className="not-italic" style={{ color: 'hsl(var(--primary))' }}>keeping around.</em></h1>
         <p>Browse focused desktop tools made to do one thing well. Pick the ones that feel like you.</p>
       </div>
+      <DisplacedWidgetBand />
       <div className="mb-5 flex items-center justify-between">
         <span className="eyebrow" style={{ color: 'hsl(var(--muted-foreground))' }}>The current edit</span>
         <span className="library-count">06 tools · no noise</span>
@@ -800,6 +781,7 @@ function ProductDetail({ product, isAdded, onAdd, onOpen }: { product: Product; 
   return (
     <section>
       <Link href="/store" className="detail-back" data-testid="link-back-store"><ArrowLeft /> Back to store</Link>
+      <DisplacedWidgetBand />
       <div className="detail-layout">
         <div className="detail-copy">
           <ProductIcon product={product} size="large" />
@@ -849,6 +831,7 @@ function LibraryPage({ products, onOpen }: { products: Product[]; onOpen: (produ
         </div>
         <span className="library-count" data-testid="text-library-count">{String(products.length).padStart(2, '0')} saved</span>
       </div>
+      <DisplacedWidgetBand />
       {products.length === 0 ? <EmptyLibrary /> : (
         <div className="library-list" data-testid="library-list">
           {products.map((product, index) => {
@@ -1925,39 +1908,35 @@ function SakuraWidgetDecoration({ widgetId }: { widgetId: WidgetId }) {
 }
 
 function GridWidget({
-  item, cellW, isEditing, isActive, isConflict,
+  item, isEditing, isActive,
   onDragStart, onResizeStart, onRemoveWidget,
 }: {
   item: LayoutItem;
-  cellW: number;
   isEditing: boolean;
   isActive: boolean;
-  isConflict: boolean;
   onDragStart: (e: React.PointerEvent) => void;
   onResizeStart: (e: React.PointerEvent) => void;
   onRemoveWidget?: (id: WidgetId) => void;
 }) {
-  const left   = item.x * (cellW + GRID_GAP);
-  const top    = item.y * (CELL_H + GRID_GAP);
-  const width  = item.w * cellW + (item.w - 1) * GRID_GAP;
-  const height = item.h * CELL_H + (item.h - 1) * GRID_GAP;
+  // Convert pixel dimensions to approximate grid units for widget display logic
+  const approxGridW = Math.max(1, Math.round(item.w / 82));
+  const approxGridH = Math.max(1, Math.round(item.h / 92));
   const isSakura = readEquippedSkin() === 'sakura';
-  // Only show remove button for registry-managed widgets (not file-finder)
   const canRemove = isEditing && onRemoveWidget && WIDGET_REGISTRY.some((w) => w.id === item.id);
 
   return (
-    // Outer wrapper: carries position + allows decorations to overhang
+    // Outer wrapper: pixel position; overflow:visible lets decorations overhang.
+    // Transition eases boundary-correction settle; disabled while dragging (is-active-outer).
     <div
       className={`grid-widget-outer${isActive ? ' is-active-outer' : ''}`}
-      style={{ left, top, width, height }}
+      style={{ left: item.x, top: item.y, width: item.w, height: item.h }}
       data-testid={`grid-widget-${item.id}`}
     >
       {/* Visual card — keeps overflow: hidden for its own rounded corners */}
       <div
-        className={`grid-widget${isEditing ? ' is-editable' : ''}${isActive ? ' is-active' : ''}${isConflict ? ' is-conflict' : ''}`}
+        className={`grid-widget${isEditing ? ' is-editable' : ''}${isActive ? ' is-active' : ''}`}
         onPointerDown={isEditing ? onDragStart : undefined}
       >
-        {/* Edit-mode drag indicator badge */}
         {isEditing && (
           <div className="widget-edit-badge" aria-hidden>
             <GripHorizontal />
@@ -1965,18 +1944,16 @@ function GridWidget({
           </div>
         )}
 
-        {/* Widget content */}
         <div className={`grid-widget-content${isEditing ? ' is-locked' : ''}`}>
-          {item.id === 'calendar'       && <CalendarWidget gridW={item.w} gridH={item.h} />}
-          {item.id === 'clock'          && <ClockWidget gridH={item.h} />}
-          {item.id === 'notepad'        && <NotepadWidget compact={item.h <= 2} />}
-          {item.id === 'file-finder'    && <FileFinderWidget gridW={item.w} gridH={item.h} />}
-          {item.id === 'link-shelf'     && <LinkShelfWidget gridW={item.w} gridH={item.h} />}
-          {item.id === 'decision-maker' && <DecisionMakerWidget gridW={item.w} gridH={item.h} />}
+          {item.id === 'calendar'       && <CalendarWidget gridW={approxGridW} gridH={approxGridH} />}
+          {item.id === 'clock'          && <ClockWidget gridH={approxGridH} />}
+          {item.id === 'notepad'        && <NotepadWidget compact={item.h < 300} />}
+          {item.id === 'file-finder'    && <FileFinderWidget gridW={approxGridW} gridH={approxGridH} />}
+          {item.id === 'link-shelf'     && <LinkShelfWidget gridW={approxGridW} gridH={approxGridH} />}
+          {item.id === 'decision-maker' && <DecisionMakerWidget gridW={approxGridW} gridH={approxGridH} />}
           {item.id === 'calculator'     && <CalculatorWidget />}
         </div>
 
-        {/* Remove (×) button — top-right, edit mode only, only for managed widgets */}
         {canRemove && (
           <button
             type="button"
@@ -1989,7 +1966,6 @@ function GridWidget({
           </button>
         )}
 
-        {/* Resize handle */}
         {isEditing && (
           <div
             className="widget-resize-handle"
@@ -1999,7 +1975,6 @@ function GridWidget({
         )}
       </div>
 
-      {/* Sakura decoration layer — only with Sakura skin, above the card */}
       {isSakura && <SakuraWidgetDecoration widgetId={item.id} />}
     </div>
   );
@@ -2069,59 +2044,28 @@ function HomeWorkspace({
   onRemoveWidget: (id: WidgetId) => void;
 }) {
   const containerRef  = useRef<HTMLDivElement>(null);
-  const cellWRef      = useRef(76);
+  const canvasWRef    = useRef(950);
   const activeItemRef = useRef<LayoutItem | null>(null);
-  const isConflictRef = useRef(false);
 
-  const [cellW, setCellW]           = useState(76);
   const [layout, setLayout]         = useState<LayoutItem[]>(() => getStoredLayout());
   const [activeItem, setActiveItem] = useState<LayoutItem | null>(null);
   const [activeMode, setActiveMode] = useState<'drag' | 'resize' | null>(null);
-  const [isConflict, setIsConflict] = useState(false);
 
   const { setDragId, hoverPageRef, displace } = usePortable();
   const [, navigate] = useLocation();
 
-  // Measure container width and keep cellW in sync
+  // Track canvas pixel width for boundary correction on drag/resize release
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    const measure = () => {
-      const w = el.getBoundingClientRect().width;
-      const cw = Math.max(40, Math.floor((w - (GRID_COLS - 1) * GRID_GAP) / GRID_COLS));
-      setCellW(cw);
-      cellWRef.current = cw;
-    };
+    const measure = () => { canvasWRef.current = el.getBoundingClientRect().width || 950; };
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
 
-  // When activeWidgets gains a new member, ensure its saved position doesn't
-  // overlap currently visible widgets; reposition if needed.
-  useEffect(() => {
-    setLayout((prev) => {
-      let changed = false;
-      const next = prev.map((item) => {
-        if (!activeWidgets.includes(item.id)) return item;
-        const others = prev.filter(
-          (o) => o.id !== item.id && activeWidgets.includes(o.id),
-        );
-        const placed = findFreePosition(item, others);
-        if (placed === item) return item;
-        changed = true;
-        return placed;
-      });
-      if (changed) { storeLayout(next); return next; }
-      return prev;
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeWidgets]);
-
-  const workspaceH = GRID_ROWS * CELL_H + (GRID_ROWS - 1) * GRID_GAP;
-
-  // Display only active widgets; show activeItem at its preview position
+  // Display only active widgets; show activeItem at its live preview position
   const displayLayout = layout
     .filter((item) => activeWidgets.includes(item.id))
     .map((item) => (activeItem?.id === item.id ? activeItem : item));
@@ -2133,55 +2077,41 @@ function HomeWorkspace({
     e.preventDefault();
     e.stopPropagation();
 
-    const currentLayout = layout;
-    const activeLayout = currentLayout.filter((l) => activeWidgets.includes(l.id));
-    const item = currentLayout.find((l) => l.id === id)!;
-    const { x: origX, y: origY } = item;
-    const startMX = e.clientX;
-    const startMY = e.clientY;
+    const item = layout.find((l) => l.id === id)!;
+    const origX = item.x, origY = item.y;
+    const startMX = e.clientX, startMY = e.clientY;
     const isPortable = PORTABLE_WIDGETS.has(id);
     let isInSidebarZone = false;
 
-    const preview = { ...item };
-    setActiveItem(preview);
-    activeItemRef.current = preview;
+    setActiveItem({ ...item });
+    activeItemRef.current = { ...item };
     setActiveMode('drag');
-    setIsConflict(false);
-    isConflictRef.current = false;
 
     const onMove = (ev: PointerEvent) => {
-      const cw = cellWRef.current;
       const containerLeft = containerRef.current?.getBoundingClientRect().left ?? 0;
 
-      // Portable drag: detect pointer entering sidebar zone (left of container)
-      if (isPortable && ev.clientX < containerLeft - 20) {
+      // Portable drag: pointer entering sidebar zone triggers drop-target highlights
+      if (isPortable && ev.clientX < containerLeft) {
         if (!isInSidebarZone) { isInSidebarZone = true; setDragId(id); }
-        return;
-      } else if (isInSidebarZone) {
-        isInSidebarZone = false;
-        setDragId(null);
+        return; // freeze widget position while hovering sidebar
       }
+      if (isInSidebarZone) { isInSidebarZone = false; setDragId(null); }
 
-      const dx = Math.round((ev.clientX - startMX) / (cw + GRID_GAP));
-      const dy = Math.round((ev.clientY - startMY) / (CELL_H + GRID_GAP));
+      // Free pixel movement — no grid snap
       const proposed: LayoutItem = {
         ...item,
-        x: Math.max(0, Math.min(GRID_COLS - item.w, origX + dx)),
-        y: Math.max(0, Math.min(GRID_ROWS - item.h, origY + dy)),
+        x: origX + (ev.clientX - startMX),
+        y: origY + (ev.clientY - startMY),
       };
-      const conflict = activeLayout.some((other) => other.id !== id && rectsOverlap(proposed, other));
       setActiveItem(proposed);
       activeItemRef.current = proposed;
-      setIsConflict(conflict);
-      isConflictRef.current = conflict;
     };
 
     const onUp = () => {
       document.removeEventListener('pointermove', onMove);
       document.removeEventListener('pointerup', onUp);
 
-      // If portable drag ended over a sidebar page, displace the widget and navigate.
-      // Read hoverPageRef.current (not the stale closure value) to get the live target.
+      // Portable drop: displace into sidebar destination and navigate
       const dropPage = isInSidebarZone ? hoverPageRef.current : null;
       if (dropPage) {
         displace(id, dropPage);
@@ -2190,26 +2120,25 @@ function HomeWorkspace({
         setActiveItem(null);
         activeItemRef.current = null;
         setActiveMode(null);
-        setIsConflict(false);
-        isConflictRef.current = false;
         return;
       }
 
       setDragId(null);
-      const finalItem    = activeItemRef.current;
-      const finalConflict = isConflictRef.current;
-      if (finalItem && !finalConflict) {
-        setLayout((prev) => {
-          const next = prev.map((l) => (l.id === finalItem.id ? finalItem : l));
-          storeLayout(next);
-          return next;
-        });
+      const finalItem = activeItemRef.current;
+      if (finalItem) {
+        const cw = canvasWRef.current;
+        // Boundary correction: keep widget within canvas horizontally;
+        // allow vertical overflow (widgets stay accessible via scroll).
+        const corrected: LayoutItem = {
+          ...finalItem,
+          x: Math.max(0, Math.min(cw - finalItem.w, finalItem.x)),
+          y: Math.max(0, finalItem.y),
+        };
+        setLayout((prev) => { const next = prev.map((l) => (l.id === corrected.id ? corrected : l)); storeLayout(next); return next; });
       }
       setActiveItem(null);
       activeItemRef.current = null;
       setActiveMode(null);
-      setIsConflict(false);
-      isConflictRef.current = false;
     };
 
     document.addEventListener('pointermove', onMove);
@@ -2223,51 +2152,36 @@ function HomeWorkspace({
     e.preventDefault();
     e.stopPropagation();
 
-    const currentLayout = layout;
-    const activeLayout = currentLayout.filter((l) => activeWidgets.includes(l.id));
-    const item = currentLayout.find((l) => l.id === id)!;
-    const { w: origW, h: origH, x, y } = item;
-    const startMX = e.clientX;
-    const startMY = e.clientY;
+    const item = layout.find((l) => l.id === id)!;
+    const origW = item.w, origH = item.h;
+    const startMX = e.clientX, startMY = e.clientY;
     const min = WIDGET_MIN[id];
 
     setActiveItem({ ...item });
     activeItemRef.current = { ...item };
     setActiveMode('resize');
-    setIsConflict(false);
-    isConflictRef.current = false;
 
     const onMove = (ev: PointerEvent) => {
-      const cw = cellWRef.current;
-      const dx = Math.round((ev.clientX - startMX) / (cw + GRID_GAP));
-      const dy = Math.round((ev.clientY - startMY) / (CELL_H + GRID_GAP));
-      const newW = Math.max(min.w, Math.min(GRID_COLS - x, origW + dx));
-      const newH = Math.max(min.h, Math.min(GRID_ROWS - y, origH + dy));
+      const cw = canvasWRef.current;
+      const dx = ev.clientX - startMX;
+      const dy = ev.clientY - startMY;
+      const newW = Math.max(min.w, Math.min(cw - item.x, origW + dx));
+      const newH = Math.max(min.h, origH + dy);
       const proposed: LayoutItem = { ...item, w: newW, h: newH };
-      const conflict = activeLayout.some((other) => other.id !== id && rectsOverlap(proposed, other));
       setActiveItem(proposed);
       activeItemRef.current = proposed;
-      setIsConflict(conflict);
-      isConflictRef.current = conflict;
     };
 
     const onUp = () => {
       document.removeEventListener('pointermove', onMove);
       document.removeEventListener('pointerup', onUp);
-      const finalItem    = activeItemRef.current;
-      const finalConflict = isConflictRef.current;
-      if (finalItem && !finalConflict) {
-        setLayout((prev) => {
-          const next = prev.map((l) => (l.id === finalItem.id ? finalItem : l));
-          storeLayout(next);
-          return next;
-        });
+      const finalItem = activeItemRef.current;
+      if (finalItem) {
+        setLayout((prev) => { const next = prev.map((l) => (l.id === finalItem.id ? finalItem : l)); storeLayout(next); return next; });
       }
       setActiveItem(null);
       activeItemRef.current = null;
       setActiveMode(null);
-      setIsConflict(false);
-      isConflictRef.current = false;
     };
 
     document.addEventListener('pointermove', onMove);
@@ -2278,20 +2192,16 @@ function HomeWorkspace({
     <div
       ref={containerRef}
       className={`home-workspace${isEditing ? ' is-editing' : ''}`}
-      style={{ height: workspaceH }}
       data-testid="home-workspace"
     >
       {displayLayout.map((item) => {
-        const isActive     = activeItem?.id === item.id && activeMode !== null;
-        const showConflict = isActive && isConflict;
+        const isActive = activeItem?.id === item.id && activeMode !== null;
         return (
           <GridWidget
             key={item.id}
             item={item}
-            cellW={cellW}
             isEditing={isEditing}
             isActive={isActive}
-            isConflict={showConflict}
             onDragStart={(e) => startDrag(item.id, e)}
             onResizeStart={(e) => startResize(item.id, e)}
             onRemoveWidget={onRemoveWidget}
@@ -2439,34 +2349,39 @@ function HomePage() {
 
 // ─── Portable Widget Float ─────────────────────────────────────────────────────
 
-function PortableWidgetFloat() {
+// ─── Displaced widget band ─────────────────────────────────────────────────────
+// Appears inline below the page title in destination sections.
+// Section matching: /store covers store + product/* routes;
+//   /library covers library + tool/* routes; /breakroom is exact.
+
+function isSectionMatch(location: string, page: string): boolean {
+  if (page === '/store')     return location === '/store' || location.startsWith('/product/');
+  if (page === '/library')   return location === '/library' || location.startsWith('/tool/');
+  if (page === '/breakroom') return location === '/breakroom';
+  return false;
+}
+
+function DisplacedWidgetBand() {
   const [location] = useLocation();
   const { displaced, recall } = usePortable();
 
-  // Only show on non-Home pages
-  if (location === '/') return null;
-
-  const pageWidgets = displaced.filter((d) => d.page === location);
-  if (pageWidgets.length === 0) return null;
+  const bandWidgets = displaced.filter((d) => isSectionMatch(location, d.page));
+  if (bandWidgets.length === 0) return null;
 
   return (
-    <div className="portable-float">
-      {pageWidgets.map((d) => (
-        <div key={d.id} className="portable-float-card">
-          <div className="portable-float-header">
-            <span className="portable-float-label">{WIDGET_LABELS[d.id]}</span>
-            <button
-              className="portable-recall-btn"
-              onClick={() => recall(d.id)}
-              title="Recall to Home"
-            >
+    <div className="displaced-band" data-testid="displaced-band">
+      {bandWidgets.map((d) => (
+        <div key={d.id} className="displaced-band-card" data-testid={`displaced-card-${d.id}`}>
+          <div className="displaced-band-header">
+            <span className="displaced-band-label">{WIDGET_LABELS[d.id]}</span>
+            <button className="displaced-recall-btn" onClick={() => recall(d.id)} title="Send back to Home">
               <CornerUpLeft /> Recall
             </button>
           </div>
-          <div className="portable-float-body">
-            {d.id === 'notepad'        && <NotepadWidget compact />}
-            {d.id === 'calendar'       && <CalendarWidget gridW={4} gridH={4} />}
-            {d.id === 'link-shelf'     && <LinkShelfWidget gridW={4} gridH={3} />}
+          <div className="displaced-band-body">
+            {d.id === 'notepad'        && <NotepadWidget compact={false} />}
+            {d.id === 'calendar'       && <CalendarWidget gridW={6} gridH={5} />}
+            {d.id === 'link-shelf'     && <LinkShelfWidget gridW={5} gridH={3} />}
             {d.id === 'decision-maker' && <DecisionMakerWidget gridW={4} gridH={3} />}
             {d.id === 'calculator'     && <CalculatorWidget />}
           </div>
@@ -2598,6 +2513,7 @@ function BulkFileRenamer() {
   return (
     <section className="renamer-page" data-testid="bulk-file-renamer">
       <Link href="/library" className="detail-back" data-testid="link-back-library"><ArrowLeft /> Back to library</Link>
+      <DisplacedWidgetBand />
       <div className="tool-title-row">
         <div>
           <div className="eyebrow">Cubical tool · local prototype</div>
@@ -2763,6 +2679,7 @@ function SpreadsheetCleaner() {
 
   return (
     <section className="renamer-page spreadsheet-page" data-testid="spreadsheet-cleaner">
+      <DisplacedWidgetBand />
       <Link href="/library" className="detail-back" data-testid="link-back-library"><ArrowLeft /> Back to library</Link>
       <div className="tool-title-row">
         <div>
@@ -4039,6 +3956,8 @@ function BreakroomPage() {
         <p>You've been working. This is the part where you stop for a moment.<br />Games, a daily challenge, and a small excuse to close the spreadsheet.</p>
       </div>
 
+      <DisplacedWidgetBand />
+
       {/* Daily game + stats */}
       <div className="breakroom-top-row">
         <DailyGameCard onFirstPlay={() => setStreakVersion((v) => v + 1)} onGameEnd={handleGameEnd} />
@@ -4276,6 +4195,7 @@ function FileFinderPage() {
           <h1 className="display-title mt-4">File Finder.</h1>
           <p className="mt-1 text-sm" style={{ color: 'hsl(var(--muted-foreground))' }}>It's here somewhere.</p>
         </div>
+        <DisplacedWidgetBand />
         <div className="ff-desktop-required">
           <FolderSearch className="ff-dr-icon" />
           <h2 className="ff-dr-title">Desktop app required</h2>
@@ -4310,6 +4230,8 @@ function FileFinderPage() {
           <Lock className="w-3.5 h-3.5 shrink-0" /> Your files stay on your computer.
         </div>
       </div>
+
+      <DisplacedWidgetBand />
 
       {/* Search bar */}
       <div className="ff-search-bar">
@@ -4896,7 +4818,6 @@ function App() {
             <Route><NotFound /></Route>
           </Switch>
           {toast && <div className="toast-message" role="status" data-testid="status-toast"><Check /> {toast}</div>}
-          <PortableWidgetFloat />
         </AppShell>
       </Router>
     </PortableProvider>
