@@ -1,0 +1,135 @@
+Improve the Cubical Home dashboard so widgets can be resized and repositioned on a snap-to-grid layout.
+
+Do not redesign Store, Library, Profile, Settings, Bulk File Renamer, or Spreadsheet Cleaner.
+
+Keep all existing Home widget functionality and local persistence.
+
+HOME LAYOUT SYSTEM
+
+Turn Home into a customizable grid-based workspace.
+
+Requirements:
+
+- Widgets can be moved around the Home canvas by dragging them.
+- Widgets must snap cleanly to a grid when dropped.
+- Widgets must not overlap each other.
+- Widgets should stay inside the visible Home workspace.
+- Widget positions must persist locally after refresh/reopening Cubical.
+- Widget sizes must also persist locally.
+- Use a layout system that is modular and suitable for adding many more widgets later.
+
+RESIZING
+
+Allow all Home widgets to be resized.
+
+Current widgets:
+- Calendar
+- Clock
+- Notepad
+
+Each widget should have sensible minimum and maximum sizes.
+
+When resizing:
+- Snap dimensions to the same grid system used for positioning.
+- Prevent widgets from becoming too small to remain usable.
+- Keep text/content responsive to the selected widget size.
+- Do not break existing functionality.
+
+CALENDAR SIZE MODES
+
+The Calendar needs special responsive behavior.
+
+When large:
+- Show the full monthly calendar exactly as it does now.
+- Keep month navigation, date selection, event display, and Add Event functionality.
+
+When medium:
+- Show a compact calendar while retaining useful date/event information.
+
+When reduced to its smallest supported size:
+- Convert into a simple date tile instead of trying to display the full calendar.
+
+The smallest calendar tile should display approximately:
+
+AUG
+9
+SUNDAY
+
+or another clean arrangement containing:
+- Month
+- Numeric date
+- Day of week
+
+Clicking the compact date tile should expand/open the calendar or provide an obvious way to return to the full calendar.
+
+The calendar data and events must remain intact regardless of widget size.
+
+CLOCK
+
+The Clock should adapt to different sizes.
+
+At larger sizes:
+- Show time
+- AM/PM
+- date
+- optional seconds toggle
+
+At smaller sizes:
+- Prioritize the current time.
+- Hide secondary information if necessary rather than making the text unreadably small.
+
+NOTEPAD
+
+The Notepad should be freely resizable within reasonable limits.
+
+Its text area should automatically use the available space.
+
+Do not lose or reset note contents when resizing.
+
+EDIT MODE
+
+To prevent users from accidentally moving widgets during normal use, add a simple dashboard editing control such as:
+
+"Customize Layout"
+
+When Customize Layout is enabled:
+- Show drag handles or another clear indication that widgets can be moved.
+- Show resize handles.
+- Allow moving/resizing.
+
+When Customize Layout is disabled:
+- Widgets should behave normally.
+- Dragging inside the Notepad, Calendar, or Clock should not accidentally reposition the widget.
+
+Add a "Done" button to leave Customize Layout mode.
+
+PERSISTENCE
+
+Persist locally:
+- Widget positions
+- Widget sizes
+- Calendar events
+- Notepad contents
+- Existing clock settings
+
+Refreshing the browser should recreate the exact previous layout.
+
+IMPORTANT
+
+Do not add skins, backgrounds, accounts, cloud sync, games, payments, or company features yet.
+
+Do not replace the current functioning Home widgets.
+
+Refactor them only as needed to support the new grid layout.
+
+Keep the implementation modular because future Cubical environments/skins will use this same widget-positioning system.
+
+Before finishing, verify:
+1. All three widgets can be moved.
+2. All three widgets can be resized.
+3. They snap cleanly to a grid.
+4. They cannot overlap or leave the workspace.
+5. Layout survives refresh.
+6. Calendar can shrink to a single date tile and return to full size.
+7. Calendar events and notes survive resizing.
+8. Store and Library still work normally.
