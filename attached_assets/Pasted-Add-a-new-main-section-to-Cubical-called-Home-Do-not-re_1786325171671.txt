@@ -1,0 +1,99 @@
+Add a new main section to Cubical called "Home."
+
+Do not redesign the existing Store, Library, tools, or sidebar styling.
+
+NAVIGATION:
+
+Add Home as the first main navigation item above Store and Library.
+
+Order:
+Home
+Store
+Library
+
+Cubical should now open to Home by default when launched.
+
+HOME:
+
+Create a customizable workspace/dashboard containing three initial widgets:
+
+1. CALENDAR
+
+Create a clean monthly calendar widget.
+
+Requirements:
+- Display the current month and year
+- Navigate forward and backward between months
+- Highlight today's date
+- Clicking a date selects it
+- Allow the user to create a simple calendar event containing:
+  - Event title
+  - Date
+  - Optional time
+  - Optional short note
+- Events should appear on their associated date
+- Events should persist locally after refresh
+- Allow events to be edited and deleted
+
+Do not connect to Google Calendar or external services yet.
+
+2. DIGITAL CLOCK
+
+Create a simple live digital clock widget.
+
+Requirements:
+- Display current local time
+- Display hours and minutes
+- Display AM/PM
+- Update automatically
+- Optionally display seconds through a setting
+- Display the current date underneath
+
+Example:
+
+3:58 PM
+Sunday, August 9
+
+3. NOTEPAD
+
+Create a simple persistent notepad widget.
+
+Requirements:
+- User can type freely
+- Notes automatically save locally
+- Notes remain after refreshing or reopening Cubical
+- Keep the interface minimal
+- Include a clear button with confirmation before deleting the note
+
+LAYOUT:
+
+The Home page should feel like a personal desktop/workspace rather than another Store page.
+
+Arrange the three widgets as movable-looking cards for now, but they do not actually need drag-and-drop functionality yet.
+
+Leave generous empty space around the widgets because Home will eventually support visual themes/background environments.
+
+IMPORTANT:
+
+All Home data should remain local for this prototype.
+
+Do not add:
+- accounts
+- cloud synchronization
+- Google Calendar
+- skins
+- games
+- company features
+- achievements
+- payments
+
+Do not modify the functionality of Store, Library, Bulk File Renamer, or Spreadsheet Cleaner.
+
+Keep Home modular so additional widgets can be added later.
+
+Before finishing, verify:
+- Home opens by default
+- Calendar events persist after refresh
+- Notepad contents persist after refresh
+- Clock displays the user's current local time correctly
+- Store and Library continue working normally
