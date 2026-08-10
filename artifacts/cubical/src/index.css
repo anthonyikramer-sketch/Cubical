@@ -569,6 +569,33 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
 .daily-completion-msg { font-size: 15px; color: hsl(var(--muted-foreground)); font-style: italic; max-width: 340px; line-height: 1.5; margin: 4px 0 8px; }
 .daily-ended-actions { display: flex; gap: 10px; margin-top: 8px; }
 
+/* ── Memory Match game ────────────────────────────────────────────────────── */
+.memory-game { width: 100%; max-width: 340px; margin: 0 auto; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.memory-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 9px; width: 100%; }
+.memory-card {
+  aspect-ratio: 1;
+  border-radius: 12px;
+  border: 2px solid hsl(var(--border));
+  background: hsl(var(--secondary));
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: transform .18s ease, border-color .18s ease, background .18s ease, box-shadow .18s ease;
+  position: relative;
+  font-size: 0;
+}
+.memory-card:hover:not(:disabled):not(.is-matched) { border-color: hsl(var(--primary) / .5); transform: translateY(-2px); box-shadow: 0 6px 18px hsl(var(--primary) / .1); }
+.memory-card:disabled:not(.is-matched) { cursor: default; }
+.memory-card.is-flipped:not(.is-matched) { background: hsl(var(--card)); border-color: hsl(var(--primary) / .4); box-shadow: 0 4px 12px hsl(var(--primary) / .1); }
+.memory-card.is-matched { background: hsl(164 48% 32% / .12); border-color: hsl(164 48% 32% / .55); cursor: default; box-shadow: 0 0 0 3px hsl(164 48% 32% / .08); }
+.memory-card-back { font-size: 17px; color: hsl(var(--muted-foreground) / .6); font-weight: 800; }
+.memory-card.is-flipped .memory-card-back,
+.memory-card.is-matched .memory-card-back { display: none; }
+.memory-card-front { display: none; font-size: 26px; }
+.memory-card.is-flipped .memory-card-front,
+.memory-card.is-matched .memory-card-front { display: block; }
+.memory-hint { margin: 0; font-size: 11px; color: hsl(var(--muted-foreground)); text-align: center; line-height: 1.5; }
+
+
 /* ── Break Timer card ─────────────────────────────────────────────────────── */
 .break-timer-card { border: 1px solid hsl(var(--border)); border-radius: 22px; background: hsl(var(--card)); padding: 22px; box-shadow: 0 8px 28px hsl(32 20% 35% / .07); }
 .break-timer-header { margin-bottom: 16px; }
@@ -641,7 +668,10 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
   .brand-mark { margin-bottom: 27px; } .nav-link { width: 48px; justify-content: center; padding: 0; } .sidebar-bottom { width: 100%; } .cubical-main { padding: 28px 24px 55px; }
 }
 @media (max-width: 620px) {
-  .cubical-shell { display: block; } .cubical-sidebar { position: sticky; z-index: 5; top: 0; width: 100%; height: auto; min-height: 0; flex-direction: row; justify-content: space-between; padding: 13px 18px; } .brand-mark { margin: 0; } .sidebar-nav { display: flex; gap: 4px; } .sidebar-bottom { margin: 0; width: auto; } .sidebar-bottom .sidebar-nav { gap: 4px; } .cubical-sidebar .nav-link { width: 42px; height: 42px; } .cubical-sidebar .sidebar-nav a:nth-child(3), .cubical-sidebar .sidebar-nav a:nth-child(4) { display: none; } .cubical-main { padding: 28px 18px 50px; } .topbar { margin-bottom: 38px; } .topbar-hint { display: none; } .product-grid { display: block; } .product-card { margin-bottom: 14px; min-height: 246px; } .detail-layout { display: flex; flex-direction: column-reverse; align-items: stretch; } .screenshot-placeholder { min-height: 300px; } .mock-ui { height: 208px; } .library-head { align-items: start; flex-direction: column; gap: 8px; } .library-row { padding: 14px; } .library-row-description { max-width: 170px; } .toast-message { right: 18px; bottom: 18px; left: 18px; } .tool-title-row { align-items: flex-start; flex-direction: column; } .tool-status { padding: 0; } .renamer-workspace { grid-template-columns: 1fr; } .renamer-preview-panel { order: -1; } .desktop-note { margin-bottom: 10px; }
+  .cubical-shell { display: block; } .cubical-sidebar { position: sticky; z-index: 5; top: 0; width: 100%; height: auto; min-height: 0; flex-direction: row; justify-content: space-between; padding: 13px 18px; } .brand-mark { margin: 0; } .sidebar-nav { display: flex; gap: 4px; } .sidebar-bottom { margin: 0; width: auto; } .sidebar-bottom .sidebar-nav { gap: 4px; } .cubical-sidebar .nav-link { width: 42px; height: 42px; } .cubical-main { padding: 28px 18px 50px; } .topbar { margin-bottom: 38px; } .topbar-hint { display: none; } .product-grid { display: block; } .product-card { margin-bottom: 14px; min-height: 246px; } .detail-layout { display: flex; flex-direction: column-reverse; align-items: stretch; } .screenshot-placeholder { min-height: 300px; } .mock-ui { height: 208px; } .library-head { align-items: start; flex-direction: column; gap: 8px; } .library-row { padding: 14px; } .library-row-description { max-width: 170px; } .toast-message { right: 18px; bottom: 18px; left: 18px; } .tool-title-row { align-items: flex-start; flex-direction: column; } .tool-status { padding: 0; } .renamer-workspace { grid-template-columns: 1fr; } .renamer-preview-panel { order: -1; } .desktop-note { margin-bottom: 10px; }
+  .breakroom-top-row { grid-template-columns: 1fr; }
+  .memory-game { max-width: 100%; }
+  .memory-grid { gap: 6px; }
   .tool-title-with-icon { align-items: flex-start; } .tool-title-with-icon h1 { font-size: 40px; }
 }
 @media (max-width: 420px) {

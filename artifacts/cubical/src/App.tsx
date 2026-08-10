@@ -1529,15 +1529,60 @@ function SnakeGame({ onEnd, onScoreChange }: { onEnd: (score: number) => void; o
   );
 }
 
+type DailyGameId = 'snake' | 'memory';
+
 // ── Daily Game card ────────────────────────────────────────────────────────
 
 type DailyGamePhase = 'idle' | 'playing' | 'ended';
 
-const SNAKE_BEST_KEY = 'cubical-breakroom-snake-best';
-function getDailyPlayedKey() {
+const DAILY_GAME_ROTATION: DailyGameId[] = ['snake', 'memory'];
+
+function getDailyPlayedKey(gameId: DailyGameId) {
   const d = new Date();
-  return `cubical-breakroom-played-${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+  return `cubical-breakroom-played-${gameId}-${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
 }
+
+const GAME_META: Record<DailyGameId, {
+  name: string; emoji: string; desc: string;
+  bestKey: string; unit: string; unitSingular: string;
+  completionLines: string[];
+  endEmoji: (score: number) => string;
+}> = {
+  snake: {
+    name: 'Office Snake',
+    emoji: '🐍',
+    desc: 'Navigate the corridors. Eat the memos. Try not to crash into a deadline.',
+    bestKey: 'cubical-breakroom-snake-best',
+    unit: 'memos',
+    unitSingular: 'memo',
+    completionLines: [
+      'Break successfully taken.',
+      'Productivity temporarily defeated.',
+      "Your manager probably won't notice.",
+      'Snake: 1. Deadlines: 0.',
+      "That's enough fun for one afternoon.",
+      'Inbox can wait. Snake cannot.',
+    ],
+    endEmoji: (s) => s >= 10 ? '🏆' : s >= 5 ? '🎉' : '😅',
+  },
+  memory: {
+    name: 'Memory Match',
+    emoji: '🃏',
+    desc: 'Flip the cards, find the pairs. Prove you still have working memory after that last meeting.',
+    bestKey: 'cubical-breakroom-memory-best',
+    unit: 'pairs',
+    unitSingular: 'pair',
+    completionLines: [
+      'Memory like an elephant.',
+      'HR would be impressed.',
+      'Filing system: mental.',
+      'All 8 pairs found. Brain.exe working.',
+      "That's the kind of focus meetings need.",
+      'Matched them all. Take a bow.',
+    ],
+    endEmoji: (s) => s >= 8 ? '🏆' : s >= 5 ? '🎉' : '😅',
+  },
+};
 const COMPLETION_LINES = [
   'Break successfully taken.',
   'Productivity temporarily defeated.',
@@ -1548,19 +1593,22 @@ const COMPLETION_LINES = [
 ];
 
 function DailyGameCard() {
-  const [phase, setPhase]                   = useState<DailyGamePhase>('idle');
-  const [liveScore, setLiveScore]           = useState(0);
-  const [finalScore, setFinalScore]         = useState(0);
-  const [bestScore, setBestScore]           = useState(() => {
-    try { return parseInt(localStorage.getItem(SNAKE_BEST_KEY) ?? '0', 10) || 0; } catch { return 0; }
+  const gameId = getDailyGameId();
+  const meta   = GAME_META[gameId];
+
+  const [phase, setPhase]       = useState<DailyGamePhase>('idle');
+  const [liveScore, setLiveScore] = useState(0);
+  const [finalScore, setFinalScore] = useState(0);
+  const [bestScore, setBestScore] = useState(() => {
+    try { return parseInt(localStorage.getItem(meta.bestKey) ?? '0', 10) || 0; } catch { return 0; }
   });
-  const [playedToday, setPlayedToday]       = useState(() => {
-    try { return localStorage.getItem(getDailyPlayedKey()) === 'true'; } catch { return false; }
+  const [playedToday, setPlayedToday] = useState(() => {
+    try { return localStorage.getItem(getDailyPlayedKey(gameId)) === 'true'; } catch { return false; }
   });
-  const [isNewBest, setIsNewBest]           = useState(false);
+  const [isNewBest, setIsNewBest] = useState(false);
 
   const today = new Date().toLocaleDateString('default', { weekday: 'long', month: 'long', day: 'numeric' });
-  const completionLine = COMPLETION_LINES[finalScore % COMPLETION_LINES.length];
+  const completionLine = meta.completionLines[finalScore % meta.completionLines.length];
 
   const handleEnd = (score: number) => {
     setFinalScore(score);
@@ -1568,17 +1616,19 @@ function DailyGameCard() {
     const nb = score > bestScore;
     if (nb) {
       setBestScore(score);
-      try { localStorage.setItem(SNAKE_BEST_KEY, String(score)); } catch {}
+      try { localStorage.setItem(meta.bestKey, String(score)); } catch {}
     }
     setIsNewBest(nb);
     if (!playedToday) {
       setPlayedToday(true);
-      try { localStorage.setItem(getDailyPlayedKey(), 'true'); } catch {}
+      try { localStorage.setItem(getDailyPlayedKey(gameId), 'true'); } catch {}
     }
   };
 
-  const startGame = () => { setLiveScore(0); setIsNewBest(false); setPhase('playing'); };
+  const startGame  = () => { setLiveScore(0); setIsNewBest(false); setPhase('playing'); };
   const backToIdle = () => { setPhase('idle'); };
+
+  const liveUnit = liveScore === 1 ? meta.unitSingular : meta.unit;
 
   return (
     <div className="daily-card" data-testid="daily-game-card">
@@ -1591,14 +1641,14 @@ function DailyGameCard() {
         {/* Idle state */}
         {phase === 'idle' && (
           <div className="daily-idle">
-            <div className="daily-game-emoji">🐍</div>
+            <div className="daily-game-emoji">{meta.emoji}</div>
             <div className="daily-game-info">
-              <h2 className="daily-game-name">Office Snake</h2>
-              <p className="daily-game-desc">Navigate the corridors. Eat the memos. Try not to crash into a deadline.</p>
+              <h2 className="daily-game-name">{meta.name}</h2>
+              <p className="daily-game-desc">{meta.desc}</p>
               <div className="daily-stats-row">
                 {playedToday && <span className="daily-played-badge"><Check /> Played today</span>}
                 {bestScore > 0 && (
-                  <span className="daily-best-score"><Trophy /> Best: {bestScore}</span>
+                  <span className="daily-best-score"><Trophy /> Best: {bestScore} {meta.unit}</span>
                 )}
               </div>
             </div>
@@ -1612,22 +1662,29 @@ function DailyGameCard() {
         {phase === 'playing' && (
           <div className="daily-playing">
             <div className="daily-playing-header">
-              <span className="daily-live-score"><Trophy /> {liveScore} {liveScore === 1 ? 'memo' : 'memos'}</span>
+              <span className="daily-live-score"><Trophy /> {liveScore} {liveUnit}</span>
               <button className="button-quiet" onClick={backToIdle} data-testid="button-give-up"><X /> Give up</button>
             </div>
-            <div className="snake-wrapper">
-              <SnakeGame onEnd={handleEnd} onScoreChange={setLiveScore} />
-            </div>
-            <p className="snake-hint">Arrow keys or WASD to steer · don't hit yourself</p>
+            {gameId === 'snake' && (
+              <>
+                <div className="snake-wrapper">
+                  <SnakeGame onEnd={handleEnd} onScoreChange={setLiveScore} />
+                </div>
+                <p className="snake-hint">Arrow keys or WASD to steer · don't hit yourself</p>
+              </>
+            )}
+            {gameId === 'memory' && (
+              <MemoryGame onEnd={handleEnd} onScoreChange={setLiveScore} />
+            )}
           </div>
         )}
 
         {/* Ended state */}
         {phase === 'ended' && (
           <div className="daily-ended">
-            <div className="daily-ended-emoji">{finalScore >= 10 ? '🏆' : finalScore >= 5 ? '🎉' : '😅'}</div>
+            <div className="daily-ended-emoji">{meta.endEmoji(finalScore)}</div>
             <div className="daily-ended-score">{finalScore}</div>
-            <div className="daily-ended-label">memos eaten</div>
+            <div className="daily-ended-label">{finalScore === 1 ? meta.unitSingular : meta.unit} {gameId === 'memory' ? 'matched' : 'eaten'}</div>
             {isNewBest && <div className="daily-new-best">✨ New personal best!</div>}
             <p className="daily-completion-msg">"{completionLine}"</p>
             <div className="daily-ended-actions">
@@ -2071,3 +2128,102 @@ function App() {
 }
 
 export default App;
+
+function MemoryGame({ onEnd, onScoreChange }: { onEnd: (score: number) => void; onScoreChange?: (s: number) => void }) {
+  const [cards, setCards]     = useState<MemoryCard[]>(() => makeMemoryCards());
+  const [selected, setSelected] = useState<number[]>([]);
+  const [locked, setLocked]   = useState(false);
+  const onEndRef              = useRef(onEnd);
+  const onScoreRef            = useRef(onScoreChange);
+  onEndRef.current   = onEnd;
+  onScoreRef.current = onScoreChange;
+
+  // Detect completion
+  useEffect(() => {
+    const matchedPairs = cards.filter((c) => c.matched).length / 2;
+    if (matchedPairs !== MEMORY_EMOJIS.length) return undefined;
+    const timeout = setTimeout(() => onEndRef.current(matchedPairs), 500);
+    return () => clearTimeout(timeout);
+  }, [cards]);
+
+  const handleFlip = (clickedId: number) => {
+    if (locked) return;
+    if (selected.includes(clickedId)) return;
+
+    const card = cards.find((c) => c.id === clickedId);
+    if (!card || card.flipped || card.matched) return;
+
+    setCards((prev) => prev.map((c) => c.id === clickedId ? { ...c, flipped: true } : c));
+
+    if (selected.length === 0) {
+      setSelected([clickedId]);
+    } else {
+      const firstId = selected[0];
+      setSelected([firstId, clickedId]);
+      setLocked(true);
+      setTimeout(() => {
+        setCards((prev) => {
+          const first  = prev.find((c) => c.id === firstId)!;
+          const second = prev.find((c) => c.id === clickedId)!;
+          if (first.emoji === second.emoji) {
+            const next = prev.map((c) =>
+              c.id === firstId || c.id === clickedId ? { ...c, matched: true } : c
+            );
+            const pairs = next.filter((c) => c.matched).length / 2;
+            onScoreRef.current?.(pairs);
+            return next;
+          }
+          return prev.map((c) =>
+            c.id === firstId || c.id === clickedId ? { ...c, flipped: false } : c
+          );
+        });
+        setSelected([]);
+        setLocked(false);
+      }, 850);
+    }
+  };
+
+  const matchedPairs = cards.filter((c) => c.matched).length / 2;
+
+  return (
+    <div className="memory-game">
+      <div className="memory-grid">
+        {cards.map((card) => (
+          <button
+            key={card.id}
+            className={`memory-card${card.flipped || card.matched ? ' is-flipped' : ''}${card.matched ? ' is-matched' : ''}`}
+            onClick={() => handleFlip(card.id)}
+            aria-label={card.flipped || card.matched ? card.emoji : 'Hidden card'}
+            disabled={card.matched || locked}
+          >
+            <span className="memory-card-back">?</span>
+            <span className="memory-card-front">{card.emoji}</span>
+          </button>
+        ))}
+      </div>
+      <p className="memory-hint">{matchedPairs} of {MEMORY_EMOJIS.length} pairs found · tap cards to flip</p>
+    </div>
+  );
+}
+
+type MemoryCard = { id: number; emoji: string; flipped: boolean; matched: boolean; };
+
+function getDailyGameId(): DailyGameId {
+  // Days since Unix epoch (local midnight) — increments by exactly 1 every day
+  // regardless of month/year boundaries, so alternation is always reliable.
+  const localMidnight = new Date();
+  localMidnight.setHours(0, 0, 0, 0);
+  const dayIndex = Math.floor(localMidnight.getTime() / 86_400_000);
+  return DAILY_GAME_ROTATION[dayIndex % DAILY_GAME_ROTATION.length];
+}
+
+function makeMemoryCards(): MemoryCard[] {
+  const pairs = [...MEMORY_EMOJIS, ...MEMORY_EMOJIS];
+  for (let i = pairs.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pairs[i], pairs[j]] = [pairs[j], pairs[i]];
+  }
+  return pairs.map((emoji, id) => ({ id, emoji, flipped: false, matched: false }));
+}
+
+const MEMORY_EMOJIS = ['📎', '🖇️', '📝', '✏️', '📌', '🗂️', '📋', '🖊️'];
