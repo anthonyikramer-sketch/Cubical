@@ -1,5 +1,6 @@
 import { createPortal } from 'react-dom';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties, type ReactNode } from 'react';
+import { zipSync } from 'fflate';
 import {
   AlignCenter,
   AlignLeft,
@@ -5908,6 +5909,7 @@ function ImageConverter() {
     if (!files.length) return;
     setConverting(true);
     const out: { name: string; url: string }[] = [];
+    const allocatedNames = new Set<string>(); // all output names already assigned
     for (const file of files) {
       const imgUrl = URL.createObjectURL(file);
       const img    = new Image();
@@ -5925,11 +5927,37 @@ function ImageConverter() {
       const mime = format === 'jpeg' ? 'image/jpeg' : format === 'webp' ? 'image/webp' : 'image/png';
       const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, mime, quality / 100));
       if (!blob) continue;
+      const ext  = format === 'jpeg' ? 'jpg' : format;
       const stem = file.name.replace(/\.[^.]+$/, '');
-      out.push({ name: `${stem}.${format === 'jpeg' ? 'jpg' : format}`, url: URL.createObjectURL(blob) });
+      // Find the first name not yet allocated — handles collisions including pre-suffixed stems
+      let candidate = `${stem}.${ext}`;
+      let counter   = 2;
+      while (allocatedNames.has(candidate)) {
+        candidate = `${stem}-${counter}.${ext}`;
+        counter++;
+      }
+      allocatedNames.add(candidate);
+      out.push({ name: candidate, url: URL.createObjectURL(blob) });
     }
     setResults(out);
     setConverting(false);
+  };
+
+  const downloadAllAsZip = async () => {
+    if (results.length < 2) return;
+    const files: Record<string, Uint8Array> = {};
+    for (const r of results) {
+      const blob = await fetch(r.url).then((res) => res.blob());
+      const buf  = await blob.arrayBuffer();
+      files[r.name] = new Uint8Array(buf);
+    }
+    const zipped = zipSync(files);
+    const url    = URL.createObjectURL(new Blob([zipped], { type: 'application/zip' }));
+    const a      = document.createElement('a');
+    a.href       = url;
+    a.download   = 'converted-images.zip';
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const formatLabels: Record<string, string> = { png: 'Lossless, great for graphics', jpeg: 'Smaller files, ideal for photos', webp: 'Modern format, best of both' };
@@ -5986,14 +6014,21 @@ function ImageConverter() {
         <div className="image-converter-results">
           <div className="renamer-section-heading">
             <span className="eyebrow">04 · Download</span>
-            {results.length > 0 && <span className="library-count">{results.length} ready</span>}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {results.length > 0 && <span className="library-count">{results.length} ready</span>}
+              {results.length >= 2 && (
+                <button type="button" className="button-quiet" onClick={downloadAllAsZip} style={{ fontSize: 11, minHeight: 30, padding: '0 12px' }} data-testid="button-download-all-zip">
+                  <FileArchive /> Download all as ZIP
+                </button>
+              )}
+            </div>
           </div>
           {results.length === 0 ? (
             <div className="renamer-empty"><div className="empty-cube"><ImagePlus /></div><h2>Converted images appear here.</h2><p>Choose images and a format, then click Convert.</p></div>
           ) : (
             <div className="image-result-list">
-              {results.map((r) => (
-                <div className="image-result-row" key={r.name}>
+              {results.map((r, i) => (
+                <div className="image-result-row" key={i}>
                   <img src={r.url} alt={r.name} className="image-result-thumb" />
                   <span className="image-result-name">{r.name}</span>
                   <a href={r.url} download={r.name} className="button-primary" style={{ fontSize: 11, minHeight: 34, padding: '0 14px', textDecoration: 'none' }}>

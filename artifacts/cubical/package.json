@@ -122,6 +122,7 @@
     "@tiptap/extension-task-list": "^3.29.2",
     "@tiptap/extension-text-align": "^3.29.2",
     "@tiptap/extension-underline": "^3.29.2",
-    "@tiptap/starter-kit": "^3.29.2"
+    "@tiptap/starter-kit": "^3.29.2",
+    "fflate": "^0.8.3"
   }
 }
