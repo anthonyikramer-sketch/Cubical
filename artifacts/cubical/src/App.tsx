@@ -5908,6 +5908,7 @@ function ImageConverter() {
   const [maxHeight, setMaxHeight] = useState('');
   const [converting, setConverting] = useState(false);
   const [results, setResults]     = useState<{ name: string; url: string }[]>([]);
+  const [zipFilename, setZipFilename] = useState('converted-images');
 
   const handleFiles = (list: FileList | null) => {
     if (!list) return;
@@ -5965,7 +5966,7 @@ function ImageConverter() {
     const url    = URL.createObjectURL(new Blob([zipped], { type: 'application/zip' }));
     const a      = document.createElement('a');
     a.href       = url;
-    a.download   = 'converted-images.zip';
+    a.download   = `${zipFilename.trim() || 'converted-images'}.zip`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -6027,9 +6028,21 @@ function ImageConverter() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               {results.length > 0 && <span className="library-count">{results.length} ready</span>}
               {results.length >= 2 && (
-                <button type="button" className="button-quiet" onClick={downloadAllAsZip} style={{ fontSize: 11, minHeight: 30, padding: '0 12px' }} data-testid="button-download-all-zip">
-                  <FileArchive /> Download all as ZIP
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <input
+                    type="text"
+                    value={zipFilename}
+                    onChange={(e) => setZipFilename(e.target.value)}
+                    placeholder="converted-images"
+                    aria-label="ZIP filename"
+                    data-testid="input-zip-filename"
+                    style={{ fontSize: 11, height: 30, padding: '0 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', width: 140, minWidth: 80 }}
+                  />
+                  <span style={{ fontSize: 11, color: 'var(--text-secondary)', userSelect: 'none' }}>.zip</span>
+                  <button type="button" className="button-quiet" onClick={downloadAllAsZip} style={{ fontSize: 11, minHeight: 30, padding: '0 12px' }} data-testid="button-download-all-zip">
+                    <FileArchive /> Download all as ZIP
+                  </button>
+                </div>
               )}
             </div>
           </div>
