@@ -1,0 +1,1 @@
+- [Hash routing & Replit preview](hash-routing-preview.md) — Cubical uses inline useHashLocation; path screenshots always show Home; never import from wouter/use-hash-location.

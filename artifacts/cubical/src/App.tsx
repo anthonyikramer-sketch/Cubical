@@ -8,21 +8,30 @@ import {
   ChevronLeft,
   ChevronRight,
   CircleUserRound,
+  ClipboardCopy,
   Clock,
   Coffee,
   Crown,
   Download,
+  ExternalLink,
+  File,
   FilePlus2,
   FileArchive,
   FileScan,
   FileSpreadsheet,
+  FileText,
   Files,
   FolderCog,
+  FolderOpen,
+  FolderSearch,
   Gamepad2,
   Grid2X2,
   GripHorizontal,
+  HardDrive,
   House,
   Library as LibraryIcon,
+  Lock,
+  Music,
   PackageOpen,
   Palette,
   Pause,
@@ -30,6 +39,7 @@ import {
   Play,
   Plus,
   RotateCcw,
+  Search,
   Settings,
   Sparkles,
   StickyNote,
@@ -41,6 +51,88 @@ import {
   Zap,
 } from 'lucide-react';
 import { Link, Route, Router, Switch, useLocation } from 'wouter';
+
+// ─── File Finder — shared types & helpers ─────────────────────────────────────
+
+interface FileResult {
+  name: string;
+  path: string;
+  dir: string;
+  size: number;
+  modified: number; // ms timestamp
+  ext: string;
+}
+
+// Extend the window type so TypeScript knows about the Electron bridge.
+// When running as a web app the whole cubicalDesktop object will be undefined.
+declare global {
+  interface Window {
+    cubicalDesktop?: {
+      platform?: string;
+      fileFinder?: {
+        startSearch:        (query: string, folders: string[]) => void;
+        cancelSearch:       () => void;
+        openFile:           (filePath: string) => Promise<void>;
+        openLocation:       (filePath: string) => Promise<void>;
+        chooseFolderDialog: () => Promise<string | null>;
+        onProgress:  (cb: (data: { found: number; scanning: string }) => void) => () => void;
+        onComplete:  (cb: (data: { results: FileResult[] }) => void) => () => void;
+      };
+    };
+  }
+}
+
+const RECENT_SEARCHES_KEY = 'cubical-file-finder-recent';
+const FF_PENDING_QUERY_KEY = 'cubical-file-finder-pending';
+
+type FileTypeCategory = 'all' | 'documents' | 'pdfs' | 'spreadsheets' | 'images' | 'videos' | 'audio' | 'archives';
+type DateCategory    = 'anytime' | 'today' | 'week' | 'month' | 'year';
+type SortField       = 'relevance' | 'name' | 'date' | 'size' | 'type';
+type SearchScope     = 'common' | 'custom' | 'all';
+
+const FILE_TYPE_EXTS: Record<FileTypeCategory, string[]> = {
+  all:          [],
+  documents:    ['.doc', '.docx', '.txt', '.rtf', '.odt', '.pages', '.md'],
+  pdfs:         ['.pdf'],
+  spreadsheets: ['.xls', '.xlsx', '.csv', '.ods', '.numbers'],
+  images:       ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.bmp', '.tiff', '.heic'],
+  videos:       ['.mp4', '.mov', '.avi', '.mkv', '.wmv', '.m4v', '.webm'],
+  audio:        ['.mp3', '.wav', '.flac', '.aac', '.m4a', '.ogg', '.wma'],
+  archives:     ['.zip', '.rar', '.7z', '.tar', '.gz', '.bz2'],
+};
+
+function getFileIcon(ext: string): ReactNode {
+  const e = ext.toLowerCase();
+  if (['.jpg','.jpeg','.png','.gif','.webp','.svg','.bmp','.tiff','.heic'].includes(e)) return <FileText />;
+  if (['.mp4','.mov','.avi','.mkv','.wmv','.m4v','.webm'].includes(e)) return <FileText />;
+  if (['.mp3','.wav','.flac','.aac','.m4a','.ogg','.wma'].includes(e)) return <Music />;
+  if (['.pdf'].includes(e)) return <FileScan />;
+  if (['.xls','.xlsx','.csv','.ods','.numbers'].includes(e)) return <FileSpreadsheet />;
+  if (['.doc','.docx','.rtf','.odt','.pages','.md'].includes(e)) return <FileText />;
+  if (['.zip','.rar','.7z','.tar','.gz','.bz2'].includes(e)) return <FileArchive />;
+  if (['.txt'].includes(e)) return <FileText />;
+  return <File />;
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024)              return `${bytes} B`;
+  if (bytes < 1024 * 1024)       return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 ** 3)         return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  return `${(bytes / 1024 ** 3).toFixed(2)} GB`;
+}
+
+function formatModDate(ms: number): string {
+  return new Date(ms).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+function highlightMatch(name: string, query: string): ReactNode {
+  if (!query.trim()) return name;
+  const idx = name.toLowerCase().indexOf(query.toLowerCase());
+  if (idx === -1) return name;
+  return (
+    <>{name.slice(0, idx)}<mark className="ff-highlight">{name.slice(idx, idx + query.length)}</mark>{name.slice(idx + query.length)}</>
+  );
+}
 
 // ─── Product catalog ──────────────────────────────────────────────────────────
 
@@ -60,11 +152,13 @@ const PRODUCTS: Product[] = [
   { id: 'pdf-toolkit', name: 'PDF Toolkit', description: 'Small, sharp tools for the PDFs you touch every day.', price: '$3.99', icon: FileScan, iconColor: 'hsl(1 68% 54%)', iconBg: 'hsl(1 68% 54% / .12)' },
   { id: 'bulk-file-renamer', name: 'Bulk File Renamer', description: 'Give a whole folder a thoughtful name in one quick pass.', price: 'FREE', icon: FileArchive, iconColor: 'hsl(226 45% 49%)', iconBg: 'hsl(226 45% 49% / .12)' },
   { id: 'duplicate-finder', name: 'Duplicate Finder', description: 'Spot the copies taking up space and keep the best version.', price: 'FREE', icon: Files, iconColor: 'hsl(287 40% 47%)', iconBg: 'hsl(287 40% 47% / .12)' },
+  { id: 'file-finder', name: 'File Finder', description: 'Find the file. Skip the folder archaeology.', price: 'FREE', icon: FolderSearch, iconColor: 'hsl(197 55% 38%)', iconBg: 'hsl(197 55% 38% / .12)' },
 ];
 
 const TOOL_ROUTES: Partial<Record<Product['id'], string>> = {
-  'bulk-file-renamer': '/tool/bulk-file-renamer',
+  'bulk-file-renamer':   '/tool/bulk-file-renamer',
   'spreadsheet-cleaner': '/tool/spreadsheet-cleaner',
+  'file-finder':         '/tool/file-finder',
 };
 
 function getToolRoute(product: Product) { return TOOL_ROUTES[product.id]; }
@@ -97,7 +191,9 @@ function isStringArray(v: unknown): v is string[] {
 
 function getStoredLibrary(): string[] {
   const validIds = new Set(PRODUCTS.map((p) => p.id));
-  return readLocal<string[]>(LIBRARY_STORAGE_KEY, [], isStringArray).filter((id) => validIds.has(id));
+  const stored = readLocal<string[]>(LIBRARY_STORAGE_KEY, [], isStringArray).filter((id) => validIds.has(id));
+  // file-finder is always free and pre-installed — ensure it is always in the library.
+  return stored.includes('file-finder') ? stored : ['file-finder', ...stored];
 }
 function storeLibrary(ids: string[]) { writeLocal(LIBRARY_STORAGE_KEY, ids); }
 
@@ -119,16 +215,17 @@ const GRID_ROWS = 10;
 const GRID_GAP  = 10; // px
 const CELL_H    = 82; // px, fixed row height
 
-type WidgetId = 'calendar' | 'clock' | 'notepad';
+type WidgetId = 'calendar' | 'clock' | 'notepad' | 'file-finder';
 
 type LayoutItem = { id: WidgetId; x: number; y: number; w: number; h: number; };
 
-const WIDGET_LABELS: Record<WidgetId, string> = { calendar: 'Calendar', clock: 'Clock', notepad: 'Notepad' };
+const WIDGET_LABELS: Record<WidgetId, string> = { calendar: 'Calendar', clock: 'Clock', notepad: 'Notepad', 'file-finder': 'File Finder' };
 
 const WIDGET_MIN: Record<WidgetId, { w: number; h: number }> = {
-  calendar: { w: 2, h: 2 },
-  clock:    { w: 2, h: 1 },
-  notepad:  { w: 2, h: 2 },
+  calendar:      { w: 2, h: 2 },
+  clock:         { w: 2, h: 1 },
+  notepad:       { w: 2, h: 2 },
+  'file-finder': { w: 2, h: 1 },
 };
 
 const DEFAULT_LAYOUT: LayoutItem[] = [
@@ -144,12 +241,16 @@ function getStoredLayout(): LayoutItem[] {
     if (!raw) return DEFAULT_LAYOUT;
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return DEFAULT_LAYOUT;
-    const ids: WidgetId[] = ['calendar', 'clock', 'notepad'];
+    // 'file-finder' is included so stored layouts with it are restored; it is not
+    // in DEFAULT_LAYOUT so new users don't see it until a future "add widget" UI exists.
+    const ids: WidgetId[] = ['calendar', 'clock', 'notepad', 'file-finder'];
     const result: LayoutItem[] = [];
     for (const id of ids) {
       const found = parsed.find((item: unknown) => item && typeof item === 'object' && (item as Record<string, unknown>).id === id);
       if (!found || typeof (found as Record<string, unknown>).x !== 'number') {
-        result.push(DEFAULT_LAYOUT.find((d) => d.id === id)!);
+        const dflt = DEFAULT_LAYOUT.find((d) => d.id === id);
+        if (!dflt) continue; // not in default layout — skip if also not in storage
+        result.push(dflt);
         continue;
       }
       const f = found as Record<string, number>;
@@ -182,6 +283,7 @@ const CRUMB_MAP: Record<string, string> = {
   '/breakroom': 'SHELF / BREAKROOM',
   '/profile': 'SHELF / PROFILE',
   '/settings': 'SHELF / SETTINGS',
+  '/tool/file-finder': 'SHELF / FILE FINDER',
 };
 
 function AppShell({ children, libraryCount }: { children: ReactNode; libraryCount: number }) {
@@ -277,7 +379,7 @@ function StorePage() {
       </div>
       <div className="mb-5 flex items-center justify-between">
         <span className="eyebrow" style={{ color: 'hsl(var(--muted-foreground))' }}>The current edit</span>
-        <span className="library-count">05 tools · no noise</span>
+        <span className="library-count">06 tools · no noise</span>
       </div>
       <div className="product-grid" data-testid="product-catalog">
         {PRODUCTS.map((product) => <ProductCard key={product.id} product={product} />)}
@@ -300,7 +402,7 @@ function ScreenshotPlaceholder({ product }: { product: Product }) {
 
 function ProductDetail({ product, isAdded, onAdd, onOpen }: { product: Product; isAdded: boolean; onAdd: () => void; onOpen: () => void }) {
   const toolRoute = getToolRoute(product);
-  const isBulkFileRenamer = product.id === 'bulk-file-renamer';
+  const isFree = product.price === 'FREE';
   return (
     <section>
       <Link href="/store" className="detail-back" data-testid="link-back-store"><ArrowLeft /> Back to store</Link>
@@ -310,7 +412,7 @@ function ProductDetail({ product, isAdded, onAdd, onOpen }: { product: Product; 
           <div className="eyebrow mt-7">A focused little utility</div>
           <h1 data-testid="text-detail-name">{product.name}</h1>
           <p data-testid="text-detail-description">{product.description} Built to stay out of your way, feel good to use, and make a small part of your day lighter.</p>
-          <div className="detail-price" data-testid="text-detail-price">{isBulkFileRenamer ? 'FREE · local-only' : `${product.price} · one-time, local-only`}</div>
+          <div className="detail-price" data-testid="text-detail-price">{isFree ? 'FREE · local-only' : `${product.price} · one-time, local-only`}</div>
           {isAdded ? (
             toolRoute ? (
               <Link href={toolRoute} className="button-primary" data-testid="button-open-added"><Check /> In your library · Open</Link>
@@ -318,8 +420,8 @@ function ProductDetail({ product, isAdded, onAdd, onOpen }: { product: Product; 
               <button className="button-primary" onClick={onOpen} data-testid="button-open-added"><Check /> In your library · Open</button>
             )
           ) : (
-            <button className="button-primary" onClick={onAdd} data-testid={isBulkFileRenamer ? 'button-get-free' : 'button-add-library'}>
-              {isBulkFileRenamer ? 'Get Free' : 'Add to library'} <ArrowRight />
+            <button className="button-primary" onClick={onAdd} data-testid={isFree ? 'button-get-free' : 'button-add-library'}>
+              {isFree ? 'Get Free' : 'Add to library'} <ArrowRight />
             </button>
           )}
         </div>
@@ -765,9 +867,10 @@ function GridWidget({
 
       {/* Widget content */}
       <div className={`grid-widget-content${isEditing ? ' is-locked' : ''}`}>
-        {item.id === 'calendar' && <CalendarWidget gridW={item.w} gridH={item.h} />}
-        {item.id === 'clock'    && <ClockWidget gridH={item.h} />}
-        {item.id === 'notepad'  && <NotepadWidget />}
+        {item.id === 'calendar'     && <CalendarWidget gridW={item.w} gridH={item.h} />}
+        {item.id === 'clock'        && <ClockWidget gridH={item.h} />}
+        {item.id === 'notepad'      && <NotepadWidget />}
+        {item.id === 'file-finder'  && <FileFinderWidget gridW={item.w} gridH={item.h} />}
       </div>
 
       {/* Resize handle */}
@@ -777,6 +880,58 @@ function GridWidget({
           onPointerDown={(e) => { e.stopPropagation(); onResizeStart(e); }}
           aria-label={`Resize ${WIDGET_LABELS[item.id]}`}
         />
+      )}
+    </div>
+  );
+}
+
+// ─── File Finder widget ───────────────────────────────────────────────────────
+
+function FileFinderWidget({ gridW: _gridW, gridH }: { gridW: number; gridH: number }) {
+  const [input, setInput] = useState('');
+  const recentSearches = useMemo(
+    () => readLocal<string[]>(RECENT_SEARCHES_KEY, [], isStringArray).slice(0, 5),
+    [],
+  );
+
+  const goSearch = () => {
+    if (input.trim()) writeLocal(FF_PENDING_QUERY_KEY, input.trim());
+    window.location.hash = '/tool/file-finder';
+  };
+
+  const isSmall = gridH <= 1;
+  const isLarge = gridH >= 4;
+
+  return (
+    <div className="widget-ff">
+      <div className="widget-ff-top">
+        <FolderSearch className="widget-ff-icon" />
+        {!isSmall && <span className="widget-ff-title">File Finder</span>}
+      </div>
+      <div className="widget-ff-search-row">
+        <input
+          className="widget-ff-input"
+          placeholder={isSmall ? 'Search files…' : 'Search your computer…'}
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && goSearch()}
+        />
+        <button className="widget-ff-go" onClick={goSearch} title="Open File Finder">
+          <Search className="w-4 h-4" />
+        </button>
+      </div>
+      {isLarge && recentSearches.length > 0 && (
+        <div className="widget-ff-recent">
+          {recentSearches.map((s) => (
+            <button
+              key={s}
+              className="widget-ff-recent-item"
+              onClick={() => { writeLocal(FF_PENDING_QUERY_KEY, s); window.location.hash = '/tool/file-finder'; }}
+            >
+              <Clock className="w-3 h-3 opacity-40 shrink-0" /> <span className="truncate">{s}</span>
+            </button>
+          ))}
+        </div>
       )}
     </div>
   );
@@ -2036,6 +2191,340 @@ function BreakroomPage() {
   );
 }
 
+// ─── File Finder page ─────────────────────────────────────────────────────────
+
+const FF_TYPE_OPTS: { key: FileTypeCategory; label: string }[] = [
+  { key: 'all',          label: 'All Files'    },
+  { key: 'documents',    label: 'Documents'    },
+  { key: 'pdfs',         label: 'PDFs'         },
+  { key: 'spreadsheets', label: 'Spreadsheets' },
+  { key: 'images',       label: 'Images'       },
+  { key: 'videos',       label: 'Videos'       },
+  { key: 'audio',        label: 'Audio'        },
+  { key: 'archives',     label: 'Archives'     },
+];
+
+const FF_DATE_OPTS: { key: DateCategory; label: string }[] = [
+  { key: 'anytime', label: 'Anytime'    },
+  { key: 'today',   label: 'Today'      },
+  { key: 'week',    label: 'This Week'  },
+  { key: 'month',   label: 'This Month' },
+  { key: 'year',    label: 'This Year'  },
+];
+
+const FF_SORT_OPTS: { key: SortField; label: string }[] = [
+  { key: 'relevance', label: 'Relevance'     },
+  { key: 'name',      label: 'Name'          },
+  { key: 'date',      label: 'Date modified' },
+  { key: 'size',      label: 'File size'     },
+  { key: 'type',      label: 'Type'          },
+];
+
+function FileFinderPage() {
+  const ff = typeof window !== 'undefined' ? window.cubicalDesktop?.fileFinder : undefined;
+  const isDesktop = !!ff;
+
+  const [query,          setQuery]         = useState('');
+  const [results,        setResults]       = useState<FileResult[]>([]);
+  const [hasSearched,    setHasSearched]   = useState(false);
+  const [searching,      setSearching]     = useState(false);
+  const [progress,       setProgress]      = useState<{ found: number; scanning: string } | null>(null);
+  const [scope,          setScope]         = useState<SearchScope>('common');
+  const [customFolder,   setCustomFolder]  = useState<string | null>(null);
+  const [typeFilter,     setTypeFilter]    = useState<FileTypeCategory>('all');
+  const [dateFilter,     setDateFilter]    = useState<DateCategory>('anytime');
+  const [sortBy,         setSortBy]        = useState<SortField>('relevance');
+  const [sortAsc,        setSortAsc]       = useState(true);
+  const [copiedPath,     setCopiedPath]    = useState<string | null>(null);
+  const [recentSearches, setRecentSearches] = useState<string[]>(() =>
+    readLocal<string[]>(RECENT_SEARCHES_KEY, [], isStringArray),
+  );
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Consume any pending query forwarded from the home widget
+  useEffect(() => {
+    try {
+      const pending = window.localStorage?.getItem(FF_PENDING_QUERY_KEY);
+      if (pending) {
+        window.localStorage.removeItem(FF_PENDING_QUERY_KEY);
+        setQuery(pending);
+      }
+    } catch { /* localStorage unavailable */ }
+    inputRef.current?.focus();
+  }, []);
+
+  // Wire up Electron streaming listeners
+  useEffect(() => {
+    if (!ff) return;
+    const unsub1 = ff.onProgress(setProgress);
+    const unsub2 = ff.onComplete((data) => {
+      setResults(data.results);
+      setSearching(false);
+      setProgress(null);
+    });
+    return () => { unsub1(); unsub2(); };
+  }, [ff]);
+
+  const doSearch = (overrideQuery?: string) => {
+    if (!ff) return;
+    const term = (overrideQuery ?? query).trim();
+    if (!term) return;
+    const folders = scope === 'custom' && customFolder
+      ? [customFolder]
+      : scope === 'all' ? ['__ALL_DRIVES__'] : ['__COMMON_FOLDERS__'];
+    const next = [term, ...recentSearches.filter((s) => s !== term)].slice(0, 8);
+    setRecentSearches(next);
+    writeLocal(RECENT_SEARCHES_KEY, next);
+    setSearching(true);
+    setResults([]);
+    setHasSearched(true);
+    setProgress({ found: 0, scanning: 'Starting…' });
+    ff.startSearch(term, folders);
+  };
+
+  const handleCancel = () => {
+    ff?.cancelSearch();
+    setSearching(false);
+    setProgress(null);
+  };
+
+  const handleChooseFolder = async () => {
+    if (!ff) return;
+    const folder = await ff.chooseFolderDialog();
+    if (folder) { setCustomFolder(folder); setScope('custom'); }
+  };
+
+  const handleCopyPath = async (filePath: string) => {
+    try {
+      await navigator.clipboard.writeText(filePath);
+      setCopiedPath(filePath);
+      setTimeout(() => setCopiedPath((p) => (p === filePath ? null : p)), 1800);
+    } catch { /* clipboard unavailable */ }
+  };
+
+  const clearRecent = () => { setRecentSearches([]); writeLocal(RECENT_SEARCHES_KEY, []); };
+
+  // Filter
+  const filteredResults = useMemo(() => {
+    let out = results;
+    if (typeFilter !== 'all') {
+      const exts = FILE_TYPE_EXTS[typeFilter];
+      out = out.filter((r) => exts.includes(r.ext));
+    }
+    if (dateFilter !== 'anytime') {
+      const cutoffs: Record<string, number> = { today: 86_400_000, week: 7 * 86_400_000, month: 30 * 86_400_000, year: 365 * 86_400_000 };
+      const cut = Date.now() - (cutoffs[dateFilter] ?? 0);
+      out = out.filter((r) => r.modified >= cut);
+    }
+    return out;
+  }, [results, typeFilter, dateFilter]);
+
+  // Sort
+  const sortedResults = useMemo(() => {
+    const q = query.toLowerCase();
+    const score = (r: FileResult) => r.name.toLowerCase() === q ? 2 : r.name.toLowerCase().startsWith(q) ? 1 : 0;
+    return [...filteredResults].sort((a, b) => {
+      let cmp = 0;
+      if      (sortBy === 'relevance') cmp = score(b) - score(a);
+      else if (sortBy === 'name')      cmp = a.name.localeCompare(b.name);
+      else if (sortBy === 'date')      cmp = b.modified - a.modified;
+      else if (sortBy === 'size')      cmp = b.size - a.size;
+      else if (sortBy === 'type')      cmp = a.ext.localeCompare(b.ext);
+      return sortAsc ? cmp : -cmp;
+    });
+  }, [filteredResults, sortBy, sortAsc, query]);
+
+  // ── Desktop-only gate ──────────────────────────────────────────────────────
+  if (!isDesktop) {
+    return (
+      <section className="ff-page">
+        <div className="page-intro">
+          <div className="eyebrow">A focused little utility</div>
+          <h1 className="display-title mt-4">File Finder.</h1>
+          <p className="mt-1 text-sm" style={{ color: 'hsl(var(--muted-foreground))' }}>It's here somewhere.</p>
+        </div>
+        <div className="ff-desktop-required">
+          <FolderSearch className="ff-dr-icon" />
+          <h2 className="ff-dr-title">Desktop app required</h2>
+          <p className="ff-dr-body">
+            File Finder searches your real local filesystem — that's not possible from a browser.
+            Run the Cubical desktop app on Windows to use it.
+          </p>
+          <div className="ff-privacy-badge">
+            <Lock className="w-3.5 h-3.5 shrink-0" /> Your files stay on your computer.
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  const customLabel = customFolder
+    ? (customFolder.split(/[\\/]/).filter(Boolean).pop() ?? customFolder)
+    : 'Choose Folder';
+
+  // ── Full search UI ─────────────────────────────────────────────────────────
+  return (
+    <section className="ff-page">
+
+      {/* Header */}
+      <div className="ff-header">
+        <div className="page-intro !mb-0">
+          <div className="eyebrow">A focused little utility</div>
+          <h1 className="display-title mt-2">File Finder.</h1>
+          <p className="mt-1 text-sm" style={{ color: 'hsl(var(--muted-foreground))' }}>It's here somewhere.</p>
+        </div>
+        <div className="ff-privacy-badge">
+          <Lock className="w-3.5 h-3.5 shrink-0" /> Your files stay on your computer.
+        </div>
+      </div>
+
+      {/* Search bar */}
+      <div className="ff-search-bar">
+        <div className="ff-search-wrap">
+          <Search className="ff-search-icon" />
+          <input
+            ref={inputRef}
+            className="ff-search-input"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && doSearch()}
+            placeholder="Search your computer…"
+            disabled={searching}
+          />
+          {query && !searching && (
+            <button className="ff-search-clear" onClick={() => { setQuery(''); setHasSearched(false); setResults([]); inputRef.current?.focus(); }}>
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+        {searching
+          ? <button className="button-quiet ff-action-btn" onClick={handleCancel}>Cancel</button>
+          : <button className="button-primary ff-action-btn" onClick={() => doSearch()} disabled={!query.trim()}>Search</button>
+        }
+      </div>
+
+      {/* Scope selector */}
+      <div className="ff-scope-row">
+        <button className={`ff-scope-btn${scope === 'common' ? ' active' : ''}`} onClick={() => setScope('common')}>
+          Common Folders
+        </button>
+        <button className={`ff-scope-btn${scope === 'custom' ? ' active' : ''}`} onClick={handleChooseFolder}>
+          <FolderOpen className="w-3.5 h-3.5 shrink-0" /> {customLabel}
+        </button>
+        <button
+          className={`ff-scope-btn${scope === 'all' ? ' active' : ''}`}
+          onClick={() => setScope('all')}
+          title="Searches all available drives — may be slow on large disks"
+        >
+          <HardDrive className="w-3.5 h-3.5 shrink-0" /> Entire Computer
+        </button>
+      </div>
+
+      {/* Filters */}
+      <div className="ff-filters">
+        <div className="ff-chip-row">
+          {FF_TYPE_OPTS.map(({ key, label }) => (
+            <button key={key} className={`ff-chip${typeFilter === key ? ' active' : ''}`} onClick={() => setTypeFilter(key)}>
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="ff-chip-row">
+          {FF_DATE_OPTS.map(({ key, label }) => (
+            <button key={key} className={`ff-chip${dateFilter === key ? ' active' : ''}`} onClick={() => setDateFilter(key)}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Progress */}
+      {searching && progress && (
+        <div className="ff-progress">
+          <span className="ff-spinner" />
+          <span className="ff-progress-text">
+            {progress.found} found · scanning {progress.scanning.split(/[\\/]/).slice(-2).join('/')}
+          </span>
+        </div>
+      )}
+
+      {/* Sort bar */}
+      {!searching && sortedResults.length > 0 && (
+        <div className="ff-sort-bar">
+          <span className="ff-result-count">
+            {sortedResults.length} {sortedResults.length === 1 ? 'result' : 'results'}
+            {filteredResults.length < results.length ? ` (filtered from ${results.length})` : ''}
+          </span>
+          <div className="ff-sort-group">
+            <span className="ff-sort-label">Sort:</span>
+            {FF_SORT_OPTS.map(({ key, label }) => (
+              <button
+                key={key}
+                className={`ff-sort-btn${sortBy === key ? ' active' : ''}`}
+                onClick={() => sortBy === key ? setSortAsc(!sortAsc) : (setSortBy(key), setSortAsc(true))}
+              >
+                {label}{sortBy === key && <span className="ff-sort-arrow">{sortAsc ? ' ↑' : ' ↓'}</span>}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Results */}
+      {!searching && hasSearched && (
+        <div className="ff-results">
+          {sortedResults.length === 0 ? (
+            <div className="ff-empty">
+              <FolderSearch className="ff-empty-icon" />
+              <p>No luck. Try another name or somewhere else.</p>
+            </div>
+          ) : sortedResults.map((r) => (
+            <div key={r.path} className="ff-row">
+              <span className="ff-row-icon">{getFileIcon(r.ext)}</span>
+              <div className="ff-row-main">
+                <div className="ff-row-name">{highlightMatch(r.name, query)}</div>
+                <div className="ff-row-path" title={r.path}>{r.dir}</div>
+                <div className="ff-row-meta">{formatBytes(r.size)} · {formatModDate(r.modified)}</div>
+              </div>
+              <div className="ff-row-actions">
+                <button className="ff-action" onClick={() => ff.openFile(r.path)} title="Open with default app">
+                  <ExternalLink className="w-3.5 h-3.5" /> Open
+                </button>
+                <button className="ff-action" onClick={() => ff.openLocation(r.path)} title="Show in File Explorer">
+                  <FolderOpen className="w-3.5 h-3.5" /> Location
+                </button>
+                <button className={`ff-action${copiedPath === r.path ? ' ff-action-copied' : ''}`} onClick={() => handleCopyPath(r.path)}>
+                  {copiedPath === r.path
+                    ? <><Check className="w-3.5 h-3.5" /> Copied</>
+                    : <><ClipboardCopy className="w-3.5 h-3.5" /> Copy Path</>}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Recent searches — shown only when idle */}
+      {!hasSearched && !searching && recentSearches.length > 0 && (
+        <div className="ff-recent">
+          <div className="ff-recent-head">
+            <span className="eyebrow">Recent searches</span>
+            <button className="ff-recent-clear" onClick={clearRecent}>Clear</button>
+          </div>
+          <div className="ff-recent-list">
+            {recentSearches.map((s) => (
+              <button key={s} className="ff-recent-item" onClick={() => { setQuery(s); doSearch(s); }}>
+                <Clock className="w-3 h-3 shrink-0 opacity-40" /> {s}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+    </section>
+  );
+}
+
 // ─── Placeholder & utility pages ──────────────────────────────────────────────
 
 function PlaceholderPage({ type }: { type: 'profile' | 'settings' }) {
@@ -2117,6 +2606,7 @@ function App() {
           <Route path="/breakroom"><BreakroomPage /></Route>
           <Route path="/tool/bulk-file-renamer"><BulkFileRenamer /></Route>
           <Route path="/tool/spreadsheet-cleaner"><SpreadsheetCleaner /></Route>
+          <Route path="/tool/file-finder"><FileFinderPage /></Route>
           <Route path="/profile"><PlaceholderPage type="profile" /></Route>
           <Route path="/settings"><PlaceholderPage type="settings" /></Route>
           <Route><NotFound /></Route>

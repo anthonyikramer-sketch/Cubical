@@ -1,0 +1,307 @@
+Build Cubical File Finder
+
+Add one free utility to Cubical called File Finder.
+
+IMPORTANT: This should be a real functional desktop utility, not a simulated/demo file browser. Its purpose is to help users quickly locate files on their Windows computer from inside Cubical.
+
+Preserve all existing Cubical UI, functionality, Electron configuration, routing, Breakroom, Store, Library, Home widgets, localStorage behavior, and styling. Do not redesign or refactor unrelated systems.
+
+If the Electron conversion is not currently stable, finish/fix that work before implementing File Finder.
+
+Core Concept
+
+File Finder should answer one extremely common question:
+
+"Where did I put that file?"
+
+The experience should be intentionally simple.
+
+A user should be able to open File Finder, type part of a filename, and quickly find matching files on their computer without manually digging through folders.
+
+File Finder should be included as a FREE Cubical tool and should appear appropriately in the user's Library.
+
+Search
+
+Create a prominent search field.
+
+Placeholder:
+
+Search your computer...
+
+Allow searches using:
+
+Full filename
+Partial filename
+File extension
+Keywords contained in filenames
+
+Examples:
+
+invoice
+
+proposal.pdf
+
+.xlsx
+
+school
+
+Search should be case-insensitive.
+
+Do not require the user to know the exact filename.
+
+Search Locations
+
+For the initial version, prioritize common Windows user locations:
+
+Desktop
+Documents
+Downloads
+Pictures
+Videos
+Music
+
+Allow the user to select:
+
+Common Folders
+
+or
+
+Choose Folder
+
+"Choose Folder" should use the native Windows/Electron folder-selection dialog and allow the user to search within any folder they select.
+
+If practical and reasonably performant, also provide:
+
+Search Entire Computer
+
+However, do NOT implement this in a way that freezes Cubical or causes enormous performance problems. If full-drive searching requires a more sophisticated indexing system, leave that as a clearly identified future improvement rather than building something unstable.
+
+Search Results
+
+Display results cleanly and make them easy to scan.
+
+Each result should show:
+
+File name
+File type/icon
+File location/path
+File size
+Date modified
+
+Prioritize filename readability.
+
+Matching portions of the filename may be highlighted if practical.
+
+Allow sorting by:
+
+Relevance
+Name
+Date modified
+File size
+File type
+File Actions
+
+Each search result should support useful real Windows actions.
+
+At minimum:
+
+Open File
+
+Opens the file using the user's normal/default Windows application.
+
+Open File Location
+
+Opens Windows File Explorer directly to the folder containing the file and, if practical, selects/highlights the file.
+
+Copy Path
+
+Copies the full file path to the clipboard.
+
+These actions must operate on the real local file.
+
+Do NOT allow deleting, moving, renaming, or modifying files in this initial version. File Finder should be safe and primarily read-only.
+
+Filters
+
+Add simple optional filters.
+
+Allow filtering by common categories such as:
+
+All Files
+Documents
+PDFs
+Spreadsheets
+Images
+Videos
+Audio
+Archives
+
+If useful, also allow filtering by date modified:
+
+Anytime
+Today
+This Week
+This Month
+This Year
+
+Keep filters simple and approachable.
+
+Recent Searches
+
+Store a small list of recent File Finder searches locally.
+
+Allow users to click a previous search to run it again.
+
+Include an option to clear search history.
+
+Do not send filenames, paths, or search information to an external server.
+
+Privacy
+
+File Finder should be local-first.
+
+Make it clear somewhere subtle in the interface that searches happen locally on the user's computer.
+
+Something like:
+
+"Your files stay on your computer."
+
+File names, paths, search history, and file contents should not be uploaded anywhere simply to perform a search.
+
+File Finder should search file metadata/names for this version.
+
+Do NOT implement file-content indexing yet.
+
+Home Widget
+
+If it can be implemented cleanly without disrupting the existing customizable Home system, add a File Finder Home widget.
+
+The widget should adapt to its size similarly to the existing Calendar and Clock widgets.
+
+Small size:
+
+A search icon/button or compact search field.
+
+Medium size:
+
+Search field + several recently found/opened files.
+
+Large size:
+
+Search field + recent files/results with quick Open actions.
+
+The widget must work with the existing Edit Layout, drag, resize, collision, and persistence systems.
+
+If adding the widget would destabilize the existing Home layout system, prioritize the standalone File Finder tool and leave the widget for later.
+
+Library Integration
+
+File Finder should appear in the Cubical Library as an owned/free utility.
+
+Suggested information:
+
+File Finder
+
+Free
+
+Description:
+
+Find the file. Skip the folder archaeology.
+
+Allow the user to launch File Finder directly from Library.
+
+Use the existing Library patterns rather than creating an unrelated new system.
+
+Desktop / Electron Requirements
+
+Because browser applications cannot freely search a user's filesystem, implement filesystem access through the existing Electron desktop architecture.
+
+Follow Electron security best practices.
+
+Do not expose unrestricted Node.js filesystem access directly to the React renderer.
+
+Use a secure Electron preload/IPC bridge for filesystem operations.
+
+Keep:
+
+contextIsolation enabled
+nodeIntegration disabled
+
+Expose only the specific filesystem capabilities File Finder requires.
+
+The React UI should request searches/actions through this controlled bridge.
+
+The existing Replit web preview should NOT crash because desktop filesystem APIs are unavailable.
+
+When Cubical is running as a normal web app, File Finder should gracefully explain that local filesystem searching requires the Cubical desktop application rather than throwing errors.
+
+Performance
+
+Searching must not lock up the Cubical interface.
+
+Search directories asynchronously.
+
+Avoid blocking the Electron main process.
+
+Handle:
+
+inaccessible folders
+permission errors
+broken shortcuts
+extremely large directories
+files disappearing during a search
+
+gracefully.
+
+Provide visible search progress or a searching indicator.
+
+Allow the user to cancel a long-running search if practical.
+
+Limit enormous result sets intelligently.
+
+Visual Design
+
+Match Cubical's existing visual language exactly.
+
+File Finder should feel like another native Cubical utility, not Windows File Explorer embedded into the application.
+
+Keep it clean, friendly, and approachable.
+
+Possible copy:
+
+File Finder
+
+"It's here somewhere."
+
+Search field:
+
+Search your computer...
+
+Empty state:
+
+"No luck. Try another name or somewhere else."
+
+Local privacy message:
+
+"Your files stay on your computer."
+
+Use your judgment to improve the microcopy while maintaining Cubical's existing personality.
+
+Verification
+
+After implementation:
+
+Verify Cubical's existing features still work.
+Verify the Replit web preview still loads normally.
+Verify File Finder gracefully handles being opened in the web version.
+Verify the Electron implementation can access local files through the secure bridge.
+Verify searches return real matching files.
+Verify Open File works.
+Verify Open File Location works.
+Verify Copy Path works.
+Verify filters and sorting work.
+Verify permission errors do not crash Cubical.
+Run TypeScript/build checks.
+Do not alter unrelated functionality.
+
+When finished, explain exactly what functionality can be tested inside Replit and what functionality requires running the Electron desktop build on Windows.
