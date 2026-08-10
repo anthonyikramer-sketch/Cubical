@@ -1,0 +1,735 @@
+The current widget system is mostly working, but I want to correct FIVE specific UI/interaction issues.
+
+Do NOT add unrelated features.
+Do NOT redesign Sakura.
+Do NOT change existing widget functionality beyond these fixes.
+
+The five goals are:
+
+1. Reduce excessive empty card space in Clock and Calendar.
+2. Make Calendar automatically switch between compact and full states based on its actual size.
+3. Make actively dragged widgets render ABOVE the sidebar.
+4. Make the unpinned sidebar begin collapsing immediately when the mouse leaves.
+5. Properly distinguish a CLICK from a DRAG so dragging a widget never accidentally activates it.
+
+==================================================
+1. REDUCE EXCESS EMPTY SPACE INSIDE WIDGET CARDS
+==================================================
+
+The Notepad widget is a good reference for the desired visual density.
+
+Its outer card/border only extends slightly beyond its actual content.
+
+Clock and Calendar currently have too much unused dark/gray card surface around their content.
+
+Reduce this excessive empty space.
+
+Use:
+
+- smaller minimum widths
+- smaller minimum heights
+- reduced internal padding
+- content-driven sizing where appropriate
+- tighter layout around actual widget contents
+
+Do NOT make widgets cramped.
+
+They should still have tasteful breathing room.
+
+The goal is:
+
+CONTENT
++ modest padding
++ border
+
+rather than:
+
+CONTENT
++ huge empty region
++ border
+
+Use Notepad as the visual-density reference.
+
+==================================================
+2. CALENDAR MUST HAVE TWO SIZE-DEPENDENT STATES
+==================================================
+
+Calendar should have two primary visual states determined automatically by the actual dimensions of the widget.
+
+STATE A:
+COMPACT DAY CARD
+
+When Calendar is below the required size for a useful monthly calendar, show ONLY:
+
+- Month
+- Day number
+- Day of week
+
+Example:
+
+AUG
+10
+MONDAY
+
+The compact Calendar should be tight around this information.
+
+There should NOT be a large blank card surrounding it.
+
+Do NOT display the month grid in this state.
+
+STATE B:
+FULL MONTH CALENDAR
+
+Only when the Calendar has been resized LARGE ENOUGH should it automatically transition into the full monthly Calendar.
+
+The transition must be based on the Calendar widget's actual available width AND height.
+
+Do not switch merely because it became slightly larger.
+
+There should be enough room to display the full Calendar comfortably and readably before switching.
+
+==================================================
+3. CALENDAR RESPONSIVE TRANSITION
+==================================================
+
+The Calendar should automatically respond to resizing.
+
+Behavior:
+
+small
+→ compact day card
+
+slightly larger
+→ STILL compact day card
+
+large enough for useful month view
+→ full monthly Calendar
+
+shrink below that threshold again
+→ compact day card
+
+Do NOT require a manual compact/full toggle.
+
+Do NOT permanently lock Calendar into either state.
+
+Do NOT show a squashed monthly Calendar.
+
+The widget itself determines which layout is appropriate based on its dimensions.
+
+If helpful, use a clear breakpoint based on BOTH width and height.
+
+==================================================
+4. CALENDAR DATA MUST REMAIN THE SAME
+==================================================
+
+Compact Calendar and full Calendar are two representations of the SAME Calendar widget.
+
+Do not create two independent Calendars.
+
+Preserve:
+
+- date
+- events
+- selected dates
+- Calendar state
+- existing Calendar functionality
+
+Changing size should only change presentation.
+
+==================================================
+5. CLOCK SHOULD HUG ITS CONTENT
+==================================================
+
+Clock currently has too much unused card area.
+
+Reduce its minimum dimensions substantially.
+
+At its smallest normal size, the Clock card should closely fit:
+
+- current time
+- AM/PM
+- Timer icon/state
+- Alarm icon/state
+- other existing compact indicators
+
+The border should sit only slightly outside these elements.
+
+There should be modest padding, not a large empty region.
+
+The smallest Clock should feel like a compact digital desk clock.
+
+Do not remove:
+
+- Timer
+- Alarm
+- existing Clock controls
+- existing Clock functionality
+
+==================================================
+6. CLOCK SIZE SHOULD BE CONTENT-DRIVEN
+==================================================
+
+Do not maintain a large minimum height simply because Clock previously occupied a larger card.
+
+Determine the smallest practical dimensions from the contents themselves.
+
+If the contents require approximately:
+
+[ timer ][ alarm ]
+
+12:34 PM
+
+then the card should end shortly after those elements.
+
+Do not reserve large unused vertical space beneath them.
+
+==================================================
+7. GLOBAL CLICK VS DRAG RULE
+==================================================
+
+There is currently an interaction bug:
+
+When I click/hold Calendar to drag it during normal use, Calendar moves correctly, but releasing the mouse also activates Calendar and opens it.
+
+This is incorrect.
+
+Dragging a widget must NOT count as clicking the widget.
+
+This should be fixed at the SHARED WIDGET INTERACTION LEVEL rather than only patching Calendar.
+
+All current and future interactive widgets should inherit this behavior.
+
+==================================================
+8. DISTINGUISH POINTER CLICK FROM POINTER DRAG
+==================================================
+
+Implement a small drag threshold.
+
+On pointer/mouse down:
+
+Record the initial pointer position.
+
+Do NOT immediately consider the interaction a drag.
+
+If pointer movement remains below a small threshold and the user releases:
+
+Treat it as a CLICK.
+
+If pointer movement exceeds the threshold:
+
+Treat it as a DRAG.
+
+Once an interaction becomes a drag:
+
+Suppress the click/activation that would normally occur on pointer release.
+
+Conceptually:
+
+pointer down
+→ record start position
+
+tiny/no movement
+→ pointer up
+→ CLICK
+
+movement exceeds threshold
+→ DRAG STARTS
+
+pointer up after drag
+→ DROP
+→ DO NOT CLICK
+
+Use a sensible small threshold so tiny hand movement does not accidentally cancel normal clicks.
+
+Approximately 4–6 CSS pixels is reasonable.
+
+==================================================
+9. CALENDAR CLICK VS DRAG
+==================================================
+
+Calendar should specifically behave like this:
+
+NORMAL CLICK:
+
+pointer down
+→ little/no movement
+→ pointer up
+→ open Calendar / perform normal Calendar click action
+
+DRAG:
+
+pointer down
+→ move beyond drag threshold
+→ Calendar begins moving
+→ release
+→ Calendar stops where released
+→ Calendar DOES NOT OPEN
+
+This must work while Edit Widgets is OFF.
+
+Dragging Calendar around Home should never accidentally open the Calendar after release.
+
+==================================================
+10. APPLY CLICK VS DRAG TO ALL INTERACTIVE WIDGETS
+==================================================
+
+Do not make this a Calendar-only hack.
+
+Apply the shared interaction rule to all widgets.
+
+This protects current and future widgets that have clickable card surfaces.
+
+For example:
+
+- Calendar
+- Clock
+- Link Shelf
+- Decision Maker
+- Calculator
+- Notepad
+- future widgets
+
+Dragging a widget should perform movement/transfer/reordering.
+
+Clicking an interactive element should perform its normal action.
+
+One gesture should NOT accidentally perform both.
+
+==================================================
+11. CHILD CONTROLS MUST STILL WORK
+==================================================
+
+Do not break controls inside widgets.
+
+Examples:
+
+- Notepad toolbar buttons
+- Clock Timer
+- Clock Alarm
+- Calendar controls
+- Link Shelf links
+- Calculator buttons
+- Decision Maker controls
+- Recall buttons
+- Clear buttons
+
+Clicking an interactive child control should continue operating that control normally.
+
+Do not start dragging the entire widget simply because the user clicked a button inside it.
+
+Preserve appropriate drag handles / card-background dragging behavior.
+
+If the current architecture allows dragging from most of the widget surface, ensure interactive controls stop propagation or otherwise remain usable.
+
+==================================================
+12. DRAGGED WIDGETS MUST RENDER ABOVE SIDEBAR
+==================================================
+
+The previous layering fix still does not produce the required result.
+
+Dragged widgets are currently rendering UNDER the sidebar.
+
+This must be reversed.
+
+During active drag:
+
+DRAGGED WIDGET
+
+must visually render ABOVE:
+
+SIDEBAR
+
+If I drag Calendar, Notepad, Clock, Calculator, or another widget across the sidebar:
+
+I should see the ENTIRE widget floating over the sidebar.
+
+The sidebar should visually be underneath the dragged widget.
+
+==================================================
+13. DO NOT ASSUME Z-INDEX ALONE WILL FIX THIS
+==================================================
+
+Inspect the actual stacking contexts and overflow behavior.
+
+A very high z-index on the widget may still fail if:
+
+- its parent creates a stacking context
+- its parent has overflow hidden
+- sidebar belongs to a higher stacking context
+- transformed ancestors create isolated stacking contexts
+- widget remains clipped to the workspace container
+
+Fix the actual architecture causing the layering problem.
+
+If necessary, during active drag:
+
+- render a drag overlay
+- use a React portal
+- attach the dragged representation near the application root/body
+- use viewport-relative coordinates
+- ensure the drag layer is above sidebar
+- ensure ancestors cannot clip the dragged representation
+
+The result matters more than the exact implementation.
+
+==================================================
+14. DRAG OVER SIDEBAR MUST REMAIN FUNCTIONAL
+==================================================
+
+This visual layering must work together with tab transfer.
+
+Example:
+
+I grab Calendar on Home.
+
+I drag it left.
+
+Calendar visibly moves over the sidebar.
+
+I hover Library.
+
+Library remains detectable as a valid destination underneath the dragged widget.
+
+I release.
+
+Calendar transfers to Library.
+
+IMPORTANT:
+
+The drag overlay itself must NOT prevent detecting sidebar drop targets.
+
+Use pointer-events / hit-testing appropriately.
+
+The dragged representation should be visually above the sidebar while the underlying sidebar can still determine which destination is being hovered.
+
+==================================================
+15. SIDEBAR MUST COLLAPSE IMMEDIATELY ON MOUSE LEAVE
+==================================================
+
+The sidebar currently remains expanded for approximately 4–5 seconds after my mouse leaves it.
+
+I do NOT want this delay.
+
+When sidebar is UNPINNED:
+
+mouse enters sidebar
+→ smooth expansion begins
+
+mouse remains over sidebar
+→ sidebar remains expanded
+
+mouse leaves sidebar
+→ smooth collapse begins IMMEDIATELY
+
+There should be no waiting period after pointer leave.
+
+==================================================
+16. REMOVE OLD SIDEBAR DELAY LOGIC
+==================================================
+
+Inspect the implementation for existing:
+
+- setTimeout calls
+- inactivity timers
+- delayed mouse-leave handlers
+- hover timers
+- collapse timeout refs
+- old 3–5 second auto-collapse settings
+
+Remove the delay logic responsible for this behavior.
+
+Do NOT merely change:
+
+5000ms → 500ms
+
+I want:
+
+NO intentional delay.
+
+Pointer leave itself should initiate collapse.
+
+==================================================
+17. IMMEDIATE DOES NOT MEAN ABRUPT
+==================================================
+
+Keep the sidebar animation smooth.
+
+The desired behavior is NOT an instant visual snap.
+
+It should be:
+
+pointer leaves
+→ animation starts immediately
+→ sidebar smoothly contracts
+
+The animation may still take a short polished amount of time.
+
+The WAIT before the animation should be zero.
+
+==================================================
+18. PIN OVERRIDES AUTO-COLLAPSE
+==================================================
+
+Preserve Pin.
+
+If sidebar is pinned:
+
+Mouse leave does nothing.
+
+Sidebar remains expanded.
+
+If sidebar is unpinned:
+
+Mouse leave immediately starts smooth collapse.
+
+==================================================
+19. WIDGET MOVEMENT REMAINS AVAILABLE OUTSIDE EDIT MODE
+==================================================
+
+Do NOT accidentally regress this behavior while modifying pointer events.
+
+Widgets must remain draggable during NORMAL Cubical use.
+
+The user must NOT need Edit Widgets mode to move widgets.
+
+This includes:
+
+- Home free movement
+- transfer between valid tabs
+- transported-widget reordering
+- Recall interactions
+
+Edit Widgets does NOT enable dragging.
+
+Dragging is an always-available widget behavior.
+
+==================================================
+20. EDIT MODE PURPOSE
+==================================================
+
+Edit Widgets should remain for management functions such as:
+
+- Add Widget
+- Remove / X
+- resize controls where applicable
+
+Widget movement itself remains available whether Edit Widgets is ON or OFF.
+
+==================================================
+21. DO NOT CHANGE
+==================================================
+
+Do not change:
+
+- Sakura background
+- Sakura decorations
+- Sakura palette
+- widget data
+- Notepad functionality
+- Calendar event functionality
+- Clock Timer functionality
+- Clock Alarm functionality
+- Link Shelf functionality
+- Decision Maker functionality
+- Calculator functionality
+- portable-widget architecture
+- Recall
+- Recall Widgets
+- Store
+- Library
+- Breakroom
+- Profile
+- Settings
+
+Do not add unrelated features.
+
+==================================================
+22. VERIFY CLOCK SIZE
+==================================================
+
+1. Shrink Clock as far as allowed.
+
+2. Verify its card hugs:
+   - time
+   - AM/PM
+   - Timer/Alarm indicators
+
+3. Verify there is very little unused gray/dark space.
+
+4. Verify Clock remains visually polished.
+
+5. Verify Timer works.
+
+6. Verify Alarm works.
+
+==================================================
+23. VERIFY CALENDAR RESPONSIVE SIZE
+==================================================
+
+7. Shrink Calendar to minimum size.
+
+8. Verify it displays ONLY:
+
+MONTH
+DAY NUMBER
+DAY OF WEEK
+
+9. Verify its border hugs this information closely.
+
+10. Slowly enlarge Calendar.
+
+11. Verify it remains compact while there is insufficient space for a useful month view.
+
+12. Continue enlarging it.
+
+13. Once there is genuinely enough width AND height, verify it automatically switches to full monthly Calendar.
+
+14. Shrink it again.
+
+15. Verify it automatically returns to compact mode.
+
+16. Verify Calendar data/events remain intact throughout.
+
+==================================================
+24. VERIFY CLICK VS DRAG
+==================================================
+
+17. Make sure Edit Widgets is OFF.
+
+18. Click Calendar normally without dragging.
+
+19. Verify Calendar opens normally.
+
+20. Close it.
+
+21. Grab Calendar and drag it approximately 100px.
+
+22. Release it.
+
+23. Verify Calendar moves.
+
+24. Verify Calendar DOES NOT OPEN.
+
+25. Drag Calendar again.
+
+26. Release.
+
+27. Verify it again DOES NOT OPEN.
+
+28. Perform a normal click.
+
+29. Verify it DOES open.
+
+==================================================
+25. VERIFY OTHER INTERACTIVE WIDGETS
+==================================================
+
+30. Drag Clock.
+
+31. Verify releasing Clock does not accidentally trigger Timer or Alarm.
+
+32. Drag Link Shelf.
+
+33. Verify releasing does not accidentally open a link.
+
+34. Drag Decision Maker.
+
+35. Verify releasing does not accidentally activate a decision action.
+
+36. Drag Calculator.
+
+37. Verify releasing does not accidentally press a calculator control.
+
+38. Verify normal clicks on all those controls still work.
+
+==================================================
+26. VERIFY SIDEBAR LAYERING
+==================================================
+
+39. Drag Notepad over sidebar.
+
+40. Verify Notepad renders ABOVE sidebar.
+
+41. Repeat with Calendar.
+
+42. Repeat with Clock.
+
+43. Repeat with Calculator.
+
+44. Verify the full widget remains visible while crossing sidebar.
+
+45. Verify nothing is clipped underneath it.
+
+==================================================
+27. VERIFY SIDEBAR DROP TARGETS
+==================================================
+
+46. Drag Calendar over sidebar.
+
+47. Hover Library.
+
+48. Verify Library can still detect the dragged widget even though Calendar visually renders above it.
+
+49. Drop Calendar.
+
+50. Verify Calendar transfers successfully.
+
+==================================================
+28. VERIFY SIDEBAR COLLAPSE
+==================================================
+
+51. Leave sidebar unpinned.
+
+52. Hover sidebar.
+
+53. Verify it smoothly expands.
+
+54. Move pointer away.
+
+55. Verify collapse animation begins IMMEDIATELY.
+
+56. Verify there is no 4–5 second delay.
+
+57. Repeat several times.
+
+58. Verify behavior is consistent.
+
+59. Pin sidebar.
+
+60. Move pointer away.
+
+61. Verify sidebar stays open.
+
+62. Unpin.
+
+63. Move pointer away.
+
+64. Verify immediate smooth collapse returns.
+
+==================================================
+29. FINAL REGRESSION CHECK
+==================================================
+
+Before finishing, verify:
+
+- Clock can become substantially smaller.
+- Clock card hugs its content.
+- Calendar compact card hugs its content.
+- Small Calendar shows month/day number/day of week only.
+- Calendar does NOT switch to full month prematurely.
+- Large Calendar automatically becomes full monthly view.
+- Shrinking Calendar returns it to compact view.
+- Normal Calendar click still opens it.
+- Dragging Calendar NEVER opens it on release.
+- Shared click-vs-drag behavior applies to current/future widgets.
+- Interactive child controls still work.
+- Widgets remain movable outside Edit Widgets mode.
+- Dragged widgets visibly render ABOVE sidebar.
+- Sidebar destinations remain detectable beneath dragged widgets.
+- Sidebar begins collapsing immediately on pointer leave.
+- Sidebar collapse animation remains smooth.
+- Pin still overrides collapse.
+- Existing widget functionality remains intact.
+- Sakura remains unchanged.
+
+Do not make unrelated changes.

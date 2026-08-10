@@ -346,7 +346,7 @@ const WIDGET_LABELS: Record<WidgetId, string> = {
 
 // Minimum pixel dimensions — below these a widget cannot be resized
 const WIDGET_MIN: Record<WidgetId, { w: number; h: number }> = {
-  calendar:         { w: 280, h: 280 },
+  calendar:         { w: 120, h: 110 },
   clock:            { w: 140, h: 100 },
   notepad:          { w: 220, h: 160 },
   'file-finder':    { w: 220, h: 120 },
@@ -642,7 +642,11 @@ function AppShell({ children, libraryCount }: { children: ReactNode; libraryCoun
   const handleSidebarLeave = () => {
     isSidebarHoveredRef.current = false;
     setHoverPage(null);
-    scheduleCollapse();
+    // Collapse immediately — no timer delay. Pin and narrow viewports are exempt.
+    if (!sidebarPinnedRef.current && window.innerWidth > 800 && readSettings().sidebarAutoCollapse) {
+      if (collapseTimerRef.current) clearTimeout(collapseTimerRef.current);
+      setSidebarCollapsed(true);
+    }
   };
 
   const togglePin = () => {
@@ -2241,6 +2245,13 @@ function HomeWorkspace({
   const [activeItem, setActiveItem] = useState<LayoutItem | null>(null);
   const [activeMode, setActiveMode] = useState<'drag' | 'resize' | null>(null);
 
+  // Portal drag ghost — rendered at document.body so it appears above all stacking contexts
+  // including the sidebar. Direct DOM updates keep the ghost smooth at 60 fps.
+  const [portalDragItem, setPortalDragItem] = useState<{ id: WidgetId; w: number; h: number } | null>(null);
+  const portalDragElRef  = useRef<HTMLDivElement | null>(null);
+  const portalOffsetRef  = useRef<{ dx: number; dy: number }>({ dx: 0, dy: 0 });
+  const portalInitPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+
   const { setDragId, hoverPageRef, displace } = usePortable();
   const [, navigate] = useLocation();
 
@@ -2320,11 +2331,18 @@ function HomeWorkspace({
       const dx = ev.clientX - startMX;
       const dy = ev.clientY - startMY;
 
-      // Only start drag after meaningful movement (avoids conflict with content clicks)
       if (!dragging) {
         if (Math.hypot(dx, dy) < 6) return;
         dragging = true;
-        setActiveItem({ ...item });
+
+        // Compute cursor-to-widget-origin offset for the portal ghost.
+        // containerRect gives the workspace's viewport position.
+        const containerRect = containerRef.current?.getBoundingClientRect() ?? { left: 0, top: 0 };
+        portalOffsetRef.current  = { dx: startMX - (containerRect.left + origX), dy: startMY - (containerRect.top + origY) };
+        portalInitPosRef.current = { x: ev.clientX - portalOffsetRef.current.dx, y: ev.clientY - portalOffsetRef.current.dy };
+
+        setPortalDragItem({ id, w: item.w, h: item.h }); // mounts ghost portal
+        setActiveItem({ ...item });                       // marks widget as is-active-outer (opacity:0)
         activeItemRef.current = { ...item };
         setActiveMode('drag');
         activeModeRef.current = 'drag';
@@ -2332,9 +2350,14 @@ function HomeWorkspace({
 
       ev.preventDefault();
 
-      const containerLeft = containerRef.current?.getBoundingClientRect().left ?? 0;
+      // Update ghost position directly — no setState per frame, keeps animation at 60 fps
+      if (portalDragElRef.current) {
+        const { dx: pdx, dy: pdy } = portalOffsetRef.current;
+        portalDragElRef.current.style.transform = `translate(${ev.clientX - pdx}px,${ev.clientY - pdy}px)`;
+      }
 
-      // Portable: entering sidebar zone activates drop-target highlights on nav links
+      // Sidebar zone: entering activates drop-target highlights on nav links
+      const containerLeft = containerRef.current?.getBoundingClientRect().left ?? 0;
       if (portable && ev.clientX < containerLeft) {
         if (!inSidebar) { inSidebar = true; setDragId(id); }
       } else if (inSidebar) {
@@ -2342,18 +2365,25 @@ function HomeWorkspace({
         setDragId(null);
       }
 
-      // Free pixel movement — widget follows cursor everywhere, including over sidebar.
-      // z-index:1000 on .is-active-outer renders it above the sidebar visually.
-      const proposed: LayoutItem = { ...item, x: origX + dx, y: origY + dy };
-      setActiveItem(proposed);
-      activeItemRef.current = proposed;
+      // Track logical position via ref only (no re-render per frame; widget is hidden)
+      activeItemRef.current = { ...item, x: origX + dx, y: origY + dy };
     };
 
     const onUp = () => {
       document.removeEventListener('pointermove', onMove);
       document.removeEventListener('pointerup', onUp);
 
-      if (!dragging) return; // tap/click, not a drag — do nothing
+      if (!dragging) return; // tap/click — do nothing, let child onClick fire normally
+
+      // After a drag, the browser synthesises a click event on the release target.
+      // Suppress it at the capture phase before it reaches any child onClick handler.
+      const suppressClick = (ce: MouseEvent) => {
+        ce.stopPropagation();
+        document.removeEventListener('click', suppressClick, true);
+      };
+      document.addEventListener('click', suppressClick, true);
+
+      setPortalDragItem(null); // unmount ghost
 
       // Portable drop: displace into sidebar destination and navigate
       const dropPage = inSidebar ? hoverPageRef.current : null;
@@ -2372,8 +2402,6 @@ function HomeWorkspace({
       const finalItem = activeItemRef.current;
       if (finalItem) {
         const cw = canvasWRef.current;
-        // Boundary correction: keep widget within canvas horizontally;
-        // allow vertical overflow (widgets stay accessible via scroll).
         const corrected: LayoutItem = {
           ...finalItem,
           x: Math.max(0, Math.min(cw - finalItem.w, finalItem.x)),
@@ -2457,6 +2485,31 @@ function HomeWorkspace({
           />
         );
       })}
+
+      {/* Drag ghost portal — renders at document.body so it sits above every stacking
+          context including the sidebar. pointer-events:none keeps sidebar drop-targets
+          detectable while the ghost floats visually over them. */}
+      {portalDragItem && createPortal(
+        <div
+          ref={(el) => {
+            portalDragElRef.current = el;
+            // Set initial position synchronously so there is no one-frame flash at (0,0)
+            if (el) el.style.transform = `translate(${portalInitPosRef.current.x}px,${portalInitPosRef.current.y}px)`;
+          }}
+          style={{
+            position: 'fixed', top: 0, left: 0,
+            width: portalDragItem.w, height: portalDragItem.h,
+            zIndex: 9999, pointerEvents: 'none',
+            willChange: 'transform',
+          }}
+        >
+          <div className="grid-widget is-active drag-ghost-card">
+            <span className="drag-ghost-label">{WIDGET_LABELS[portalDragItem.id]}</span>
+          </div>
+          {readEquippedSkin() === 'sakura' && <SakuraWidgetDecoration widgetId={portalDragItem.id} />}
+        </div>,
+        document.body,
+      )}
     </div>
   );
 }

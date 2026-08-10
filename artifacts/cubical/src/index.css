@@ -406,11 +406,28 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
   transition: left 120ms ease-out, top 120ms ease-out;
   will-change: left, top;
 }
-/* Disable transition while dragging so the widget tracks the cursor instantly */
-/* z-index:1000 renders the dragged widget above the sidebar (z-index:5) */
+/* During drag the original widget is hidden — the portal ghost at document.body
+   renders instead and is guaranteed above all stacking contexts including sidebar. */
 .grid-widget-outer.is-active-outer {
-  z-index: 1000;
+  opacity: 0;
   transition: none;
+  pointer-events: none;
+}
+
+/* Drag ghost — identical card shell, floats over everything, cannot intercept events */
+.drag-ghost-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.82;
+  cursor: grabbing;
+}
+.drag-ghost-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: hsl(var(--muted-foreground));
+  letter-spacing: -.01em;
+  pointer-events: none;
 }
 
 /* Visual card: fills the outer wrapper, clips its own content to rounded corners */
@@ -540,7 +557,7 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
 /* ─── Calendar ───────────────────────────────────────────────────────────────── */
 
 /* Full / compact inner wrapper (fills grid widget content) */
-.cal-widget-inner { display: flex; flex-direction: column; height: 100%; padding: 22px; overflow: hidden; }
+.cal-widget-inner { display: flex; flex-direction: column; height: 100%; padding: 16px; overflow: hidden; }
 .cal-widget-full .cal-day-panel { flex: 1; overflow-y: auto; min-height: 0; }
 .cal-header-compact { margin-bottom: 10px; }
 .cal-grid-compact { gap: 1px; }

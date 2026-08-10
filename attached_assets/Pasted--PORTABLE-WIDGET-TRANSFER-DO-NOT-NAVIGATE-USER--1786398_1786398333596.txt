@@ -1,0 +1,616 @@
+==================================================
+PORTABLE WIDGET TRANSFER: DO NOT NAVIGATE USER
+==================================================
+
+When I successfully drag a widget onto another valid main tab, move the WIDGET to that destination but KEEP ME on my current tab.
+
+Do NOT automatically navigate me to the destination.
+
+Example:
+
+I am on Home.
+
+I drag Notepad onto Library.
+
+Result:
+
+- Notepad transfers to Library.
+- Notepad disappears from Home.
+- Library now owns that transported widget.
+- I remain on Home.
+- The next time I manually open Library, Notepad is already there.
+
+Another example:
+
+I am in Library.
+
+I drag Calculator onto Breakroom.
+
+Result:
+
+- Calculator transfers to Breakroom.
+- Calculator disappears from Library.
+- I remain in Library.
+- When I later manually open Breakroom, Calculator is already there.
+
+This rule applies regardless of where the widget originated.
+
+==================================================
+TRANSFER FROM ANY VALID MAIN TAB
+==================================================
+
+Portable widgets can be transferred directly between ANY of the four valid main tabs:
+
+- Home
+- Store
+- Library
+- Breakroom
+
+The widget does NOT need to return Home first.
+
+Examples:
+
+Home -> Library
+Library -> Store
+Store -> Breakroom
+Breakroom -> Library
+Library -> Home
+
+All should work directly.
+
+Profile and Settings remain INVALID widget destinations.
+
+==================================================
+DRAG BEHAVIOR DURING CROSS-TAB TRANSFER
+==================================================
+
+When dragging a widget from any valid tab:
+
+- lift it visually out of its current layout
+- keep it attached to the cursor
+- render it ABOVE the sidebar
+- render it above normal page content
+- preserve full widget visibility
+- allow valid sidebar tab destinations underneath it to remain detectable
+- allow valid destinations to highlight
+
+Use the same top-level drag overlay / portal system regardless of which tab the widget came from.
+
+The widget should visually pass OVER the sidebar rather than underneath it.
+
+==================================================
+REMEMBER EXACT DRAG ORIGIN
+==================================================
+
+Whenever a drag begins, remember exactly where the widget came from.
+
+For Home remember:
+
+- X position
+- Y position
+- width
+- height
+- Home state
+
+For Store / Library / Breakroom remember:
+
+- current tab
+- current row
+- current order/index
+- transported dimensions/state
+
+Do not permanently update widget location until a valid drop succeeds.
+
+==================================================
+VALID DROP
+==================================================
+
+If the widget is released over:
+
+- Home
+- Store
+- Library
+- Breakroom
+
+and that represents a valid transfer:
+
+Move the widget to that destination.
+
+Update its saved section immediately.
+
+Preserve:
+
+- widget data
+- widget state
+- widget skin/decorations
+- canonical Home position
+- canonical Home size
+
+Do NOT duplicate the widget.
+
+Most importantly:
+
+DO NOT NAVIGATE THE USER.
+
+The current page remains exactly where it was.
+
+==================================================
+SUBTLE TRANSFER FEEDBACK
+==================================================
+
+Because the user remains on the current page after sending a widget somewhere else, provide subtle confirmation that the transfer succeeded.
+
+For example:
+
+"Notepad moved to Library"
+
+or equivalent subtle visual feedback.
+
+This should be:
+
+- brief
+- non-blocking
+- visually restrained
+- consistent with Cubical styling
+
+Do NOT use a modal.
+
+Do NOT require confirmation.
+
+==================================================
+INVALID DROP = SNAP BACK
+==================================================
+
+If a widget is released somewhere that is NOT a valid destination:
+
+Do NOT transfer it.
+
+Do NOT save the invalid position.
+
+Do NOT navigate anywhere.
+
+Return it to EXACTLY where the drag began.
+
+For Home:
+
+restore exact original X/Y and size.
+
+For Store / Library / Breakroom:
+
+restore exact original row/order position.
+
+A quick smooth snap-back animation is acceptable.
+
+Do not use an exaggerated bounce.
+
+Invalid destinations include:
+
+- Profile
+- Settings
+- empty sidebar space
+- unsupported page regions
+- outside the application
+- any other non-drop destination
+
+==================================================
+HOME DESTINATION
+==================================================
+
+If a transported widget is dragged onto Home:
+
+Return it to its saved canonical Home position and Home dimensions.
+
+Example:
+
+I am in Library.
+
+I drag Notepad onto Home.
+
+Result:
+
+- Notepad returns to its saved Home location.
+- I remain in Library.
+- When I later manually visit Home, Notepad is there in its original Home layout.
+
+Do NOT automatically navigate Home.
+
+==================================================
+TRANSPORTED NOTEPAD SHAPE
+==================================================
+
+The Notepad should use a different presentation when it is NOT on Home.
+
+HOME:
+
+Preserve the existing freely-positioned Home Notepad behavior and dimensions.
+
+NON-HOME:
+
+When Notepad appears in:
+
+- Store
+- Library
+- Breakroom
+- nested tool views belonging to those tabs
+
+I want it to be WIDER THAN IT IS TALL.
+
+The current transported Notepad is too tall and consumes too much vertical space.
+
+Reduce its transported height substantially.
+
+Then increase its width slightly to compensate for the reduced height.
+
+The intent is NOT to preserve the exact same area mathematically.
+
+Instead:
+
+Take meaningful vertical space away from the current transported Notepad and use SOME of that reduction to make it slightly wider.
+
+The result should look like a horizontal utility panel.
+
+Conceptually:
+
+CURRENT:
+
+┌──────────┐
+│          │
+│          │
+│ Notepad  │
+│          │
+│          │
+└──────────┘
+
+DESIRED:
+
+┌──────────────────────┐
+│       Notepad        │
+│                      │
+└──────────────────────┘
+
+It should clearly be wider than tall.
+
+==================================================
+NOTEPAD CONTENT IN TRANSPORTED STATE
+==================================================
+
+Do NOT remove Notepad functionality to achieve the smaller height.
+
+Preserve:
+
+- rich text controls
+- headings
+- bold
+- italic
+- underline
+- links
+- alignment
+- bullets
+- numbered lists
+- checkboxes
+- existing content
+- character information
+- existing Notepad features
+
+Because transported Notepad is shorter:
+
+Make the actual document/content area internally scrollable when necessary.
+
+The OUTER widget should remain compact.
+
+The CONTENT inside it can scroll.
+
+Do not allow a long note to make the entire transported widget vertically enormous.
+
+==================================================
+TRANSPORTED ROW HEIGHT IS SET BY NOTEPAD
+==================================================
+
+When Notepad exists in a non-Home portable-widget row:
+
+Use the transported Notepad's height as the shared visual height for widgets sitting beside it.
+
+Example:
+
+[ NOTEPAD ][ CLOCK ][ CALENDAR ][ CALCULATOR ]
+
+If Notepad is 220px tall:
+
+Clock should occupy the same 220px row height.
+
+Calendar should occupy the same 220px row height.
+
+Calculator should occupy the same 220px row height.
+
+The exact value should be determined from the final compact Notepad design rather than blindly using 220px.
+
+The important rule is:
+
+ALL WIDGETS BESIDE NOTEPAD
+=
+SAME OUTER HEIGHT AS TRANSPORTED NOTEPAD
+
+==================================================
+WIDTHS REMAIN CONTENT-APPROPRIATE
+==================================================
+
+Matching height does NOT mean matching width.
+
+Each widget may use whatever width makes sense for its content.
+
+Example:
+
+Notepad:
+wide
+
+Clock:
+narrow
+
+Calendar:
+medium
+
+Calculator:
+medium/narrow
+
+Decision Maker:
+appropriate to controls
+
+Link Shelf:
+appropriate to links
+
+Therefore a row might look conceptually like:
+
+┌────────────────────┐ ┌────────┐ ┌───────────┐ ┌──────────┐
+│      NOTEPAD       │ │ CLOCK  │ │ CALENDAR  │ │   CALC   │
+│                    │ │        │ │           │ │          │
+└────────────────────┘ └────────┘ └───────────┘ └──────────┘
+
+All bottoms and tops align.
+
+Widths vary naturally.
+
+==================================================
+DO NOT ADD EMPTY SPACE JUST TO MATCH HEIGHT
+==================================================
+
+When another widget matches the transported Notepad's height, intelligently lay out its content within that space.
+
+Do not simply create an enormous empty gray region.
+
+Content should remain visually balanced.
+
+For simple widgets like Clock:
+
+center or appropriately position the compact Clock content inside the shared row height.
+
+For Calendar:
+
+use the appropriate compact/full representation based on available dimensions.
+
+For Calculator:
+
+arrange its controls appropriately within its available area.
+
+The widgets should look intentionally designed for the shared row.
+
+==================================================
+IF NOTEPAD IS NOT PRESENT
+==================================================
+
+Do NOT require Notepad to exist in every transported row.
+
+If Notepad is absent:
+
+Use the normal shared transported-widget sizing rules.
+
+Widgets should still have a visually consistent row height.
+
+Avoid excessive empty card space.
+
+If Notepad is later added to that row:
+
+The row should adapt to the transported Notepad height.
+
+==================================================
+MULTIPLE WIDGET ROW BEHAVIOR
+==================================================
+
+Transported widgets should remain on ONE row whenever sufficient horizontal room exists.
+
+Example:
+
+[ Notepad ][ Clock ][ Calendar ][ Calculator ]
+
+Users can drag widgets left/right to reorder them.
+
+When dragging within the row:
+
+- create room between neighboring widgets
+- show where the dragged widget will land
+- preserve varying widths
+- maintain shared height
+
+Only create a second row when the available horizontal width genuinely cannot contain the widgets.
+
+Do NOT wrap prematurely.
+
+==================================================
+NESTED TOOL VIEWS
+==================================================
+
+These transported sizing rules also apply when entering a tool.
+
+Widgets should appear:
+
+BELOW the tool/page title
+
+and
+
+ABOVE the actual tool interface.
+
+Example:
+
+Bulk File Renamer title
+
+[ Notepad ][ Clock ][ Calendar ]
+
+Bulk File Renamer interface
+
+Notepad remains wider than tall.
+
+Widgets beside it match its height.
+
+Their widths remain content-appropriate.
+
+==================================================
+CLICK VS DRAG REMAINS REQUIRED
+==================================================
+
+The shared click-vs-drag threshold remains active everywhere.
+
+Dragging Calendar must not open Calendar.
+
+Dragging Link Shelf must not open a link.
+
+Dragging Clock must not activate Timer/Alarm.
+
+Dragging Calculator must not press a calculator button.
+
+Dragging Decision Maker must not trigger a decision.
+
+Once movement crosses the drag threshold:
+
+The interaction becomes a DRAG.
+
+On release:
+
+DROP ONLY.
+
+Do not also activate the widget.
+
+==================================================
+MOVEMENT REMAINS AVAILABLE OUTSIDE EDIT MODE
+==================================================
+
+All of this dragging must work during NORMAL use.
+
+Edit Widgets does NOT enable widget dragging.
+
+Widgets are always movable.
+
+Edit Widgets is for management functionality such as:
+
+- Add Widget
+- Remove Widget
+- resize controls where appropriate
+
+Cross-tab dragging must work while Edit Widgets is OFF.
+
+==================================================
+FUTURE WIDGET ARCHITECTURE
+==================================================
+
+Make these behaviors part of the shared portable-widget architecture.
+
+Future portable widgets should automatically inherit:
+
+- dragging during normal use
+- transfer from any valid main tab
+- transfer to any valid main tab
+- top-level drag overlay
+- rendering above sidebar
+- valid sidebar drop targets
+- invalid-drop snapback
+- no automatic navigation after transfer
+- transported row participation
+- shared row height behavior
+- content-appropriate width
+- click-vs-drag protection
+- canonical Home preservation
+- Recall behavior
+
+Do not implement these rules separately for every widget.
+
+==================================================
+VERIFY
+==================================================
+
+1. Put Notepad on Home.
+
+2. Verify Home Notepad retains its normal Home dimensions.
+
+3. Drag Notepad from Home to Library.
+
+4. Verify Notepad transfers.
+
+5. Verify I REMAIN ON HOME.
+
+6. Manually open Library.
+
+7. Verify Notepad is present.
+
+8. Verify transported Notepad is clearly WIDER THAN TALL.
+
+9. Verify transported Notepad consumes substantially less vertical space than before.
+
+10. Verify its document area scrolls internally when content exceeds available height.
+
+11. Add Clock beside Notepad.
+
+12. Verify Clock has exactly the same outer height as Notepad.
+
+13. Verify Clock may have a narrower width.
+
+14. Add Calendar.
+
+15. Verify Calendar matches the same outer height.
+
+16. Verify Calendar width remains appropriate for Calendar.
+
+17. Add Calculator.
+
+18. Verify Calculator matches row height but keeps its own appropriate width.
+
+19. Verify all widget tops align.
+
+20. Verify all widget bottoms align.
+
+21. Reorder widgets horizontally.
+
+22. Verify varying widths are preserved.
+
+23. Verify second row is NOT created while enough horizontal space exists.
+
+24. Drag Notepad from Library directly to Breakroom.
+
+25. Verify it passes visually ABOVE sidebar.
+
+26. Verify Breakroom accepts it.
+
+27. Verify I REMAIN IN LIBRARY after dropping it.
+
+28. Manually open Breakroom.
+
+29. Verify Notepad is there.
+
+30. Drag Notepad toward Settings and release.
+
+31. Verify Settings does NOT accept it.
+
+32. Verify Notepad snaps back to its exact Breakroom row position.
+
+33. Drag Notepad from Breakroom onto Home.
+
+34. Verify Notepad transfers Home.
+
+35. Verify I REMAIN IN BREAKROOM.
+
+36. Manually open Home.
+
+37. Verify Notepad is restored to its canonical Home position and dimensions.
+
+38. Verify normal clicks still work.
+
+39. Verify dragging widgets does not activate their click actions.
+
+40. Verify all behavior works with Edit Widgets OFF.
