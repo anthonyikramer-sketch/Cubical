@@ -1635,6 +1635,7 @@ function NotepadWidget({ compact = false }: { compact?: boolean }) {
   };
 
   const [copied, setCopied] = useState(false);
+  const [copyFailed, setCopyFailed] = useState(false);
 
   const exportTxt = () => {
     const ed = tiptap.current;
@@ -1674,7 +1675,10 @@ function NotepadWidget({ compact = false }: { compact?: boolean }) {
       await navigator.clipboard.writeText(text);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1800);
-    } catch {}
+    } catch {
+      setCopyFailed(true);
+      window.setTimeout(() => setCopyFailed(false), 3000);
+    }
   };
 
   // ── Import ────────────────────────────────────────────────────────────────
@@ -1890,6 +1894,12 @@ function NotepadWidget({ compact = false }: { compact?: boolean }) {
         <div className="toast-message" role="status">
           <Check />
           Copied to clipboard
+        </div>
+      )}
+      {copyFailed && (
+        <div className="toast-message toast-message--error" role="alert">
+          <X />
+          Copy failed — try selecting the text manually
         </div>
       )}
       {importedFile && (

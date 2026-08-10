@@ -181,6 +181,8 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
 .placeholder-page { max-width: 650px; padding-top: 5vh; } .placeholder-panel { margin-top: 35px; padding: 28px; border: 1px solid hsl(var(--border)); border-radius: 21px; background: hsl(var(--card)); } .placeholder-panel p { color: hsl(var(--muted-foreground)); line-height: 1.7; font-size: 14px; margin-bottom: 0; }
 .toast-message { position: fixed; z-index: 20; right: 28px; bottom: 28px; display: flex; align-items: center; gap: 10px; border-radius: 12px; background: hsl(162 30% 17%); color: hsl(42 43% 95%); padding: 13px 16px; box-shadow: 0 12px 26px hsl(162 30% 17% / .2); font-size: 12px; font-weight: 700; animation: toast-in .3s both; }
 .toast-message svg { color: hsl(var(--accent)); width: 16px; }
+.toast-message--error { background: hsl(1 55% 28%); box-shadow: 0 12px 26px hsl(1 55% 28% / .25); }
+.toast-message--error svg { color: hsl(1 80% 80%); }
 .renamer-page { max-width: 1160px; animation: rise-in .45s both; }
 .tool-title-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 22px; margin-bottom: 29px; }
 .tool-title-with-icon { display: flex; align-items: center; gap: 18px; margin-top: 18px; }
