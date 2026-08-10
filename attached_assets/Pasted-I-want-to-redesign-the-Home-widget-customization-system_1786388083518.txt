@@ -1,0 +1,397 @@
+I want to redesign the Home widget customization system.
+
+The goal is to have ONE unified "Edit Widgets" mode for managing the Home workspace.
+
+Do not add any new widgets yet.
+
+For now, this system should manage the existing:
+- Clock
+- Calendar
+- Notepad
+
+This task is about creating the widget management system so additional widgets can easily be added later.
+
+--------------------------------------------------
+1. REPLACE "EDIT LAYOUT" WITH "EDIT WIDGETS"
+--------------------------------------------------
+
+Rename the existing:
+
+"Edit Layout"
+
+control to:
+
+"Edit Widgets"
+
+This should become the single customization mode for Home widgets.
+
+When Edit Widgets is NOT active:
+
+- Home should look clean.
+- No delete/remove controls should be visible.
+- No Add Widget dropdown should be visible.
+- Widgets should behave normally.
+
+When the user clicks "Edit Widgets":
+
+Enter Widget Editing Mode.
+
+--------------------------------------------------
+2. WIDGET EDITING MODE
+--------------------------------------------------
+
+While Edit Widgets mode is active:
+
+- Preserve the existing drag functionality.
+- Preserve the existing resize functionality.
+- Preserve grid snapping.
+- Preserve all current layout behavior.
+
+Additionally, show a small remove button in the TOP-RIGHT corner of every active widget.
+
+Use a simple:
+
+×
+
+The remove button should be visually clear but unobtrusive.
+
+It should ONLY appear while Edit Widgets mode is active.
+
+Clicking the X should remove that widget from the Home workspace.
+
+IMPORTANT:
+
+Removing a widget from Home does NOT mean deleting the widget or deleting its stored data.
+
+It only means:
+
+"Do not currently display this widget on my Home workspace."
+
+For example:
+
+If I write something in Notepad, remove Notepad, and later add Notepad again, my previous Notepad content should still exist.
+
+The same principle should apply to widget-specific persistent data.
+
+--------------------------------------------------
+3. ADD WIDGET DROPDOWN
+--------------------------------------------------
+
+While Edit Widgets mode is active, display an:
+
+"+ Add Widget"
+
+dropdown/control near the Edit Widgets control.
+
+Clicking it should open a small clean dropdown containing widgets that are AVAILABLE to add.
+
+For the current version, the possible widgets are:
+
+- Clock
+- Calendar
+- Notepad
+
+However:
+
+ONLY widgets that are NOT currently displayed on Home should appear in this dropdown.
+
+Example:
+
+If Home currently contains:
+
+Clock
+Calendar
+Notepad
+
+Then the Add Widget dropdown should either:
+
+- be disabled
+or
+- show a simple message such as "All widgets added"
+
+It should NOT list duplicates.
+
+--------------------------------------------------
+4. DYNAMIC AVAILABLE WIDGET LIST
+--------------------------------------------------
+
+The Add Widget dropdown must update dynamically.
+
+Example:
+
+Current Home:
+
+Clock
+Calendar
+Notepad
+
+User removes Clock.
+
+Home now contains:
+
+Calendar
+Notepad
+
+The Add Widget dropdown should immediately contain:
+
+Clock
+
+If the user selects Clock:
+
+Clock should be added back to Home.
+
+Clock should immediately disappear from the Add Widget dropdown.
+
+This same behavior should work for every widget.
+
+Conceptually:
+
+AVAILABLE WIDGETS
+minus
+ACTIVE WIDGETS
+equals
+ADD WIDGET DROPDOWN
+
+Do not hardcode dropdown visibility separately for every widget.
+
+Create a simple widget registry/configuration so this can easily support additional widgets later.
+
+--------------------------------------------------
+5. ADDING A WIDGET
+--------------------------------------------------
+
+When the user selects a widget from the Add Widget dropdown:
+
+- Add it to Home immediately.
+- Give it a sensible default size.
+- Give it a sensible available starting position.
+- Avoid intentionally spawning it directly on top of another widget when possible.
+- Make it immediately draggable/resizable because Edit Widgets mode is active.
+- Remove it from the Add Widget dropdown immediately.
+
+If that widget previously existed and had saved data, restore that data.
+
+If practical, also restore its previous size and position.
+
+However, if the previous position would cause serious overlap or place it outside the current workspace, place it somewhere sensible instead.
+
+--------------------------------------------------
+6. REMOVING A WIDGET
+--------------------------------------------------
+
+When the X is clicked:
+
+- Remove the widget visually from Home.
+- Preserve its internal data.
+- Preserve its saved configuration where appropriate.
+- Immediately add that widget back into the Add Widget dropdown.
+
+Do NOT uninstall anything.
+
+Do NOT delete Calendar events.
+
+Do NOT delete Notepad contents.
+
+Do NOT reset widget preferences.
+
+This is simply controlling whether the widget is currently displayed.
+
+--------------------------------------------------
+7. EXITING EDIT WIDGETS MODE
+--------------------------------------------------
+
+The Edit Widgets control should clearly indicate when editing mode is active.
+
+You may change the button label while active to:
+
+"Done"
+
+if that creates a clearer experience.
+
+When the user clicks Done:
+
+- Exit Widget Editing Mode.
+- Hide all X/remove controls.
+- Hide the Add Widget dropdown.
+- Preserve the final widget layout.
+- Preserve which widgets are currently active.
+- Save everything locally.
+
+The resulting Home should return to a clean workspace appearance.
+
+--------------------------------------------------
+8. PERSIST ACTIVE WIDGETS
+--------------------------------------------------
+
+The list of active Home widgets must persist locally.
+
+Example:
+
+User removes Calendar.
+
+User closes Cubical.
+
+User opens Cubical again.
+
+Calendar should STILL be removed.
+
+If the user later enters Edit Widgets:
+
+Calendar should appear in the Add Widget dropdown.
+
+Likewise, widgets that were added should remain added after restart.
+
+--------------------------------------------------
+9. WIDGET REGISTRY
+--------------------------------------------------
+
+Create a simple centralized widget registry/configuration.
+
+Conceptually something like:
+
+Widget:
+- id
+- name
+- component
+- default size
+- default position
+- minimum size
+- icon if needed
+- whether it is currently available
+
+Do not overengineer this.
+
+The purpose is simply to make future widgets easy to register.
+
+Later I want to add widgets such as:
+
+- Decision Maker
+- Link Shelf
+- To-Do
+- Timer
+
+I should eventually be able to register one of these widgets and have the existing Edit Widgets system automatically understand:
+
+- whether it is active
+- whether it belongs in Add Widget
+- how to add it
+- how to remove it
+
+Do NOT build these future widgets during this task.
+
+--------------------------------------------------
+10. SAKURA SKIN COMPATIBILITY
+--------------------------------------------------
+
+This system must work correctly with Sakura.
+
+When Sakura is equipped:
+
+- Existing Sakura widget decorations should remain attached to their respective widgets.
+- Dragging widgets should still move their decorations.
+- Removing a widget should remove its decorations with it.
+- Adding the widget back should restore its Sakura decoration.
+- Decorations must never remain floating on Home after their widget is removed.
+
+Default skin should remain unchanged.
+
+Do not redesign Sakura during this task.
+
+--------------------------------------------------
+11. UI DESIGN
+--------------------------------------------------
+
+Keep the editing interface minimal.
+
+Normal Home should remain visually clean.
+
+Editing controls should feel temporary and clearly related to customization.
+
+Do not create a large settings panel.
+
+The intended interaction is:
+
+Normal Home
+
+↓ click
+
+Edit Widgets
+
+↓ editing mode
+
+[X] Clock
+[X] Calendar
+[X] Notepad
+
++ Add Widget ▼
+
+↓ finish
+
+Done
+
+↓ returns to
+
+Normal Home
+
+Keep the Add Widget dropdown visually consistent with the currently equipped skin/theme.
+
+--------------------------------------------------
+12. IMPORTANT: DO NOT CHANGE
+--------------------------------------------------
+
+Do not change:
+
+- Sakura background
+- Sakura artwork
+- Sakura theme colors
+- Sakura widget decorations
+- sidebar behavior
+- sidebar auto-collapse
+- Profile
+- Settings
+- Store
+- Library
+- existing Calendar functionality
+- existing Clock functionality
+- existing Notepad functionality
+
+Do not add Decision Maker yet.
+Do not add Link Shelf yet.
+Do not add To-Do yet.
+Do not add Timer yet.
+
+This task is ONLY about creating the widget management infrastructure.
+
+--------------------------------------------------
+13. VERIFY BEFORE FINISHING
+--------------------------------------------------
+
+Test all of the following:
+
+1. Click Edit Widgets.
+2. Every active widget receives an X.
+3. Add Widget control appears.
+4. Remove Clock.
+5. Clock disappears.
+6. Clock immediately appears in Add Widget.
+7. Add Clock again.
+8. Clock disappears from Add Widget.
+9. Clock works normally.
+10. Repeat with Calendar.
+11. Calendar events survive removal/re-addition.
+12. Repeat with Notepad.
+13. Notepad contents survive removal/re-addition.
+14. Dragging still works.
+15. Resizing still works.
+16. Grid snapping still works.
+17. Sakura decorations remain attached correctly.
+18. Removed widgets leave no Sakura decorations behind.
+19. Done exits editing mode.
+20. All X buttons disappear after Done.
+21. Add Widget disappears after Done.
+22. Active widget choices survive refresh/restart.
+23. Widget positions and sizes survive refresh/restart.
+24. Default skin still works.
+25. Sakura still works.
+
+Do not make unrelated changes.

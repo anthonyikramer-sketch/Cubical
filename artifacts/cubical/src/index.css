@@ -286,6 +286,100 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
 .home-edit-btn-done { border-color: hsl(var(--primary) / .45); background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); box-shadow: 0 4px 14px hsl(var(--primary) / .25); }
 .home-edit-btn-done:hover { background: hsl(var(--primary-hover)); border-color: hsl(var(--primary-hover)); color: hsl(var(--primary-foreground)); }
 
+/* ─── Edit Widgets controls ──────────────────────────────────────────────────── */
+
+/* Wrapper shown in editing mode — holds Add Widget + Done side-by-side */
+.home-edit-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* Add Widget dropdown anchor */
+.add-widget-wrap {
+  position: relative;
+}
+
+.add-widget-btn {
+  gap: 7px;
+}
+.add-widget-btn-disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.add-widget-btn-disabled:hover {
+  transform: none !important;
+  border-color: hsl(var(--border)) !important;
+  background: hsl(var(--card)) !important;
+  color: hsl(var(--foreground)) !important;
+  box-shadow: 0 2px 8px hsl(var(--shadow-base) / .07) !important;
+}
+
+.add-widget-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 160px;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: 14px;
+  box-shadow: 0 8px 28px hsl(var(--shadow-base) / .14);
+  padding: 6px;
+  z-index: 200;
+  animation: rise-in .15s both;
+}
+
+.add-widget-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 9px 14px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: hsl(var(--foreground));
+  font-family: var(--app-font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+  transition: background .15s, color .15s;
+}
+.add-widget-item:hover {
+  background: hsl(var(--primary) / .08);
+  color: hsl(var(--primary));
+}
+
+/* ─── Widget remove button (×) ───────────────────────────────────────────────── */
+
+.widget-remove-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--card));
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  padding: 0;
+  transition: background .15s, color .15s, border-color .15s, box-shadow .15s;
+  box-shadow: 0 1px 4px hsl(var(--shadow-base) / .1);
+}
+.widget-remove-btn svg { width: 13px; height: 13px; }
+.widget-remove-btn:hover {
+  background: hsl(var(--destructive) / .1);
+  color: hsl(var(--destructive));
+  border-color: hsl(var(--destructive) / .4);
+  box-shadow: 0 2px 8px hsl(var(--destructive) / .12);
+}
+
 /* ─── Grid workspace ─────────────────────────────────────────────────────────── */
 .home-workspace {
   position: relative;

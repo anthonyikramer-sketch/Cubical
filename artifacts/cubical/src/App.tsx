@@ -314,6 +314,45 @@ const DEFAULT_LAYOUT: LayoutItem[] = [
   { id: 'notepad',  x: 7, y: 3, w: 5, h: 5 },
 ];
 
+// ── Widget registry ────────────────────────────────────────────────────────────
+// Single source of truth for manageable widgets. To add a future widget:
+// 1. Add its WidgetId to the type above.
+// 2. Register it here with its default size/position.
+// 3. Render it inside GridWidget's content switch.
+// The Add/Remove UI will pick it up automatically.
+
+type WidgetDef = {
+  id: WidgetId;
+  label: string;
+  defaultW: number;
+  defaultH: number;
+  defaultX: number;
+  defaultY: number;
+};
+
+const WIDGET_REGISTRY: WidgetDef[] = [
+  { id: 'calendar', label: 'Calendar', defaultW: 7, defaultH: 7, defaultX: 0, defaultY: 0 },
+  { id: 'clock',    label: 'Clock',    defaultW: 5, defaultH: 3, defaultX: 7, defaultY: 0 },
+  { id: 'notepad',  label: 'Notepad',  defaultW: 5, defaultH: 5, defaultX: 7, defaultY: 3 },
+];
+
+const DEFAULT_ACTIVE_WIDGETS: WidgetId[] = ['calendar', 'clock', 'notepad'];
+const ACTIVE_WIDGETS_KEY = 'cubical-active-widgets';
+
+function getActiveWidgets(): WidgetId[] {
+  try {
+    const raw = window.localStorage.getItem(ACTIVE_WIDGETS_KEY);
+    if (!raw) return DEFAULT_ACTIVE_WIDGETS;
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return DEFAULT_ACTIVE_WIDGETS;
+    const valid = (parsed as unknown[]).filter((id): id is WidgetId =>
+      WIDGET_REGISTRY.some((w) => w.id === id),
+    );
+    return valid.length > 0 ? valid : DEFAULT_ACTIVE_WIDGETS;
+  } catch { return DEFAULT_ACTIVE_WIDGETS; }
+}
+function storeActiveWidgets(ids: WidgetId[]) { writeLocal(ACTIVE_WIDGETS_KEY, ids); }
+
 function getStoredLayout(): LayoutItem[] {
   try {
     if (typeof window === 'undefined') return DEFAULT_LAYOUT;
@@ -352,6 +391,19 @@ function storeLayout(layout: LayoutItem[]) { writeLocal(LAYOUT_STORAGE_KEY, layo
 
 function rectsOverlap(a: LayoutItem, b: LayoutItem): boolean {
   return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
+/** Find a non-overlapping grid position for `item` given a list of occupied items.
+ *  Tries the item's current position first; scans row-by-row if it overlaps. */
+function findFreePosition(item: LayoutItem, occupied: LayoutItem[]): LayoutItem {
+  if (!occupied.some((o) => rectsOverlap(item, o))) return item;
+  for (let y = 0; y <= GRID_ROWS - item.h; y++) {
+    for (let x = 0; x <= GRID_COLS - item.w; x++) {
+      const candidate = { ...item, x, y };
+      if (!occupied.some((o) => rectsOverlap(candidate, o))) return candidate;
+    }
+  }
+  return item; // fallback: original position
 }
 
 // ─── App shell ────────────────────────────────────────────────────────────────
@@ -1048,7 +1100,7 @@ function SakuraWidgetDecoration({ widgetId }: { widgetId: WidgetId }) {
 
 function GridWidget({
   item, cellW, isEditing, isActive, isConflict,
-  onDragStart, onResizeStart,
+  onDragStart, onResizeStart, onRemoveWidget,
 }: {
   item: LayoutItem;
   cellW: number;
@@ -1057,12 +1109,15 @@ function GridWidget({
   isConflict: boolean;
   onDragStart: (e: React.PointerEvent) => void;
   onResizeStart: (e: React.PointerEvent) => void;
+  onRemoveWidget?: (id: WidgetId) => void;
 }) {
   const left   = item.x * (cellW + GRID_GAP);
   const top    = item.y * (CELL_H + GRID_GAP);
   const width  = item.w * cellW + (item.w - 1) * GRID_GAP;
   const height = item.h * CELL_H + (item.h - 1) * GRID_GAP;
   const isSakura = readEquippedSkin() === 'sakura';
+  // Only show remove button for registry-managed widgets (not file-finder)
+  const canRemove = isEditing && onRemoveWidget && WIDGET_REGISTRY.some((w) => w.id === item.id);
 
   return (
     // Outer wrapper: carries position + allows decorations to overhang
@@ -1091,6 +1146,19 @@ function GridWidget({
           {item.id === 'notepad'      && <NotepadWidget />}
           {item.id === 'file-finder'  && <FileFinderWidget gridW={item.w} gridH={item.h} />}
         </div>
+
+        {/* Remove (×) button — top-right, edit mode only, only for managed widgets */}
+        {canRemove && (
+          <button
+            type="button"
+            className="widget-remove-btn"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); onRemoveWidget!(item.id); }}
+            aria-label={`Remove ${WIDGET_LABELS[item.id]}`}
+          >
+            <X />
+          </button>
+        )}
 
         {/* Resize handle */}
         {isEditing && (
@@ -1162,7 +1230,15 @@ function FileFinderWidget({ gridW: _gridW, gridH }: { gridW: number; gridH: numb
 
 // ─── Home workspace (grid engine) ─────────────────────────────────────────────
 
-function HomeWorkspace({ isEditing }: { isEditing: boolean }) {
+function HomeWorkspace({
+  isEditing,
+  activeWidgets,
+  onRemoveWidget,
+}: {
+  isEditing: boolean;
+  activeWidgets: WidgetId[];
+  onRemoveWidget: (id: WidgetId) => void;
+}) {
   const containerRef  = useRef<HTMLDivElement>(null);
   const cellWRef      = useRef(76);
   const activeItemRef = useRef<LayoutItem | null>(null);
@@ -1190,10 +1266,33 @@ function HomeWorkspace({ isEditing }: { isEditing: boolean }) {
     return () => ro.disconnect();
   }, []);
 
+  // When activeWidgets gains a new member, ensure its saved position doesn't
+  // overlap currently visible widgets; reposition if needed.
+  useEffect(() => {
+    setLayout((prev) => {
+      let changed = false;
+      const next = prev.map((item) => {
+        if (!activeWidgets.includes(item.id)) return item;
+        const others = prev.filter(
+          (o) => o.id !== item.id && activeWidgets.includes(o.id),
+        );
+        const placed = findFreePosition(item, others);
+        if (placed === item) return item;
+        changed = true;
+        return placed;
+      });
+      if (changed) { storeLayout(next); return next; }
+      return prev;
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeWidgets]);
+
   const workspaceH = GRID_ROWS * CELL_H + (GRID_ROWS - 1) * GRID_GAP;
 
-  // Display layout: show activeItem at its preview position
-  const displayLayout = layout.map((item) => (activeItem?.id === item.id ? activeItem : item));
+  // Display only active widgets; show activeItem at its preview position
+  const displayLayout = layout
+    .filter((item) => activeWidgets.includes(item.id))
+    .map((item) => (activeItem?.id === item.id ? activeItem : item));
 
   // ── Drag ──────────────────────────────────────────────────────────────────
 
@@ -1203,6 +1302,7 @@ function HomeWorkspace({ isEditing }: { isEditing: boolean }) {
     e.stopPropagation();
 
     const currentLayout = layout;
+    const activeLayout = currentLayout.filter((l) => activeWidgets.includes(l.id));
     const item = currentLayout.find((l) => l.id === id)!;
     const { x: origX, y: origY } = item;
     const startMX = e.clientX;
@@ -1224,7 +1324,7 @@ function HomeWorkspace({ isEditing }: { isEditing: boolean }) {
         x: Math.max(0, Math.min(GRID_COLS - item.w, origX + dx)),
         y: Math.max(0, Math.min(GRID_ROWS - item.h, origY + dy)),
       };
-      const conflict = currentLayout.some((other) => other.id !== id && rectsOverlap(proposed, other));
+      const conflict = activeLayout.some((other) => other.id !== id && rectsOverlap(proposed, other));
       setActiveItem(proposed);
       activeItemRef.current = proposed;
       setIsConflict(conflict);
@@ -1262,6 +1362,7 @@ function HomeWorkspace({ isEditing }: { isEditing: boolean }) {
     e.stopPropagation();
 
     const currentLayout = layout;
+    const activeLayout = currentLayout.filter((l) => activeWidgets.includes(l.id));
     const item = currentLayout.find((l) => l.id === id)!;
     const { w: origW, h: origH, x, y } = item;
     const startMX = e.clientX;
@@ -1281,7 +1382,7 @@ function HomeWorkspace({ isEditing }: { isEditing: boolean }) {
       const newW = Math.max(min.w, Math.min(GRID_COLS - x, origW + dx));
       const newH = Math.max(min.h, Math.min(GRID_ROWS - y, origH + dy));
       const proposed: LayoutItem = { ...item, w: newW, h: newH };
-      const conflict = currentLayout.some((other) => other.id !== id && rectsOverlap(proposed, other));
+      const conflict = activeLayout.some((other) => other.id !== id && rectsOverlap(proposed, other));
       setActiveItem(proposed);
       activeItemRef.current = proposed;
       setIsConflict(conflict);
@@ -1319,7 +1420,7 @@ function HomeWorkspace({ isEditing }: { isEditing: boolean }) {
       data-testid="home-workspace"
     >
       {displayLayout.map((item) => {
-        const isActive   = activeItem?.id === item.id && activeMode !== null;
+        const isActive     = activeItem?.id === item.id && activeMode !== null;
         const showConflict = isActive && isConflict;
         return (
           <GridWidget
@@ -1331,6 +1432,7 @@ function HomeWorkspace({ isEditing }: { isEditing: boolean }) {
             isConflict={showConflict}
             onDragStart={(e) => startDrag(item.id, e)}
             onResizeStart={(e) => startResize(item.id, e)}
+            onRemoveWidget={onRemoveWidget}
           />
         );
       })}
@@ -1341,43 +1443,114 @@ function HomeWorkspace({ isEditing }: { isEditing: boolean }) {
 // ─── Home page ────────────────────────────────────────────────────────────────
 
 function HomePage() {
-  const [isEditing, setIsEditing] = useState(false);
+  const [isEditing, setIsEditing]         = useState(false);
+  const [activeWidgets, setActiveWidgets] = useState<WidgetId[]>(() => getActiveWidgets());
+  const [addOpen, setAddOpen]             = useState(false);
   const isSakura = readEquippedSkin() === 'sakura';
 
-  const editBtn = !isEditing ? (
-    <button type="button" className="home-edit-btn" onClick={() => setIsEditing(true)} data-testid="button-customize-layout">
-      <Pencil /> Edit Layout
+  // Widgets available to add = registry minus currently active
+  const addable = WIDGET_REGISTRY.filter((w) => !activeWidgets.includes(w.id));
+
+  const handleRemove = (id: WidgetId) => {
+    const next = activeWidgets.filter((w) => w !== id);
+    setActiveWidgets(next);
+    storeActiveWidgets(next);
+  };
+
+  const handleAdd = (id: WidgetId) => {
+    const next = [...activeWidgets, id];
+    setActiveWidgets(next);
+    storeActiveWidgets(next);
+    setAddOpen(false);
+  };
+
+  const exitEditing = () => { setIsEditing(false); setAddOpen(false); };
+
+  // ── Edit controls shared between both renders ──────────────────────────────
+
+  const editControls = !isEditing ? (
+    <button
+      type="button"
+      className="home-edit-btn"
+      onClick={() => setIsEditing(true)}
+      data-testid="button-customize-layout"
+    >
+      <Pencil /> Edit Widgets
     </button>
   ) : (
-    <button type="button" className="home-edit-btn home-edit-btn-done" onClick={() => setIsEditing(false)} data-testid="button-done-editing">
-      <Check /> Done
-    </button>
+    <div className="home-edit-controls">
+      {/* Add Widget dropdown */}
+      <div className="add-widget-wrap">
+        <button
+          type="button"
+          className={`home-edit-btn add-widget-btn${addable.length === 0 ? ' add-widget-btn-disabled' : ''}`}
+          onClick={() => addable.length > 0 && setAddOpen((o) => !o)}
+          aria-haspopup="listbox"
+          aria-expanded={addOpen}
+        >
+          <Plus />
+          {addable.length === 0 ? 'All added' : 'Add Widget'}
+        </button>
+        {addOpen && addable.length > 0 && (
+          <div className="add-widget-dropdown" role="listbox">
+            {addable.map((w) => (
+              <button
+                key={w.id}
+                role="option"
+                className="add-widget-item"
+                onClick={() => handleAdd(w.id)}
+              >
+                {w.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <button
+        type="button"
+        className="home-edit-btn home-edit-btn-done"
+        onClick={exitEditing}
+        data-testid="button-done-editing"
+      >
+        <Check /> Done
+      </button>
+    </div>
   );
+
+  const workspace = (
+    <HomeWorkspace
+      isEditing={isEditing}
+      activeWidgets={activeWidgets}
+      onRemoveWidget={handleRemove}
+    />
+  );
+
+  // ── Sakura layout ──────────────────────────────────────────────────────────
 
   if (isSakura) {
     return (
       <div className="home-page home-sakura" data-testid="home-page">
-        {/* Full-bleed frame — stretches edge-to-edge of the content area */}
         <div className="sakura-env-frame">
-          {/* Environment artwork — covers the full frame, centred crop */}
           <img src="/sakura-env.png" className="sakura-env-img" alt="" aria-hidden draggable={false} />
-          {/* Interactive UI layer — fills the same frame, widgets live here */}
           <div className="sakura-env-ui">
             <div className="sakura-top-bar">
               <span className="sakura-greeting">✦ Your workspace</span>
-              {editBtn}
+              {editControls}
             </div>
             {isEditing && (
               <p className="home-edit-hint sakura-edit-hint">
-                Drag widgets to reposition · drag the corner ↘ to resize · widgets snap to the grid
+                Drag to reposition · drag ↘ corner to resize · click × to remove
               </p>
             )}
-            <HomeWorkspace isEditing={isEditing} />
+            {workspace}
           </div>
         </div>
       </div>
     );
   }
+
+  // ── Default layout ─────────────────────────────────────────────────────────
 
   return (
     <div className="home-page" data-testid="home-page">
@@ -1385,11 +1558,15 @@ function HomePage() {
         <div>
           <div className="eyebrow">Your workspace</div>
           <h1 className="display-title" style={{ marginTop: '0.75rem' }}>Good to be back.</h1>
-          {isEditing && <p className="home-edit-hint">Drag widgets to reposition · drag the corner ↘ to resize · widgets snap to the grid</p>}
+          {isEditing && (
+            <p className="home-edit-hint">
+              Drag to reposition · drag ↘ corner to resize · click × to remove
+            </p>
+          )}
         </div>
-        {editBtn}
+        {editControls}
       </div>
-      <HomeWorkspace isEditing={isEditing} />
+      {workspace}
     </div>
   );
 }
