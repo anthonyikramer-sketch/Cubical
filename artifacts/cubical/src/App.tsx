@@ -2162,6 +2162,211 @@ const COSMETICS: Cosmetic[] = [
 const OWNED_COSMETICS_KEY   = 'cubical-breakroom-owned-cosmetics';
 const EQUIPPED_COSMETIC_KEY = 'cubical-breakroom-equipped';
 
+// ── Theme palette system ───────────────────────────────────────────────────
+// Values are bare HSL components (e.g. "164 48% 32%") matching the CSS
+// custom-property convention used throughout index.css.
+
+type ThemeVars = {
+  background: string;
+  foreground: string;
+  border: string;
+  input: string;
+  ring: string;
+  card: string;
+  'card-foreground': string;
+  'card-border': string;
+  primary: string;
+  'primary-foreground': string;
+  secondary: string;
+  'secondary-foreground': string;
+  muted: string;
+  'muted-foreground': string;
+  accent: string;
+  'accent-foreground': string;
+};
+
+const THEME_PALETTES: Record<string, ThemeVars> = {
+  'default': {
+    background:           '42 43% 95%',
+    foreground:           '222 35% 18%',
+    border:               '40 25% 86%',
+    input:                '40 25% 86%',
+    ring:                 '165 48% 36%',
+    card:                 '45 44% 98%',
+    'card-foreground':    '222 35% 18%',
+    'card-border':        '40 25% 86%',
+    primary:              '164 48% 32%',
+    'primary-foreground': '42 43% 95%',
+    secondary:            '42 35% 90%',
+    'secondary-foreground': '222 35% 18%',
+    muted:                '40 22% 91%',
+    'muted-foreground':   '218 14% 48%',
+    accent:               '24 92% 62%',
+    'accent-foreground':  '222 35% 18%',
+  },
+  'midnight-office': {
+    background:           '222 35% 10%',
+    foreground:           '210 25% 88%',
+    border:               '220 20% 22%',
+    input:                '220 20% 22%',
+    ring:                 '210 75% 58%',
+    card:                 '222 30% 14%',
+    'card-foreground':    '210 25% 88%',
+    'card-border':        '220 20% 22%',
+    primary:              '210 75% 58%',
+    'primary-foreground': '222 35% 10%',
+    secondary:            '220 22% 20%',
+    'secondary-foreground': '210 25% 88%',
+    muted:                '220 22% 18%',
+    'muted-foreground':   '215 15% 58%',
+    accent:               '210 75% 62%',
+    'accent-foreground':  '222 35% 10%',
+  },
+  'cozy-desk': {
+    background:           '35 55% 95%',
+    foreground:           '25 45% 20%',
+    border:               '33 30% 84%',
+    input:                '33 30% 84%',
+    ring:                 '25 52% 38%',
+    card:                 '36 52% 98%',
+    'card-foreground':    '25 45% 20%',
+    'card-border':        '33 30% 84%',
+    primary:              '25 52% 38%',
+    'primary-foreground': '36 52% 98%',
+    secondary:            '33 38% 89%',
+    'secondary-foreground': '25 45% 20%',
+    muted:                '33 32% 89%',
+    'muted-foreground':   '25 20% 50%',
+    accent:               '32 78% 56%',
+    'accent-foreground':  '25 45% 20%',
+  },
+  'retro-terminal': {
+    background:           '120 60% 4%',
+    foreground:           '120 85% 68%',
+    border:               '120 45% 18%',
+    input:                '120 45% 18%',
+    ring:                 '120 90% 42%',
+    card:                 '120 45% 7%',
+    'card-foreground':    '120 85% 68%',
+    'card-border':        '120 45% 18%',
+    primary:              '120 90% 42%',
+    'primary-foreground': '120 60% 4%',
+    secondary:            '120 30% 10%',
+    'secondary-foreground': '120 85% 68%',
+    muted:                '120 28% 10%',
+    'muted-foreground':   '120 40% 42%',
+    accent:               '120 100% 50%',
+    'accent-foreground':  '120 60% 4%',
+  },
+  'neon-nights': {
+    background:           '270 70% 5%',
+    foreground:           '280 15% 88%',
+    border:               '270 42% 18%',
+    input:                '270 42% 18%',
+    ring:                 '300 75% 60%',
+    card:                 '270 55% 9%',
+    'card-foreground':    '280 15% 88%',
+    'card-border':        '270 42% 18%',
+    primary:              '300 75% 60%',
+    'primary-foreground': '270 70% 5%',
+    secondary:            '270 32% 13%',
+    'secondary-foreground': '280 15% 88%',
+    muted:                '270 30% 13%',
+    'muted-foreground':   '270 18% 58%',
+    accent:               '185 100% 52%',
+    'accent-foreground':  '270 70% 5%',
+  },
+  'forest-mode': {
+    background:           '135 35% 11%',
+    foreground:           '120 20% 82%',
+    border:               '130 25% 22%',
+    input:                '130 25% 22%',
+    ring:                 '130 48% 50%',
+    card:                 '133 28% 15%',
+    'card-foreground':    '120 20% 82%',
+    'card-border':        '130 25% 22%',
+    primary:              '130 48% 52%',
+    'primary-foreground': '135 35% 11%',
+    secondary:            '130 22% 18%',
+    'secondary-foreground': '120 20% 82%',
+    muted:                '130 20% 18%',
+    'muted-foreground':   '120 14% 52%',
+    accent:               '78 55% 52%',
+    'accent-foreground':  '135 35% 11%',
+  },
+  'coffee-frame': {
+    background:           '30 42% 93%',
+    foreground:           '25 45% 18%',
+    border:               '28 28% 82%',
+    input:                '28 28% 82%',
+    ring:                 '25 55% 35%',
+    card:                 '30 40% 97%',
+    'card-foreground':    '25 45% 18%',
+    'card-border':        '28 28% 82%',
+    primary:              '25 55% 35%',
+    'primary-foreground': '30 40% 97%',
+    secondary:            '28 35% 87%',
+    'secondary-foreground': '25 45% 18%',
+    muted:                '28 32% 87%',
+    'muted-foreground':   '25 18% 50%',
+    accent:               '36 75% 60%',
+    'accent-foreground':  '25 45% 18%',
+  },
+  'sparkle-trail': {
+    background:           '275 30% 96%',
+    foreground:           '270 40% 18%',
+    border:               '275 22% 86%',
+    input:                '275 22% 86%',
+    ring:                 '280 58% 52%',
+    card:                 '275 28% 98%',
+    'card-foreground':    '270 40% 18%',
+    'card-border':        '275 22% 86%',
+    primary:              '280 58% 52%',
+    'primary-foreground': '275 30% 96%',
+    secondary:            '275 22% 90%',
+    'secondary-foreground': '270 40% 18%',
+    muted:                '275 20% 90%',
+    'muted-foreground':   '270 15% 50%',
+    accent:               '335 85% 65%',
+    'accent-foreground':  '270 40% 18%',
+  },
+  'winter-pack': {
+    background:           '200 42% 95%',
+    foreground:           '210 35% 18%',
+    border:               '200 28% 84%',
+    input:                '200 28% 84%',
+    ring:                 '210 62% 45%',
+    card:                 '200 45% 98%',
+    'card-foreground':    '210 35% 18%',
+    'card-border':        '200 28% 84%',
+    primary:              '210 62% 45%',
+    'primary-foreground': '200 45% 98%',
+    secondary:            '200 30% 88%',
+    'secondary-foreground': '210 35% 18%',
+    muted:                '200 28% 88%',
+    'muted-foreground':   '210 15% 50%',
+    accent:               '195 68% 52%',
+    'accent-foreground':  '210 35% 18%',
+  },
+};
+
+const THEME_VAR_KEYS: (keyof ThemeVars)[] = [
+  'background', 'foreground', 'border', 'input', 'ring',
+  'card', 'card-foreground', 'card-border',
+  'primary', 'primary-foreground',
+  'secondary', 'secondary-foreground',
+  'muted', 'muted-foreground',
+  'accent', 'accent-foreground',
+];
+
+function applyTheme(cosmeticId: string) {
+  const palette = THEME_PALETTES[cosmeticId] ?? THEME_PALETTES['default'];
+  const root = document.documentElement;
+  for (const key of THEME_VAR_KEYS) {
+    root.style.setProperty(`--${key}`, palette[key]);
+  }
+}
+
 function getOwnedCosmetics(): string[] {
   return readLocal<string[]>(OWNED_COSMETICS_KEY, ['default'], isStringArray);
 }
@@ -2232,6 +2437,7 @@ function BreakroomPage() {
 
   const equipCosmetic = (id: string) => {
     setEquippedCosmetic(id);
+    applyTheme(id);
     const c = COSMETICS.find((x) => x.id === id);
     setToast(`${c?.name ?? id} equipped. Looking sharp.`);
   };
@@ -2708,6 +2914,9 @@ function App() {
   const [libraryIds, setLibraryIds] = useState<string[]>(getStoredLibrary);
   const [toast, setToast]           = useState<string | null>(null);
   const libraryProducts = useMemo(() => PRODUCTS.filter((product) => libraryIds.includes(product.id)), [libraryIds]);
+
+  // Apply the persisted cosmetic theme on first mount so every page reflects it.
+  useEffect(() => { applyTheme(getEquippedCosmetic()); }, []);
 
   useEffect(() => { storeLibrary(libraryIds); }, [libraryIds]);
   useEffect(() => { if (!toast) return; const t = window.setTimeout(() => setToast(null), 2800); return () => window.clearTimeout(t); }, [toast]);
