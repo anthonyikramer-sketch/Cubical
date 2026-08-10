@@ -1668,6 +1668,68 @@ function NotepadWidget({ compact = false }: { compact?: boolean }) {
     } catch {}
   };
 
+  // ── Import ────────────────────────────────────────────────────────────────
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImportFile = useCallback((e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!fileInputRef.current) return;
+    // Reset so the same file can be re-imported
+    fileInputRef.current.value = '';
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const raw = reader.result as string;
+      const ed = tiptap.current;
+      if (!ed) return;
+
+      let html = '';
+      const nameLower = file.name.toLowerCase();
+
+      if (nameLower.endsWith('.html') || nameLower.endsWith('.htm')) {
+        // Parse HTML file — extract body content
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(raw, 'text/html');
+        html = sanitizeNotepadHtml(doc.body.innerHTML);
+      } else {
+        // Plain text — escape and convert newlines to paragraphs
+        const lines = raw
+          .replace(/\r\n/g, '\n')
+          .replace(/\r/g, '\n')
+          .split('\n');
+        html = lines
+          .map((line) => {
+            const escaped = line
+              .replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;');
+            return `<p>${escaped || '<br>'}</p>`;
+          })
+          .join('');
+        html = sanitizeNotepadHtml(html);
+      }
+
+      const hasContent = ed.getText().trim().length > 0;
+      if (hasContent) {
+        const ok = window.confirm(
+          'Import will replace your current notes. Continue?',
+        );
+        if (!ok) return;
+      }
+
+      ed.commands.setContent(html || '<p></p>');
+      setCharCount(ed.getText().replace(/\n/g, '').length);
+      try {
+        const safe = sanitizeNotepadHtml(ed.getHTML());
+        window.localStorage.setItem(NOTEPAD_HTML_KEY, safe);
+      } catch {}
+    };
+    reader.readAsText(file);
+  }, []);
+
+  const triggerImport = () => fileInputRef.current?.click();
+
   const showToolbar = toolbarVisible && !compact;
 
   /** Toolbar button — highlights when the format is active at the cursor. */
@@ -1689,6 +1751,14 @@ function NotepadWidget({ compact = false }: { compact?: boolean }) {
 
   return (
     <div className="notepad-fill notepad-rich">
+      {/* Hidden file input for import */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".txt,.html,.htm"
+        style={{ display: 'none' }}
+        onChange={handleImportFile}
+      />
       <div className="widget-header">
         <span className="widget-label"><StickyNote /> Notepad</span>
         <div className="notepad-header-actions">
@@ -1743,22 +1813,28 @@ function NotepadWidget({ compact = false }: { compact?: boolean }) {
         <span className="notepad-footer-count">
           {charCount > 0 ? `${charCount} char${charCount !== 1 ? 's' : ''} · saved locally` : 'Empty · start typing'}
         </span>
-        {charCount > 0 && (
-          <span className="notepad-export-actions">
-            <button type="button" className="notepad-export-btn" title="Copy all text to clipboard" onClick={copyAll}>
-              <ClipboardCopy />
-              {copied ? 'Copied!' : 'Copy'}
-            </button>
-            <button type="button" className="notepad-export-btn" title="Export as plain text (.txt)" onClick={exportTxt}>
-              <Download />
-              .txt
-            </button>
-            <button type="button" className="notepad-export-btn" title="Export as HTML (.html)" onClick={exportHtml}>
-              <Download />
-              .html
-            </button>
-          </span>
-        )}
+        <span className="notepad-export-actions">
+          <button type="button" className="notepad-export-btn" title="Import a .txt or .html file" onClick={triggerImport}>
+            <FolderOpen />
+            Import
+          </button>
+          {charCount > 0 && (
+            <>
+              <button type="button" className="notepad-export-btn" title="Copy all text to clipboard" onClick={copyAll}>
+                <ClipboardCopy />
+                {copied ? 'Copied!' : 'Copy'}
+              </button>
+              <button type="button" className="notepad-export-btn" title="Export as plain text (.txt)" onClick={exportTxt}>
+                <Download />
+                .txt
+              </button>
+              <button type="button" className="notepad-export-btn" title="Export as HTML (.html)" onClick={exportHtml}>
+                <Download />
+                .html
+              </button>
+            </>
+          )}
+        </span>
       </div>
     </div>
   );
