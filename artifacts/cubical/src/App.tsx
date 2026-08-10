@@ -1962,7 +1962,116 @@ const COMPLETION_LINES = [
   'Inbox can wait. Snake cannot.',
 ];
 
-function DailyGameCard({ onFirstPlay }: { onFirstPlay?: () => void }) {
+// ── Server-side game-stats sync ────────────────────────────────────────────
+// Stats (best scores + daily played flags) are persisted on the API server,
+// keyed by an anonymous cookie UUID set by the server. This means stats survive
+// a localStorage clear, because the cookie (and the server record) remain intact.
+
+const GAME_STATS_API = '/api/game-stats';
+
+interface ServerGameStats {
+  bestScores: Record<string, number>;
+  dailyPlayed: Record<string, boolean>;
+}
+
+async function fetchServerStats(): Promise<ServerGameStats | null> {
+  try {
+    const res = await fetch(GAME_STATS_API, { credentials: 'include' });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { ok: boolean; stats: ServerGameStats };
+    return data.stats ?? null;
+  } catch { return null; }
+}
+
+async function pushStatsToServer(stats: Partial<ServerGameStats>): Promise<void> {
+  try {
+    await fetch(GAME_STATS_API, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(stats),
+    });
+  } catch { /* non-fatal: stats live in localStorage even if push fails */ }
+}
+
+/** Collect all game stats currently in localStorage for server sync. */
+function collectLocalStats(): ServerGameStats {
+  const bestScores: Record<string, number> = {};
+  const dailyPlayed: Record<string, boolean> = {};
+
+  // Daily game best scores (snake, memory)
+  for (const [gameId, meta] of Object.entries(GAME_META)) {
+    try {
+      const score = parseInt(localStorage.getItem(meta.bestKey) ?? '0', 10) || 0;
+      if (score > 0) bestScores[`daily-${gameId}`] = score;
+    } catch { /* ignore */ }
+  }
+
+  // Library game best scores
+  for (const game of BREAK_GAMES) {
+    try {
+      const key = `cubical-game-best-${game.id}`;
+      const score = parseInt(localStorage.getItem(key) ?? '0', 10) || 0;
+      if (score > 0) bestScores[`game-${game.id}`] = score;
+    } catch { /* ignore */ }
+  }
+
+  // Daily played flags — last 90 days (covers max streak window)
+  const today = new Date();
+  for (let i = 0; i < 90; i++) {
+    const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - i);
+    const dk = dateToKey(d);
+    for (const gid of ['snake', 'memory'] as DailyGameId[]) {
+      try {
+        if (localStorage.getItem(getDailyPlayedKey(gid, dk)) === 'true') {
+          dailyPlayed[`${gid}|${dk}`] = true;
+        }
+      } catch { /* ignore */ }
+    }
+  }
+
+  return { bestScores, dailyPlayed };
+}
+
+/** Write server stats back into localStorage (take max for scores, OR for played flags). */
+function applyServerStats(serverStats: ServerGameStats): void {
+  // Best scores — daily games
+  for (const [gameId, meta] of Object.entries(GAME_META)) {
+    const serverScore = serverStats.bestScores[`daily-${gameId}`] ?? 0;
+    if (serverScore > 0) {
+      try {
+        const localScore = parseInt(localStorage.getItem(meta.bestKey) ?? '0', 10) || 0;
+        if (serverScore > localScore) localStorage.setItem(meta.bestKey, String(serverScore));
+      } catch { /* ignore */ }
+    }
+  }
+
+  // Best scores — library games
+  for (const game of BREAK_GAMES) {
+    const serverScore = serverStats.bestScores[`game-${game.id}`] ?? 0;
+    if (serverScore > 0) {
+      try {
+        const key = `cubical-game-best-${game.id}`;
+        const localScore = parseInt(localStorage.getItem(key) ?? '0', 10) || 0;
+        if (serverScore > localScore) localStorage.setItem(key, String(serverScore));
+      } catch { /* ignore */ }
+    }
+  }
+
+  // Daily played flags
+  for (const [combined, played] of Object.entries(serverStats.dailyPlayed)) {
+    if (!played) continue;
+    const [gid, dk] = combined.split('|');
+    if (gid && dk) {
+      try {
+        const lsKey = getDailyPlayedKey(gid as DailyGameId, dk);
+        if (localStorage.getItem(lsKey) !== 'true') localStorage.setItem(lsKey, 'true');
+      } catch { /* ignore */ }
+    }
+  }
+}
+
+function DailyGameCard({ onFirstPlay, onGameEnd }: { onFirstPlay?: () => void; onGameEnd?: () => void }) {
   const todayKey = useTodayKey();
   const gameId   = useMemo(() => getDailyGameId(), [todayKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const meta     = GAME_META[gameId];
@@ -2006,6 +2115,8 @@ function DailyGameCard({ onFirstPlay }: { onFirstPlay?: () => void }) {
       try { localStorage.setItem(getDailyPlayedKey(gameId, todayKey), 'true'); } catch {}
       onFirstPlay?.();
     }
+    // Push updated stats to server so they survive a future localStorage clear
+    onGameEnd?.();
   };
 
   const startGame  = () => { setLiveScore(0); setIsNewBest(false); setPhase('playing'); };
@@ -2180,6 +2291,8 @@ function GamePlayModal({ gameId, onClose }: { gameId: string; onClose: () => voi
       setBestScore(score);
       try { localStorage.setItem(bestKey, String(score)); } catch {}
     }
+    // Push updated best score to server
+    void pushStatsToServer(collectLocalStats());
   };
 
   const handleRestart = () => {
@@ -2741,6 +2854,26 @@ function BreakroomPage() {
   useEffect(() => { storeEquippedCosmetic(equippedCosmetic); }, [equippedCosmetic]);
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(null), 2600); return () => clearTimeout(t); }, [toast]);
 
+  // On mount: hydrate stats from server (restores data if localStorage was cleared),
+  // then push current local stats back to ensure the server has the latest.
+  useEffect(() => {
+    void (async () => {
+      const serverStats = await fetchServerStats();
+      if (serverStats) {
+        applyServerStats(serverStats);
+        // Re-read streak/best scores from localStorage after hydration
+        setStreakVersion((v) => v + 1);
+      }
+      // Always push local stats so server stays up to date
+      void pushStatsToServer(collectLocalStats());
+    })();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Called after every daily game session ends — keeps server stats current. */
+  const handleGameEnd = () => {
+    void pushStatsToServer(collectLocalStats());
+  };
+
   const acquireGame = (id: string) => {
     const g = BREAK_GAMES.find((x) => x.id === id);
     if (!g) return;
@@ -2776,7 +2909,7 @@ function BreakroomPage() {
 
       {/* Daily game + stats */}
       <div className="breakroom-top-row">
-        <DailyGameCard onFirstPlay={() => setStreakVersion((v) => v + 1)} />
+        <DailyGameCard onFirstPlay={() => setStreakVersion((v) => v + 1)} onGameEnd={handleGameEnd} />
         <BreakroomStatsPanel
           ownedGames={ownedGames}
           ownedCosmetics={ownedCosmetics}
