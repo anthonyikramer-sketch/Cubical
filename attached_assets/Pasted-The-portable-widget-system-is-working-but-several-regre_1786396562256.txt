@@ -1,0 +1,959 @@
+The portable-widget system is working, but several regressions and layout problems need to be corrected.
+
+This is a focused widget-system correction pass.
+
+Do NOT redesign Cubical.
+Do NOT redesign Sakura.
+Do NOT add unrelated features.
+Do NOT rebuild existing widgets from scratch.
+
+The main goals are:
+
+1. Restore proper compact Calendar behavior.
+2. Allow Clock to become significantly smaller.
+3. Make ALL widgets portable, including Clock and future widgets by default.
+4. Allow dragged widgets to visibly pass OVER the sidebar during transfer.
+5. Correct transported-widget placement inside tabs and tools.
+6. Create a structured horizontal portable-widget row on non-Home pages.
+7. Make transported Notepad wider and shorter.
+8. Standardize transported-widget heights.
+9. Preserve Home free-floating behavior.
+
+==================================================
+1. RESTORE COMPACT CALENDAR
+==================================================
+
+The Calendar has regressed.
+
+It is currently stuck displaying the entire month.
+
+Restore its ability to use the compact single-day state.
+
+The compact Calendar should display approximately:
+
+AUG
+10
+MONDAY
+
+or equivalent current:
+
+- month
+- numbered day
+- day of week
+
+The compact Calendar should remain a small widget.
+
+The user must still be able to expand/open it to access the full Calendar/month view.
+
+Do NOT force the full-month Calendar to remain visible at all times.
+
+Preserve Calendar events and existing data.
+
+The Calendar should continue supporting resizing where appropriate.
+
+At smaller sizes:
+use the compact day card.
+
+At sufficiently larger sizes:
+allow the full Calendar interface.
+
+==================================================
+2. CLOCK MUST BE ABLE TO BECOME MUCH SMALLER
+==================================================
+
+The Clock currently has too much empty space around its contents and cannot shrink enough.
+
+Fix the Clock's minimum dimensions.
+
+In its smallest normal state, the Clock border should sit very close to the actual:
+
+- time
+- AM/PM
+- relevant small status icons/indicators
+
+There should only be reasonable internal padding.
+
+Do NOT keep a large empty card around the time.
+
+Conceptually:
+
+current problem:
+
+┌───────────────────────┐
+│                       │
+│      12:07 PM         │
+│                       │
+└───────────────────────┘
+
+desired compact state:
+
+┌─────────────┐
+│ 12:07 PM    │
+└─────────────┘
+
+Keep enough padding that it still looks polished.
+
+The smallest Clock should feel like a compact digital desk clock.
+
+Timer/alarm indicators should fit naturally inside or immediately around this compact state.
+
+Do not remove existing Clock functionality.
+
+==================================================
+3. ALL WIDGETS SHOULD BE PORTABLE
+==================================================
+
+Clock is currently the only widget that cannot be transferred between main tabs.
+
+Fix this.
+
+Clock should now be portable too.
+
+Current portable widgets therefore include:
+
+- Notepad
+- Calendar
+- Clock
+- Link Shelf
+- Decision Maker
+- Calculator
+
+More importantly:
+
+PORTABILITY SHOULD BE THE DEFAULT FOR FUTURE WIDGETS.
+
+Do not maintain a manual list where every new widget has to separately be taught how to move between tabs.
+
+In the centralized widget registry/configuration, make widgets portable by default unless a specific widget explicitly opts out.
+
+Conceptually:
+
+portable: true
+
+should be the default behavior.
+
+Only unusual future widgets should require:
+
+portable: false
+
+This means future widgets automatically inherit:
+
+- Home free dragging
+- sidebar transfer
+- Store/Library/Breakroom placement
+- Recall
+- global Recall Widgets
+- nested-view following
+- skin-decoration travel
+- persistence
+
+Do not create one-off portability implementations for each widget.
+
+==================================================
+4. WIDGETS MUST VISUALLY PASS OVER THE SIDEBAR WHILE DRAGGING
+==================================================
+
+There is currently a transfer interaction problem.
+
+When I drag a widget toward the sidebar, the widget itself stops visually at the edge of the sidebar.
+
+I want the widget to visually move OVER the sidebar while I am dragging it.
+
+The cursor and widget should remain visually connected.
+
+During active dragging:
+
+- Render the dragged widget above the sidebar.
+- Give the dragged widget a higher temporary z-index than the sidebar.
+- Do not clip it at the Home/workspace boundary.
+- Do not hide part of it underneath the sidebar.
+- Do not stop its visible movement at the content edge.
+
+If I drag Notepad toward Library:
+
+I should be able to see Notepad physically floating over the Library button while my cursor is there.
+
+This should make the transfer interaction feel physical and intuitive.
+
+IMPORTANT:
+
+This is only DURING active drag.
+
+Once released:
+
+If the cursor is over a valid tab:
+transfer the widget.
+
+If it is not over a valid tab:
+return/nudge the widget into usable space as already specified.
+
+==================================================
+5. VALID TRANSFER DESTINATIONS
+==================================================
+
+Portable widgets may move among the four main Cubical tabs only:
+
+- Home
+- Store
+- Library
+- Breakroom
+
+Profile and Settings remain invalid.
+
+Do not change this rule.
+
+==================================================
+6. HOME REMAINS FREE-FLOATING
+==================================================
+
+Do NOT change the Home movement system.
+
+Home widgets should remain:
+
+- freely movable
+- draggable outside Edit Widgets mode
+- gridless
+- smoothly draggable
+- positioned exactly where released
+- freely resizable where supported
+
+Home remains the user's freeform desk.
+
+The new structured row behavior described below applies ONLY to transported widgets on:
+
+- Store
+- Library
+- Breakroom
+- nested views within those sections
+
+==================================================
+7. NON-HOME PORTABLE WIDGETS USE A STRUCTURED WIDGET AREA
+==================================================
+
+Transported widgets on Store, Library, and Breakroom should NOT behave like randomly floating Home widgets.
+
+Create a dedicated portable-widget area on these pages.
+
+The structure must ALWAYS be:
+
+PAGE / TOOL TITLE
+
+↓
+
+PORTABLE WIDGET AREA
+
+↓
+
+MAIN PAGE OR TOOL CONTENT
+
+This is extremely important.
+
+The screenshot currently shows Notepad ABOVE the:
+
+"Bulk File Renamer"
+
+title.
+
+That is wrong.
+
+Correct result:
+
+Bulk File Renamer
+tool subtitle if present
+
+[ portable widgets ]
+
+Bulk File Renamer interface
+
+Do not put portable widgets:
+
+- above the title
+- above breadcrumbs
+- above Back controls
+- on top of the title
+- inside the tool content itself
+
+They belong directly BELOW the title/header block and ABOVE the actual page/tool interface.
+
+==================================================
+8. THIS PLACEMENT RULE APPLIES TO ALL WIDGETS
+==================================================
+
+The below-title / above-content placement rule applies consistently to:
+
+- Notepad
+- Calendar
+- Clock
+- Link Shelf
+- Decision Maker
+- Calculator
+- all future portable widgets
+
+Do not special-case Notepad.
+
+Any transported widget should enter the shared portable-widget area.
+
+==================================================
+9. PORTABLE WIDGETS SHOULD FORM ONE HORIZONTAL ROW
+==================================================
+
+On Store, Library, Breakroom, and their nested views:
+
+Portable widgets should normally occupy ONE horizontal row.
+
+Example:
+
+Your Library.
+
+[ Notepad ] [ Calculator ] [ Clock ]
+
+File Organizer
+Spreadsheet Cleaner
+Bulk File Renamer
+File Finder
+
+All widgets should stay on a single row whenever they fit.
+
+Do NOT make a separate row for each widget.
+
+Do NOT vertically stack them unless necessary.
+
+==================================================
+10. WRAP TO A SECOND ROW ONLY WHEN REQUIRED
+==================================================
+
+If there are too many widgets to fit in the available horizontal width:
+
+Allow them to wrap naturally to a second row.
+
+Only create another row if there genuinely is not enough width.
+
+Priority:
+
+1. One row
+2. Use available horizontal space
+3. Second row only if necessary
+
+Do not create excessive vertical space.
+
+==================================================
+11. REORDER PORTABLE WIDGETS LEFT-TO-RIGHT
+==================================================
+
+Within the portable-widget area, widgets should NOT freely float vertically.
+
+Instead, allow horizontal drag-and-drop reordering.
+
+Example:
+
+Current:
+
+[ Notepad ] [ Clock ] [ Calculator ]
+
+I drag Calculator between Notepad and Clock.
+
+During dragging:
+
+[ Notepad ] [      ] [ Clock ]
+              ↑
+       Calculator preview
+
+Nearby widgets should gently make room.
+
+Drop result:
+
+[ Notepad ] [ Calculator ] [ Clock ]
+
+This should feel similar to rearranging cards/items in a horizontal list.
+
+The dragged widget should visibly move.
+
+Other widgets should shift to indicate the insertion position.
+
+==================================================
+12. TRANSPORTED WIDGETS ARE AFFIXED TO THEIR ROW
+==================================================
+
+Once a widget is on Store, Library, Breakroom, or a nested tool page:
+
+Do NOT allow arbitrary vertical free-floating placement.
+
+Its vertical location belongs to the portable-widget area.
+
+The user may:
+
+- reorder it left/right
+- move it to a valid main tab
+- Recall it Home
+
+But it should remain inside the portable-widget strip.
+
+This gives non-Home pages a predictable clean layout.
+
+HOME remains the only completely freeform canvas.
+
+==================================================
+13. MULTIPLE ROW REORDERING
+==================================================
+
+If enough widgets exist that a second row becomes necessary:
+
+Allow sensible drag/reorder behavior across those rows.
+
+The system should still behave like one ordered collection that wraps based on available width.
+
+Do not save arbitrary X/Y positions for transported widgets.
+
+Instead, save their ORDER within that section.
+
+Example:
+
+Library widget order:
+
+1. Notepad
+2. Calculator
+3. Clock
+4. Link Shelf
+
+Responsive layout determines whether those four fit on one row or wrap.
+
+==================================================
+14. TRANSPORTED NOTEPAD SHOULD BE WIDE AND SHORT
+==================================================
+
+When Notepad is on Home:
+
+Preserve its existing Home size and freeform size behavior.
+
+When Notepad is transported to:
+
+- Store
+- Library
+- Breakroom
+- nested views
+
+give it a special transported layout optimized for horizontal space.
+
+The transported Notepad should be:
+
+WIDER THAN IT IS TALL.
+
+It should resemble a horizontal note/document panel rather than a tall card.
+
+The purpose is to minimize how much vertical headroom it consumes above page/tool content.
+
+Example conceptual proportion:
+
+width: approximately 2x to 3x its height
+
+Do not force an exact ratio if the responsive layout requires adjustment.
+
+==================================================
+15. NOTEPAD CONTENT SHOULD SCROLL INTERNALLY
+==================================================
+
+If transported Notepad contains more content than fits inside its reduced height:
+
+Do NOT increase the entire widget's height automatically.
+
+Instead:
+
+- keep the transported widget relatively short
+- allow the document/content area to scroll vertically inside the Notepad
+
+Toolbar/title should remain accessible.
+
+This lets the user reference a long note without pushing the actual tool far down the page.
+
+==================================================
+16. UNIFORM TRANSPORTED WIDGET HEIGHT
+==================================================
+
+Other transported widgets should use a shared standard height where practical.
+
+Examples:
+
+- Clock
+- Calendar
+- Link Shelf
+- Decision Maker
+- Calculator
+
+Their widths may vary based on what their content needs.
+
+But within a portable-widget row, aim for a visually consistent height.
+
+Conceptually:
+
+[ wider Notepad ][ Clock ][ Calculator ][ Decision Maker ]
+      same general row height
+
+Notepad may use more width.
+
+Clock may use very little width.
+
+Calculator may use moderate width.
+
+Link Shelf may be wider.
+
+But they should visually belong to the same horizontal toolbar/workbench.
+
+==================================================
+17. WIDGET WIDTHS MAY VARY
+==================================================
+
+Do NOT force every transported widget to have the same width.
+
+Allow appropriate widths based on function.
+
+Examples:
+
+Clock:
+small/narrow.
+
+Notepad:
+wide.
+
+Calculator:
+medium.
+
+Decision Maker:
+medium.
+
+Link Shelf:
+medium/wide.
+
+Calendar:
+small or medium depending on compact state.
+
+The shared constraint is primarily HEIGHT, not width.
+
+==================================================
+18. TRANSPORTED CALENDAR SHOULD DEFAULT TO COMPACT STATE
+==================================================
+
+When Calendar is transported away from Home:
+
+Prefer its compact single-day state.
+
+Example:
+
+AUG
+10
+MONDAY
+
+Do not automatically place the entire monthly Calendar in the portable-widget row.
+
+If the user opens/clicks Calendar:
+
+Allow access to the expanded Calendar/month interface as appropriate.
+
+But the portable row representation should remain compact.
+
+==================================================
+19. TRANSPORTED CLOCK SHOULD USE ITS COMPACT STATE
+==================================================
+
+When Clock is transported:
+
+Use its newly corrected small form.
+
+The border should sit close to the time and relevant indicators.
+
+Do not create a large empty Clock card inside the portable-widget area.
+
+==================================================
+20. NESTED TOOL FOLLOWING
+==================================================
+
+Preserve the existing rule:
+
+A widget transported to Library belongs to Library as a section.
+
+Example:
+
+Notepad moved to Library.
+
+Library landing:
+Notepad appears.
+
+Open File Finder:
+Notepad follows.
+
+Open Bulk File Renamer:
+Notepad follows.
+
+Open Spreadsheet Cleaner:
+Notepad follows.
+
+Open File Organizer:
+Notepad follows.
+
+The widget remains in Library until:
+
+- recalled Home
+- transferred to Store
+- transferred to Breakroom
+
+==================================================
+21. NESTED TOOL ORDER MUST REMAIN CONSISTENT
+==================================================
+
+If Library currently has:
+
+[ Notepad ][ Clock ][ Calculator ]
+
+that same portable-widget order should remain when entering:
+
+- File Finder
+- Bulk File Renamer
+- Spreadsheet Cleaner
+- File Organizer
+
+Do not randomly reorder widgets between nested views.
+
+==================================================
+22. TITLE PLACEMENT ON NESTED TOOLS
+==================================================
+
+Fix the current placement bug.
+
+Portable widgets must appear AFTER the tool title/header.
+
+Example correct structure:
+
+Back to Library
+
+Bulk File Renamer
+Give a whole folder a thoughtful name in one quick pass.
+
+[ Notepad ][ Calculator ]
+
+Safe Preview Mode
+Choose Files
+Preview Changes
+etc.
+
+NOT:
+
+Back to Library
+
+[ Notepad ]
+
+Bulk File Renamer
+
+That current behavior is incorrect.
+
+==================================================
+23. INDIVIDUAL RECALL
+==================================================
+
+Each transported widget should continue having a subtle Recall action.
+
+Recall:
+
+- removes widget from the current portable-widget area
+- returns it Home
+- restores exact Home X/Y
+- restores exact Home dimensions
+- preserves widget data
+- preserves configuration
+- restores Sakura decoration
+
+After recall:
+
+The remaining widgets in the portable row should automatically close the gap.
+
+==================================================
+24. GLOBAL RECALL
+==================================================
+
+Preserve Recall Widgets on Home.
+
+Global Recall returns all transported widgets to their canonical Home positions.
+
+No changes are required to this behavior except ensuring Clock and future default-portable widgets also participate.
+
+==================================================
+25. SAKURA DECORATIONS
+==================================================
+
+Preserve Sakura decorations.
+
+When a decorated widget is transported:
+
+The decoration travels with the widget.
+
+When the widget enters the structured portable row:
+
+Ensure its decoration does not:
+
+- get clipped
+- cover adjacent widget content
+- dramatically increase row height
+
+Allow reasonable small overhang where visually appropriate.
+
+Do not redesign the artwork.
+
+==================================================
+26. DRAG Z-INDEX
+==================================================
+
+During ANY active widget drag:
+
+The dragged widget should temporarily render above:
+
+- sidebar
+- other widgets
+- normal page content
+
+This allows clear visual feedback.
+
+After release:
+
+Return to normal z-index/layout rules.
+
+==================================================
+27. FUTURE WIDGET ARCHITECTURE
+==================================================
+
+Update the shared widget architecture so future widgets automatically receive these capabilities.
+
+Future widgets should inherit by default:
+
+HOME:
+- free dragging
+- free positioning
+- Edit Widgets integration
+- resizing where supported
+- persistence
+
+PORTABLE:
+- transfer through valid sidebar destinations
+- visible drag over sidebar
+- Store/Library/Breakroom support
+- portable-widget row placement
+- horizontal reordering
+- wrapping only when necessary
+- nested-view following
+- Recall
+- global Recall Widgets
+- skin decoration compatibility
+
+Only widgets explicitly marked non-portable should opt out.
+
+Do not require bespoke transport code for every new widget.
+
+==================================================
+28. PERSISTENCE
+==================================================
+
+Persist:
+
+HOME:
+- X position
+- Y position
+- width
+- height
+
+TRANSPORTED:
+- current section
+- widget order within that section
+
+Do NOT treat transported widgets as arbitrary saved X/Y floating layouts.
+
+Their position should be determined by their order in the portable-widget area.
+
+==================================================
+29. DO NOT CHANGE
+==================================================
+
+Do not change:
+
+- Sakura background
+- Sakura color palette
+- Sakura art assets
+- Home free-floating design
+- Edit Widgets add/remove system
+- Store functionality
+- Library functionality
+- Breakroom functionality
+- Profile functionality
+- Settings functionality
+- existing tool functionality
+- Notepad editor capabilities
+- Clock timer/alarm capabilities
+- Calendar events
+- Link Shelf functionality
+- Decision Maker functionality
+- Calculator functionality
+
+Do not add unrelated features.
+
+==================================================
+30. VERIFY CALENDAR
+==================================================
+
+1. Add/show Calendar on Home.
+2. Shrink it.
+3. Verify it enters compact day state.
+4. Verify month/day/day-of-week display correctly.
+5. Expand it.
+6. Verify full Calendar remains accessible.
+7. Refresh.
+8. Verify Calendar state/data remains stable.
+
+==================================================
+31. VERIFY CLOCK
+==================================================
+
+9. Shrink Clock.
+10. Verify its border fits close around the time.
+11. Verify there is minimal unnecessary empty space.
+12. Verify Timer/Alarm functionality remains intact.
+
+==================================================
+32. VERIFY CLOCK PORTABILITY
+==================================================
+
+13. Drag Clock toward Library.
+14. Verify Clock can now transfer.
+15. Verify it appears in Library's portable-widget area.
+16. Verify Recall returns it Home.
+
+==================================================
+33. VERIFY DRAG OVER SIDEBAR
+==================================================
+
+17. Drag Notepad toward Library.
+18. Verify the widget visibly passes OVER the sidebar.
+19. Verify it is not clipped.
+20. Verify it remains visually attached to the cursor.
+21. Drop on Library.
+22. Verify transfer succeeds.
+
+==================================================
+34. VERIFY LIBRARY LANDING PLACEMENT
+==================================================
+
+23. Move Notepad to Library.
+24. Verify structure is:
+
+Your Library title
+Notepad
+Library tools
+
+25. Verify Notepad is NOT above the page title.
+
+==================================================
+35. VERIFY NESTED TOOL PLACEMENT
+==================================================
+
+26. Open Bulk File Renamer.
+
+27. Verify structure is:
+
+Bulk File Renamer title/header
+portable widgets
+Bulk File Renamer interface
+
+28. Verify portable widgets are NOT above the Bulk File Renamer title.
+
+Repeat with:
+
+29. File Finder
+30. Spreadsheet Cleaner
+31. File Organizer
+
+==================================================
+36. VERIFY PORTABLE ROW
+==================================================
+
+32. Move Notepad, Clock, Calculator, and Decision Maker to Library.
+
+33. Verify they initially occupy ONE horizontal row if space allows.
+
+34. Verify they have generally consistent heights.
+
+35. Verify their widths vary appropriately.
+
+36. Verify Notepad is wider than tall.
+
+37. Verify Notepad content scrolls internally if necessary.
+
+==================================================
+37. VERIFY REORDERING
+==================================================
+
+38. Drag Calculator left/right within the portable row.
+
+39. Verify other widgets make room.
+
+40. Drop Calculator between two widgets.
+
+41. Verify the new order persists.
+
+42. Navigate into File Finder.
+
+43. Verify the same order appears.
+
+==================================================
+38. VERIFY WRAPPING
+==================================================
+
+44. Add enough portable widgets that the row cannot fit.
+
+45. Verify widgets wrap to a second row ONLY when required.
+
+46. Resize the app wider.
+
+47. Verify widgets return toward one row when space becomes available.
+
+==================================================
+39. VERIFY FUTURE-WIDGET DEFAULT
+==================================================
+
+Inspect the shared widget registry/architecture.
+
+Verify portability is the default behavior for widgets.
+
+A future widget added to the registry should not require new custom transfer logic in order to participate.
+
+==================================================
+40. FINAL REGRESSION CHECK
+==================================================
+
+Verify:
+
+- Home widgets remain freely movable.
+- Home still has no grid snapping.
+- Calendar compact mode works.
+- Clock can become significantly smaller.
+- Clock is portable.
+- All current widgets are portable.
+- Future widgets default to portable.
+- Dragged widgets visibly pass over sidebar.
+- Store portable area works.
+- Library portable area works.
+- Breakroom portable area works.
+- Profile and Settings remain invalid destinations.
+- Portable widgets appear below page/tool titles.
+- Portable widgets appear above main content.
+- Portable widgets normally remain one row.
+- Second row only appears when necessary.
+- Horizontal drag/reordering works.
+- Notepad is wide/short when transported.
+- Notepad scrolls internally.
+- Transported widget heights are visually consistent.
+- Widths may vary.
+- Nested tool following works.
+- Recall works.
+- Global Recall works.
+- Sakura decorations remain attached.
+- Existing tools still function.
+- Persistence works.
+
+If the existing transported-widget implementation uses arbitrary absolute positioning on non-Home pages, refactor that system into a shared ordered portable-widget strip rather than patching each page individually.
+
+Do not make unrelated changes.
