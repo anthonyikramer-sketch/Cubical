@@ -2833,6 +2833,7 @@ function isSectionMatch(location: string, page: string): boolean {
 function DisplacedWidgetBand() {
   const [location] = useLocation();
   const { displaced, recall, reorderDisplaced } = usePortable();
+  const isSakura = readEquippedSkin() === 'sakura';
   const bandRef = useRef<HTMLDivElement>(null);
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [dropIdx, setDropIdx] = useState<number | null>(null);
@@ -2895,6 +2896,7 @@ function DisplacedWidgetBand() {
             data-widget={d.id}
             data-testid={`displaced-card-${d.id}`}
           >
+            {isSakura && <SakuraWidgetDecoration widgetId={d.id} />}
             <div className="displaced-band-header" onPointerDown={startReorder(origIdx)}>
               <span className="displaced-band-label">
                 <GripHorizontal className="displaced-grip" />

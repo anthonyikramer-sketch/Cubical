@@ -3061,6 +3061,25 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
 }
 .displaced-band-card.is-reorder-drag { opacity: .45; }
 
+/* Sakura decorations inside the band card.
+   The card uses overflow:hidden so the normal negative-top positions would be
+   clipped. Instead we anchor decorations to the top of the card, scaled down
+   slightly so they don't overwhelm the compact header. z-index sits above the
+   header background but below interactive elements. */
+.displaced-band-card .sakura-deco-layer { z-index: 1; pointer-events: none; }
+.displaced-band-card .sakura-deco--calendar {
+  height: clamp(36px, 60%, 52px);
+  top: 0; left: 50%; transform: translateX(-50%);
+}
+.displaced-band-card .sakura-deco--clock {
+  height: clamp(32px, 65%, 48px);
+  top: 0; right: 4px;
+}
+.displaced-band-card .sakura-deco--notepad {
+  height: clamp(28px, 55%, 42px);
+  top: 0; right: 4px;
+}
+
 /* Widget-specific widths */
 .displaced-band-card[data-widget="notepad"]        { flex: 0 0 480px; min-width: 300px; }
 .displaced-band-card[data-widget="link-shelf"]     { flex: 0 0 280px; }
