@@ -510,6 +510,127 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
 .table-empty { color: hsl(var(--muted-foreground) / .5); font-style: italic; font-size: 10px; }
 .table-more { margin: 10px 0 0; color: hsl(var(--muted-foreground)); font-size: 11px; }
 
+/* ─── Breakroom page ─────────────────────────────────────────────────────────── */
+.breakroom-page { animation: rise-in .45s both; }
+.breakroom-intro p { max-width: 540px; }
+
+/* Top row: Daily Game + Break Timer */
+.breakroom-top-row { display: grid; grid-template-columns: 1fr 280px; gap: 16px; align-items: start; margin-bottom: 40px; }
+
+/* Section headings */
+.breakroom-section { margin-bottom: 48px; }
+.breakroom-section-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
+.breakroom-section-title { display: flex; align-items: center; gap: 9px; font-family: var(--app-font-display); font-size: 22px; font-weight: 700; letter-spacing: -.04em; margin: 6px 0 0; }
+.breakroom-section-title svg { width: 20px; height: 20px; color: hsl(var(--primary)); }
+.breakroom-section-sub { margin: -8px 0 20px; color: hsl(var(--muted-foreground)); font-size: 14px; max-width: 560px; line-height: 1.55; }
+
+/* ── Daily Game card ──────────────────────────────────────────────────────── */
+.daily-card {
+  border: 1px solid hsl(var(--border));
+  border-radius: 22px;
+  background: hsl(var(--card));
+  box-shadow: 0 8px 28px hsl(32 20% 35% / .07);
+  overflow: hidden;
+}
+.daily-card-top { padding: 24px; }
+.daily-badge-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
+.daily-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 11px; border-radius: 20px; background: hsl(var(--primary) / .12); color: hsl(var(--primary)); font-size: 11px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+.daily-badge svg { width: 11px; height: 11px; }
+.daily-date { font-family: var(--app-font-mono); font-size: 11px; color: hsl(var(--muted-foreground)); }
+
+/* Idle */
+.daily-idle { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+.daily-game-emoji { font-size: 52px; line-height: 1; flex-shrink: 0; }
+.daily-game-info { flex: 1; min-width: 0; }
+.daily-game-name { font-family: var(--app-font-display); font-size: 22px; font-weight: 700; letter-spacing: -.04em; margin: 0 0 6px; }
+.daily-game-desc { margin: 0 0 10px; color: hsl(var(--muted-foreground)); font-size: 14px; line-height: 1.5; }
+.daily-stats-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.daily-played-badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 20px; background: hsl(164 48% 32% / .1); color: hsl(164 48% 32%); font-size: 11px; font-weight: 700; }
+.daily-played-badge svg { width: 11px; height: 11px; }
+.daily-best-score { display: inline-flex; align-items: center; gap: 5px; font-family: var(--app-font-mono); font-size: 11px; color: hsl(var(--muted-foreground)); font-weight: 600; }
+.daily-best-score svg { width: 11px; height: 11px; color: hsl(31 75% 43%); }
+.daily-play-btn { flex-shrink: 0; margin-top: 4px; }
+
+/* Playing */
+.daily-playing { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.daily-playing-header { display: flex; align-items: center; justify-content: space-between; width: 100%; max-width: 400px; }
+.daily-live-score { display: inline-flex; align-items: center; gap: 6px; font-family: var(--app-font-mono); font-size: 14px; font-weight: 700; color: hsl(var(--foreground)); }
+.daily-live-score svg { width: 13px; height: 13px; color: hsl(31 75% 43%); }
+.snake-wrapper { line-height: 0; }
+.snake-canvas { display: block; border-radius: 14px; box-shadow: 0 10px 40px hsl(var(--foreground) / .12); outline: none; }
+.snake-hint { margin: 0; font-size: 11px; color: hsl(var(--muted-foreground)); text-align: center; }
+
+/* Ended */
+.daily-ended { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 0 8px; text-align: center; }
+.daily-ended-emoji { font-size: 52px; line-height: 1; }
+.daily-ended-score { font-family: var(--app-font-display); font-size: 64px; font-weight: 700; letter-spacing: -.06em; line-height: 1; color: hsl(var(--primary)); }
+.daily-ended-label { font-size: 13px; color: hsl(var(--muted-foreground)); font-weight: 600; margin-top: -4px; }
+.daily-new-best { display: inline-flex; align-items: center; gap: 5px; padding: 4px 12px; border-radius: 20px; background: hsl(31 75% 43% / .12); color: hsl(31 75% 43%); font-size: 12px; font-weight: 800; margin-top: 4px; animation: rise-in .3s both; }
+.daily-completion-msg { font-size: 15px; color: hsl(var(--muted-foreground)); font-style: italic; max-width: 340px; line-height: 1.5; margin: 4px 0 8px; }
+.daily-ended-actions { display: flex; gap: 10px; margin-top: 8px; }
+
+/* ── Break Timer card ─────────────────────────────────────────────────────── */
+.break-timer-card { border: 1px solid hsl(var(--border)); border-radius: 22px; background: hsl(var(--card)); padding: 22px; box-shadow: 0 8px 28px hsl(32 20% 35% / .07); }
+.break-timer-header { margin-bottom: 16px; }
+.break-timer-hint { margin: 0 0 14px; color: hsl(var(--muted-foreground)); font-size: 13px; line-height: 1.5; }
+.break-timer-presets { display: flex; flex-direction: column; gap: 8px; }
+.break-preset-btn { width: 100%; min-height: 42px; border: 1px solid hsl(var(--border)); border-radius: 11px; background: hsl(var(--secondary)); color: hsl(var(--foreground)); font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; transition: background .15s, border-color .15s, color .15s; }
+.break-preset-btn:hover { border-color: hsl(var(--primary) / .5); background: hsl(var(--primary) / .07); color: hsl(var(--primary)); }
+.break-timer-active { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 4px 0; }
+.break-timer-ring { position: relative; width: 110px; height: 110px; }
+.break-ring-svg { width: 110px; height: 110px; }
+.break-ring-bg { fill: none; stroke: hsl(var(--border)); stroke-width: 5; }
+.break-ring-fg { fill: none; stroke: hsl(var(--primary)); stroke-width: 5; stroke-linecap: round; transition: stroke-dasharray .8s linear; }
+.break-ring-time { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: var(--app-font-mono); font-size: 17px; font-weight: 700; letter-spacing: -.03em; }
+.break-timer-controls { display: flex; align-items: center; gap: 8px; }
+.break-ctrl-btn { display: flex; align-items: center; justify-content: center; width: 38px; height: 38px; border: 1px solid hsl(var(--border)); border-radius: 10px; background: hsl(var(--secondary)); color: hsl(var(--foreground)); cursor: pointer; transition: background .15s, color .15s; }
+.break-ctrl-btn:hover { background: hsl(var(--primary) / .08); color: hsl(var(--primary)); border-color: hsl(var(--primary) / .4); }
+.break-ctrl-btn svg { width: 16px; height: 16px; }
+.break-ctrl-cancel:hover { background: hsl(var(--destructive) / .08); color: hsl(var(--destructive)); border-color: hsl(var(--destructive) / .4); }
+.break-preset-label { font-size: 11px; color: hsl(var(--muted-foreground)); font-weight: 600; text-align: center; }
+.break-timer-done { text-align: center; }
+.break-timer-done p { margin: 0; font-size: 14px; font-weight: 700; color: hsl(var(--foreground)); }
+
+/* ── Game cards ───────────────────────────────────────────────────────────── */
+.game-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
+.game-card { display: flex; flex-direction: column; border: 1px solid hsl(var(--border)); border-radius: 18px; background: hsl(var(--card)); overflow: hidden; transition: box-shadow .2s, border-color .2s, transform .18s; }
+.game-card:hover { box-shadow: 0 10px 28px hsl(32 20% 35% / .1); border-color: hsl(var(--primary) / .25); transform: translateY(-2px); }
+.game-card.is-owned { border-color: hsl(var(--primary) / .2); }
+.game-card-cover { position: relative; display: flex; align-items: center; justify-content: center; height: 100px; background: hsl(var(--secondary)); }
+.game-emoji { font-size: 46px; line-height: 1; }
+.game-owned-badge { position: absolute; top: 8px; right: 8px; display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 20px; background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); font-size: 9px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+.game-owned-badge svg { width: 9px; height: 9px; }
+.game-card-body { display: flex; flex-direction: column; gap: 5px; padding: 14px; flex: 1; }
+.game-card-tags { display: flex; gap: 5px; flex-wrap: wrap; }
+.game-tag { padding: 2px 7px; border-radius: 20px; background: hsl(var(--accent) / .12); color: hsl(var(--accent-foreground)); font-size: 9px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+.game-card-name { font-family: var(--app-font-display); font-size: 15px; font-weight: 700; letter-spacing: -.03em; }
+.game-card-desc { margin: 0; color: hsl(var(--muted-foreground)); font-size: 11.5px; line-height: 1.5; flex: 1; }
+.game-card-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
+.game-price { font-family: var(--app-font-mono); font-size: 12px; font-weight: 700; color: hsl(var(--foreground)); }
+.game-price.is-free { color: hsl(var(--primary)); }
+.game-action-btn { display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; font-size: 11px; font-weight: 800; border-radius: 8px; }
+
+/* ── Cosmetic cards ───────────────────────────────────────────────────────── */
+.cosmetics-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 14px; }
+.cosmetic-card { display: flex; flex-direction: column; border: 1px solid hsl(var(--border)); border-radius: 18px; background: hsl(var(--card)); overflow: hidden; transition: box-shadow .2s, border-color .2s, transform .18s; }
+.cosmetic-card:hover { box-shadow: 0 10px 28px hsl(32 20% 35% / .1); border-color: hsl(var(--primary) / .25); transform: translateY(-2px); }
+.cosmetic-card.is-owned { border-color: hsl(var(--primary) / .2); }
+.cosmetic-card.is-equipped { border-color: hsl(var(--primary) / .55); box-shadow: 0 0 0 2px hsl(var(--primary) / .12); }
+.cosmetic-preview { display: flex; height: 80px; }
+.cosmetic-preview span { flex: 1; }
+.cosmetic-card-body { display: flex; flex-direction: column; gap: 5px; padding: 13px; flex: 1; }
+.cosmetic-meta-row { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.cosmetic-type-badge { padding: 2px 7px; border-radius: 20px; background: hsl(var(--secondary)); color: hsl(var(--muted-foreground)); font-size: 9px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+.cosmetic-equipped-badge { display: inline-flex; align-items: center; gap: 3px; padding: 2px 7px; border-radius: 20px; background: hsl(var(--primary) / .1); color: hsl(var(--primary)); font-size: 9px; font-weight: 800; letter-spacing: .04em; }
+.cosmetic-equipped-badge svg { width: 9px; height: 9px; }
+.cosmetic-name { font-family: var(--app-font-display); font-size: 14px; font-weight: 700; letter-spacing: -.03em; }
+.cosmetic-desc { margin: 0; color: hsl(var(--muted-foreground)); font-size: 11.5px; line-height: 1.5; flex: 1; }
+.cosmetic-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
+.cosmetic-price { font-family: var(--app-font-mono); font-size: 12px; font-weight: 700; color: hsl(var(--foreground)); }
+.cosmetic-price.is-free { color: hsl(var(--primary)); }
+.cosmetic-action-btn { display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; font-size: 11px; font-weight: 800; border-radius: 8px; }
+.cosmetic-active-label { font-size: 11px; font-weight: 700; color: hsl(var(--primary)); font-family: var(--app-font-mono); }
+
 @keyframes rise-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes settle-in { from { opacity: 0; transform: rotate(2deg) translateY(15px); } to { opacity: 1; transform: rotate(2deg) translateY(0); } }

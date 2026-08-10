@@ -1,0 +1,272 @@
+Build the Breakroom
+
+Implement the Breakroom tab as a complete, polished section of the Hub.
+
+IMPORTANT: Do not redesign, restructure, or alter existing Hub pages, navigation, systems, or functionality unless absolutely necessary to connect the Breakroom. Match the existing Hub's design language, components, spacing, navigation, and overall visual identity. The Breakroom should feel like it belongs inside the same application while being noticeably more playful and relaxed.
+
+Overall Concept
+
+The Breakroom is the Hub's built-in place to take a short break during the workday.
+
+It should feel inviting, playful, and slightly game-like without becoming childish or visually disconnected from the rest of the Hub. Think of it as a small digital employee lounge hidden inside a productivity platform.
+
+The page should immediately communicate:
+
+"You've been working. Take a break."
+
+Use warmer, more playful copy throughout this page. Small bits of personality, humorous descriptions, playful microcopy, and subtle animations/interactions are encouraged as long as they remain tasteful and consistent with the existing UI.
+
+The Breakroom should contain three major systems:
+
+Daily Game
+Games
+Cosmetics
+
+Organize these however best fits the existing Hub interface. The Daily Game should receive the most visual emphasis.
+
+1. Daily Game
+
+Create a prominent Daily Game section near the top of the Breakroom.
+
+Every day, users should be presented with a small game or challenge that can be played quickly during a break.
+
+For this prototype, create at least one genuinely playable Daily Game rather than only displaying a placeholder.
+
+Choose a game that is simple, polished, and reliable to implement. Examples include:
+
+Snake
+Memory/matching
+Minesweeper
+Reaction-time challenge
+Simple word game
+Breakout-style game
+Number/pattern puzzle
+
+Choose whichever works best technically and aesthetically.
+
+The Daily Game card should show:
+
+Game name
+Short playful description
+"Play Today's Game" button
+Today's date
+Best score or completion status
+A visual indication when today's challenge has been completed
+
+The game should open cleanly within the Hub, preferably through an embedded game area, modal, expanded panel, or dedicated Breakroom game view.
+
+Store the user's best score locally if practical.
+
+Design this system so additional Daily Games could eventually be added and rotated without requiring the entire Breakroom to be rebuilt.
+
+Include playful completion messaging such as:
+
+"Break successfully taken."
+
+"Productivity temporarily defeated."
+
+"Your manager probably won't notice."
+
+Use your judgment and vary the language naturally.
+
+2. Break Timer
+
+Include a small Break Timer somewhere near the Daily Game.
+
+Allow the user to quickly start:
+
+5 minute break
+10 minute break
+15 minute break
+
+Display the countdown clearly once started.
+
+Allow pause, resume, and reset.
+
+When the timer finishes, show a friendly message encouraging the user to return to work.
+
+This should be a secondary feature and should not visually overpower the Daily Game.
+
+3. Games
+
+Create a browsable Games section.
+
+This represents small games that users can own and play directly through the Hub.
+
+Display games using attractive cards containing:
+
+Cover/icon artwork
+Game title
+Short description
+Price or "Free"
+Ownership status
+Play button if owned
+Purchase button if not owned
+
+Include several prototype game listings so the section feels populated.
+
+At least one should be free.
+
+Other games can have believable small prices appropriate for casual workplace break games.
+
+Examples could include fictional games such as:
+
+Office Snake
+Spreadsheet Survivor
+Coffee Break Solitaire
+Inbox Zero Hero
+Desktop Defender
+Paper Jam
+Corporate Climber
+
+Feel free to create better names if appropriate.
+
+The actual paid games do NOT all need to be implemented yet. Their cards and purchase states can function as prototype/storefront UI.
+
+If an existing Hub purchasing/store system can be reused safely, use the same patterns and components. Do not introduce unnecessary payment infrastructure solely for the Breakroom prototype.
+
+Clearly distinguish:
+
+Owned
+Free
+For Purchase
+
+Games that are owned should have a clear Play action.
+
+4. Cosmetics
+
+Create a Cosmetics section within the Breakroom.
+
+Cosmetics are optional visual customization items for the Hub and are intended to eventually become another monetization system.
+
+Possible cosmetic types include:
+
+Hub themes
+Backgrounds
+Profile decorations
+Avatar frames
+Dashboard visual effects
+Cursor effects
+Breakroom themes
+Seasonal cosmetic packs
+
+Create several example cosmetics with attractive preview cards.
+
+Each cosmetic card should include:
+
+Name
+Preview
+Cosmetic type
+Price
+Owned/equipped state where applicable
+Purchase or Equip button
+
+Include a mixture of free/default and paid cosmetics.
+
+Example themes could include:
+
+Midnight Office
+A darker late-night workspace aesthetic.
+
+Cozy Desk
+Warm lighting and comfortable workspace styling.
+
+Retro Terminal
+Old-school computer styling.
+
+Neon Nights
+A colorful cyber-inspired theme.
+
+Winter Office
+A seasonal winter cosmetic pack.
+
+These are examples only. Improve upon them if you have stronger ideas.
+
+Cosmetics do not need to globally transform the entire application yet if doing so risks changing existing functionality. It is acceptable for purchasing/equipping to be simulated within the Breakroom prototype.
+
+However, structure the UI so a real cosmetic system could be connected later.
+
+5. Breakroom Store Presentation
+
+Games and Cosmetics should feel like a small entertainment marketplace within the Breakroom rather than another copy of the main productivity Store.
+
+Use categories, featured items, horizontal carousels, grids, tabs, or another layout appropriate to the existing interface.
+
+Possible organization:
+
+DAILY GAME
+
+BREAK TIMER
+
+FEATURED GAMES
+
+YOUR GAMES
+
+COSMETICS
+
+The exact layout is your decision. Prioritize good UX and visual hierarchy over rigidly following this example.
+
+6. Personality and Atmosphere
+
+The Breakroom should have noticeably more personality than the productivity portions of the Hub.
+
+Use tasteful playful text throughout.
+
+Potential small details:
+
+"Clocked out for 10 minutes."
+"Today's distraction."
+"Your games."
+"Take five."
+"Back to work" button when leaving a game.
+Small celebratory animation after beating a high score.
+Friendly empty states.
+Hover interactions on game cards.
+Subtle animations around the Daily Game.
+
+Do not overdo animations or make the interface visually chaotic.
+
+The Breakroom should still feel like professionally designed software.
+
+7. Future-Proofing
+
+Build the Breakroom with future expansion in mind.
+
+Eventually this section may support:
+
+Many playable games
+Rotating Daily Games
+Achievements
+Leaderboards
+Game bundles
+Seasonal events
+Cosmetic collections
+Limited-time cosmetics
+Wishlist functionality
+Sales
+User game libraries
+Multiplayer/social features
+
+Do NOT implement all of these now.
+
+Simply avoid designing the current Breakroom in a way that would make these features difficult to add later.
+
+8. Final Polish
+
+Once implemented:
+
+Verify navigation into and out of Breakroom works correctly.
+Verify the Daily Game is actually playable.
+Verify the Break Timer works.
+Verify game cards and cosmetic cards behave appropriately.
+Verify owned/purchase/equip prototype states work.
+Check responsive behavior.
+Check dark/light theme compatibility if the Hub currently supports both.
+Remove obvious placeholder text.
+Fix layout inconsistencies.
+Match existing Hub typography, buttons, cards, borders, spacing, and navigation.
+Do not modify unrelated existing Hub functionality.
+
+The finished Breakroom should make the Hub feel more alive.
+
+The goal is for someone exploring the application to spend several minutes looking around the Breakroom even though they originally opened the Hub to work.

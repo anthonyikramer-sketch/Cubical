@@ -9,6 +9,8 @@ import {
   ChevronRight,
   CircleUserRound,
   Clock,
+  Coffee,
+  Crown,
   Download,
   FilePlus2,
   FileArchive,
@@ -16,20 +18,27 @@ import {
   FileSpreadsheet,
   Files,
   FolderCog,
+  Gamepad2,
   Grid2X2,
   GripHorizontal,
   House,
   Library as LibraryIcon,
   PackageOpen,
+  Palette,
+  Pause,
   Pencil,
+  Play,
   Plus,
   RotateCcw,
   Settings,
   Sparkles,
   StickyNote,
   TableProperties,
+  Timer,
   Trash2,
+  Trophy,
   X,
+  Zap,
 } from 'lucide-react';
 import { Link, Route, Switch, useLocation } from 'wouter';
 
@@ -170,6 +179,7 @@ const CRUMB_MAP: Record<string, string> = {
   '/': 'SHELF / HOME',
   '/store': 'SHELF / STORE',
   '/library': 'SHELF / LIBRARY',
+  '/breakroom': 'SHELF / BREAKROOM',
   '/profile': 'SHELF / PROFILE',
   '/settings': 'SHELF / SETTINGS',
 };
@@ -180,6 +190,7 @@ function AppShell({ children, libraryCount }: { children: ReactNode; libraryCoun
     { href: '/', label: 'Home', icon: House },
     { href: '/store', label: 'Store', icon: Grid2X2 },
     { href: '/library', label: 'Library', icon: LibraryIcon },
+    { href: '/breakroom', label: 'Breakroom', icon: Coffee },
   ];
   const utilityItems = [
     { href: '/profile', label: 'Profile', icon: CircleUserRound },
@@ -1332,6 +1343,642 @@ function SpreadsheetCleaner() {
   );
 }
 
+// ─── Breakroom ────────────────────────────────────────────────────────────────
+
+// ── Snake game engine ──────────────────────────────────────────────────────
+
+const SNAKE_GRID = 20;
+const SNAKE_CELL = 20;
+
+type Vec2 = { x: number; y: number };
+type SnakeState = {
+  snake: Vec2[]; food: Vec2; dir: Vec2; nextDir: Vec2;
+  score: number; started: boolean; dead: boolean;
+  lastTick: number; interval: number;
+};
+
+function makeSnakeInitial(): SnakeState {
+  const cx = Math.floor(SNAKE_GRID / 2);
+  const cy = Math.floor(SNAKE_GRID / 2);
+  return {
+    snake: [{ x: cx, y: cy }, { x: cx - 1, y: cy }, { x: cx - 2, y: cy }],
+    food: { x: 5, y: 5 },
+    dir: { x: 0, y: 0 }, nextDir: { x: 1, y: 0 },
+    score: 0, started: false, dead: false, lastTick: 0, interval: 150,
+  };
+}
+
+function snakeSpawnFood(s: SnakeState) {
+  const occ = new Set(s.snake.map((p) => `${p.x},${p.y}`));
+  let x = 0, y = 0;
+  do { x = Math.floor(Math.random() * SNAKE_GRID); y = Math.floor(Math.random() * SNAKE_GRID); }
+  while (occ.has(`${x},${y}`));
+  s.food = { x, y };
+}
+
+function snakeTick(s: SnakeState) {
+  s.dir = s.nextDir;
+  const head = s.snake[0];
+  const next: Vec2 = {
+    x: (head.x + s.dir.x + SNAKE_GRID) % SNAKE_GRID,
+    y: (head.y + s.dir.y + SNAKE_GRID) % SNAKE_GRID,
+  };
+  if (s.snake.some((p) => p.x === next.x && p.y === next.y)) { s.dead = true; return; }
+  s.snake.unshift(next);
+  if (next.x === s.food.x && next.y === s.food.y) {
+    s.score += 1;
+    s.interval = Math.max(60, 150 - s.score * 4);
+    snakeSpawnFood(s);
+  } else { s.snake.pop(); }
+}
+
+function snakeRender(ctx: CanvasRenderingContext2D, s: SnakeState) {
+  const SIZE = SNAKE_GRID * SNAKE_CELL;
+  ctx.fillStyle = '#0d1b12';
+  ctx.fillRect(0, 0, SIZE, SIZE);
+
+  // Subtle grid
+  ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+  ctx.lineWidth = 0.5;
+  for (let i = 0; i <= SNAKE_GRID; i++) {
+    ctx.beginPath(); ctx.moveTo(i * SNAKE_CELL, 0); ctx.lineTo(i * SNAKE_CELL, SIZE); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, i * SNAKE_CELL); ctx.lineTo(SIZE, i * SNAKE_CELL); ctx.stroke();
+  }
+
+  // Food — glowing circle
+  const fx = s.food.x * SNAKE_CELL + SNAKE_CELL / 2;
+  const fy = s.food.y * SNAKE_CELL + SNAKE_CELL / 2;
+  ctx.shadowColor = 'hsl(31,90%,58%)';
+  ctx.shadowBlur = 8;
+  ctx.fillStyle = 'hsl(31,90%,58%)';
+  ctx.beginPath(); ctx.arc(fx, fy, SNAKE_CELL / 2 - 2, 0, Math.PI * 2); ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // Snake segments
+  s.snake.forEach((seg, i) => {
+    const x = seg.x * SNAKE_CELL + 1.5;
+    const y = seg.y * SNAKE_CELL + 1.5;
+    const w = SNAKE_CELL - 3;
+    const h = SNAKE_CELL - 3;
+    const r = i === 0 ? 6 : 3;
+    const l = Math.max(28, 46 - i * 1.1);
+    ctx.fillStyle = i === 0 ? 'hsl(164,70%,46%)' : `hsl(164,55%,${l}%)`;
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, r);
+    ctx.fill();
+  });
+
+  // Overlays
+  if (!s.started && !s.dead) {
+    ctx.fillStyle = 'rgba(13,27,18,0.76)';
+    ctx.fillRect(0, 0, SIZE, SIZE);
+    ctx.fillStyle = 'rgba(255,255,255,0.88)';
+    ctx.font = 'bold 14px system-ui,sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Press ↑ ↓ ← → to start', SIZE / 2, SIZE / 2 - 8);
+    ctx.fillStyle = 'rgba(255,255,255,0.44)';
+    ctx.font = '11px system-ui,sans-serif';
+    ctx.fillText('WASD also works', SIZE / 2, SIZE / 2 + 13);
+  }
+  if (s.dead) {
+    ctx.fillStyle = 'rgba(13,27,18,0.84)';
+    ctx.fillRect(0, 0, SIZE, SIZE);
+    ctx.fillStyle = 'hsl(1,68%,65%)';
+    ctx.font = 'bold 22px system-ui,sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Game Over', SIZE / 2, SIZE / 2 - 14);
+    ctx.fillStyle = 'rgba(255,255,255,0.78)';
+    ctx.font = '14px system-ui,sans-serif';
+    ctx.fillText(`Score: ${s.score}`, SIZE / 2, SIZE / 2 + 12);
+  }
+}
+
+function SnakeGame({ onEnd, onScoreChange }: { onEnd: (score: number) => void; onScoreChange?: (s: number) => void }) {
+  const canvasRef  = useRef<HTMLCanvasElement>(null);
+  const stateRef   = useRef<SnakeState>(makeSnakeInitial());
+  const callbackRef = useRef({ onEnd, onScoreChange });
+  callbackRef.current = { onEnd, onScoreChange };
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const s = stateRef.current;
+    Object.assign(s, makeSnakeInitial());
+    snakeSpawnFood(s);
+    canvas.focus();
+
+    const onKey = (e: KeyboardEvent) => {
+      const st = stateRef.current;
+      if (st.dead) return;
+      const MAP: Record<string, Vec2> = {
+        ArrowUp: { x: 0, y: -1 }, ArrowDown: { x: 0, y: 1 },
+        ArrowLeft: { x: -1, y: 0 }, ArrowRight: { x: 1, y: 0 },
+        w: { x: 0, y: -1 }, s: { x: 0, y: 1 },
+        a: { x: -1, y: 0 }, d: { x: 1, y: 0 },
+      };
+      const nd = MAP[e.key];
+      if (!nd) return;
+      if (e.key.startsWith('Arrow')) e.preventDefault();
+      if (st.started && nd.x === -st.dir.x && nd.y === -st.dir.y) return;
+      st.nextDir = nd;
+      st.started = true;
+    };
+
+    window.addEventListener('keydown', onKey);
+
+    let rafId: number;
+    let gameEnded = false;
+
+    const loop = (ts: number) => {
+      const st = stateRef.current;
+      if (st.dead && !gameEnded) {
+        gameEnded = true;
+        snakeRender(ctx, st);
+        setTimeout(() => callbackRef.current.onEnd(st.score), 1200);
+        return;
+      }
+      rafId = requestAnimationFrame(loop);
+      if (st.started && !st.dead) {
+        if (st.lastTick === 0) st.lastTick = ts;
+        if (ts - st.lastTick >= st.interval) {
+          const prevScore = st.score;
+          st.lastTick = ts;
+          snakeTick(st);
+          if (st.score !== prevScore) callbackRef.current.onScoreChange?.(st.score);
+        }
+      }
+      snakeRender(ctx, st);
+    };
+
+    rafId = requestAnimationFrame(loop);
+    return () => { cancelAnimationFrame(rafId); window.removeEventListener('keydown', onKey); };
+  }, []);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      width={SNAKE_GRID * SNAKE_CELL}
+      height={SNAKE_GRID * SNAKE_CELL}
+      className="snake-canvas"
+      tabIndex={0}
+      aria-label="Office Snake game"
+    />
+  );
+}
+
+// ── Daily Game card ────────────────────────────────────────────────────────
+
+type DailyGamePhase = 'idle' | 'playing' | 'ended';
+
+const SNAKE_BEST_KEY = 'cubical-breakroom-snake-best';
+function getDailyPlayedKey() {
+  const d = new Date();
+  return `cubical-breakroom-played-${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+}
+const COMPLETION_LINES = [
+  'Break successfully taken.',
+  'Productivity temporarily defeated.',
+  'Your manager probably won\'t notice.',
+  'Snake: 1. Deadlines: 0.',
+  'That\'s enough fun for one afternoon.',
+  'Inbox can wait. Snake cannot.',
+];
+
+function DailyGameCard() {
+  const [phase, setPhase]                   = useState<DailyGamePhase>('idle');
+  const [liveScore, setLiveScore]           = useState(0);
+  const [finalScore, setFinalScore]         = useState(0);
+  const [bestScore, setBestScore]           = useState(() => {
+    try { return parseInt(localStorage.getItem(SNAKE_BEST_KEY) ?? '0', 10) || 0; } catch { return 0; }
+  });
+  const [playedToday, setPlayedToday]       = useState(() => {
+    try { return localStorage.getItem(getDailyPlayedKey()) === 'true'; } catch { return false; }
+  });
+  const [isNewBest, setIsNewBest]           = useState(false);
+
+  const today = new Date().toLocaleDateString('default', { weekday: 'long', month: 'long', day: 'numeric' });
+  const completionLine = COMPLETION_LINES[finalScore % COMPLETION_LINES.length];
+
+  const handleEnd = (score: number) => {
+    setFinalScore(score);
+    setPhase('ended');
+    const nb = score > bestScore;
+    if (nb) {
+      setBestScore(score);
+      try { localStorage.setItem(SNAKE_BEST_KEY, String(score)); } catch {}
+    }
+    setIsNewBest(nb);
+    if (!playedToday) {
+      setPlayedToday(true);
+      try { localStorage.setItem(getDailyPlayedKey(), 'true'); } catch {}
+    }
+  };
+
+  const startGame = () => { setLiveScore(0); setIsNewBest(false); setPhase('playing'); };
+  const backToIdle = () => { setPhase('idle'); };
+
+  return (
+    <div className="daily-card" data-testid="daily-game-card">
+      <div className="daily-card-top">
+        <div className="daily-badge-row">
+          <span className="daily-badge"><Zap /> Today's game</span>
+          <span className="daily-date">{today}</span>
+        </div>
+
+        {/* Idle state */}
+        {phase === 'idle' && (
+          <div className="daily-idle">
+            <div className="daily-game-emoji">🐍</div>
+            <div className="daily-game-info">
+              <h2 className="daily-game-name">Office Snake</h2>
+              <p className="daily-game-desc">Navigate the corridors. Eat the memos. Try not to crash into a deadline.</p>
+              <div className="daily-stats-row">
+                {playedToday && <span className="daily-played-badge"><Check /> Played today</span>}
+                {bestScore > 0 && (
+                  <span className="daily-best-score"><Trophy /> Best: {bestScore}</span>
+                )}
+              </div>
+            </div>
+            <button className="button-primary daily-play-btn" onClick={startGame} data-testid="button-play-daily">
+              <Play /> {playedToday ? 'Play Again' : "Play Today's Game"}
+            </button>
+          </div>
+        )}
+
+        {/* Playing state */}
+        {phase === 'playing' && (
+          <div className="daily-playing">
+            <div className="daily-playing-header">
+              <span className="daily-live-score"><Trophy /> {liveScore} {liveScore === 1 ? 'memo' : 'memos'}</span>
+              <button className="button-quiet" onClick={backToIdle} data-testid="button-give-up"><X /> Give up</button>
+            </div>
+            <div className="snake-wrapper">
+              <SnakeGame onEnd={handleEnd} onScoreChange={setLiveScore} />
+            </div>
+            <p className="snake-hint">Arrow keys or WASD to steer · don't hit yourself</p>
+          </div>
+        )}
+
+        {/* Ended state */}
+        {phase === 'ended' && (
+          <div className="daily-ended">
+            <div className="daily-ended-emoji">{finalScore >= 10 ? '🏆' : finalScore >= 5 ? '🎉' : '😅'}</div>
+            <div className="daily-ended-score">{finalScore}</div>
+            <div className="daily-ended-label">memos eaten</div>
+            {isNewBest && <div className="daily-new-best">✨ New personal best!</div>}
+            <p className="daily-completion-msg">"{completionLine}"</p>
+            <div className="daily-ended-actions">
+              <button className="button-quiet" onClick={backToIdle}>Back</button>
+              <button className="button-primary" onClick={startGame} data-testid="button-play-again">
+                <RotateCcw /> Play Again
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Break Timer ────────────────────────────────────────────────────────────
+
+type TimerPreset = 5 | 10 | 15;
+
+function BreakTimerCard() {
+  const [preset, setPreset]     = useState<TimerPreset | null>(null);
+  const [remaining, setRemaining] = useState(0); // seconds
+  const [running, setRunning]   = useState(false);
+  const [done, setDone]         = useState(false);
+  const intervalRef             = useRef<number | null>(null);
+
+  const clearTimer = () => { if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; } };
+
+  const startPreset = (p: TimerPreset) => {
+    clearTimer();
+    setPreset(p);
+    setRemaining(p * 60);
+    setRunning(true);
+    setDone(false);
+  };
+
+  useEffect(() => {
+    if (!running) return;
+    intervalRef.current = window.setInterval(() => {
+      setRemaining((r) => {
+        if (r <= 1) { clearTimer(); setRunning(false); setDone(true); return 0; }
+        return r - 1;
+      });
+    }, 1000);
+    return clearTimer;
+  }, [running]);
+
+  const pause  = () => { clearTimer(); setRunning(false); };
+  const resume = () => {
+    if (remaining <= 0) return;
+    setDone(false);
+    setRunning(true);
+  };
+  const reset  = () => {
+    clearTimer();
+    setRunning(false);
+    setDone(false);
+    if (preset) setRemaining(preset * 60);
+  };
+  const clear  = () => { clearTimer(); setPreset(null); setRemaining(0); setRunning(false); setDone(false); };
+
+  const mins    = Math.floor(remaining / 60);
+  const secs    = remaining % 60;
+  const pct     = preset ? ((preset * 60 - remaining) / (preset * 60)) * 100 : 0;
+
+  return (
+    <div className="break-timer-card" data-testid="break-timer-card">
+      <div className="break-timer-header">
+        <span className="widget-label"><Timer /> Break Timer</span>
+      </div>
+
+      {!preset ? (
+        <div className="break-timer-presets">
+          <p className="break-timer-hint">Take five. Or ten. You've earned it.</p>
+          {([5, 10, 15] as TimerPreset[]).map((p) => (
+            <button key={p} className="break-preset-btn" onClick={() => startPreset(p)} data-testid={`button-preset-${p}`}>
+              {p} min
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div className="break-timer-active">
+          <div className="break-timer-ring" style={{ '--pct': `${pct}` } as CSSProperties}>
+            <svg viewBox="0 0 64 64" className="break-ring-svg">
+              <circle cx="32" cy="32" r="28" className="break-ring-bg" />
+              <circle cx="32" cy="32" r="28" className="break-ring-fg"
+                strokeDasharray={`${(pct / 100) * 175.93} 175.93`}
+                transform="rotate(-90 32 32)"
+              />
+            </svg>
+            <div className="break-ring-time">
+              {String(mins).padStart(2, '0')}:{String(secs).padStart(2, '0')}
+            </div>
+          </div>
+
+          {done ? (
+            <div className="break-timer-done">
+              <p>Time's up! Back to it. 👋</p>
+              <button className="button-primary" style={{ marginTop: 10 }} onClick={clear}>Done</button>
+            </div>
+          ) : (
+            <div className="break-timer-controls">
+              {running
+                ? <button className="break-ctrl-btn" onClick={pause} aria-label="Pause"><Pause /></button>
+                : <button className="break-ctrl-btn" onClick={resume} aria-label="Resume"><Play /></button>
+              }
+              <button className="break-ctrl-btn" onClick={reset} aria-label="Reset"><RotateCcw /></button>
+              <button className="break-ctrl-btn break-ctrl-cancel" onClick={clear} aria-label="Cancel"><X /></button>
+            </div>
+          )}
+          <span className="break-preset-label">{preset}-minute break</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Games catalog ──────────────────────────────────────────────────────────
+
+type BreakGame = {
+  id: string; name: string; description: string;
+  price: string; emoji: string; tags: string[];
+  owned?: boolean;
+};
+
+const BREAK_GAMES: BreakGame[] = [
+  { id: 'office-snake',           name: 'Office Snake',          description: 'Navigate the corridors. Eat the memos. Try not to crash into a deadline.',            price: 'FREE',  emoji: '🐍', tags: ['Arcade'], owned: true },
+  { id: 'spreadsheet-survivor',   name: 'Spreadsheet Survivor',  description: 'Merge cells, dodge pivot tables, and somehow survive until Friday.',                   price: '$1.99', emoji: '📊', tags: ['Strategy'] },
+  { id: 'coffee-solitaire',       name: 'Coffee Break Solitaire',description: 'The classic card game. With coffee. All you ever really needed.',                      price: '$0.99', emoji: '☕', tags: ['Cards'] },
+  { id: 'inbox-zero-hero',        name: 'Inbox Zero Hero',        description: 'Sort, archive, and unsubscribe your way to legendary inbox status.',                   price: '$1.49', emoji: '📬', tags: ['Puzzle'] },
+  { id: 'desktop-defender',       name: 'Desktop Defender',       description: 'They are coming for your files. Defend the hard drive at all costs.',                  price: '$2.99', emoji: '🖥️', tags: ['Action'] },
+  { id: 'paper-jam',              name: 'Paper Jam',              description: 'Clear the printer before your boss notices. A race against corporate time.',           price: '$1.49', emoji: '🖨️', tags: ['Puzzle'] },
+  { id: 'corporate-climber',      name: 'Corporate Climber',      description: 'Platform jumping meets org-chart politics. Reach the top floor without selling out.',  price: '$2.49', emoji: '🏢', tags: ['Platformer'] },
+];
+
+const OWNED_GAMES_KEY = 'cubical-breakroom-owned-games';
+function getOwnedGames(): string[] {
+  return readLocal<string[]>(OWNED_GAMES_KEY, ['office-snake'], isStringArray);
+}
+function storeOwnedGames(ids: string[]) { writeLocal(OWNED_GAMES_KEY, ids); }
+
+function GameCard({ game, isOwned, onAcquire }: { game: BreakGame; isOwned: boolean; onAcquire: (id: string) => void }) {
+  const isFree = game.price === 'FREE';
+  return (
+    <div className={`game-card${isOwned ? ' is-owned' : ''}`} data-testid={`card-game-${game.id}`}>
+      <div className="game-card-cover">
+        <span className="game-emoji" aria-hidden>{game.emoji}</span>
+        {isOwned && <span className="game-owned-badge"><Check /> Owned</span>}
+      </div>
+      <div className="game-card-body">
+        <div className="game-card-tags">
+          {game.tags.map((t) => <span key={t} className="game-tag">{t}</span>)}
+        </div>
+        <span className="game-card-name">{game.name}</span>
+        <p className="game-card-desc">{game.description}</p>
+        <div className="game-card-footer">
+          <span className={`game-price${isFree ? ' is-free' : ''}`}>{game.price}</span>
+          {isOwned
+            ? (game.id === 'office-snake'
+                ? <button className="button-primary game-action-btn" onClick={() => document.getElementById('daily-game-section')?.scrollIntoView({ behavior: 'smooth' })} data-testid={`button-play-${game.id}`}><Play /> Play</button>
+                : <button className="button-primary game-action-btn" data-testid={`button-play-${game.id}`}><Play /> Play</button>)
+            : <button className="button-quiet game-action-btn" onClick={() => onAcquire(game.id)} data-testid={`button-get-${game.id}`}>{isFree ? 'Get Free' : 'Purchase'} <ArrowRight /></button>
+          }
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Cosmetics catalog ──────────────────────────────────────────────────────
+
+type CosmeticType = 'Theme' | 'Background' | 'Avatar Frame' | 'Cursor' | 'Pack';
+type Cosmetic = {
+  id: string; name: string; type: CosmeticType; price: string;
+  description: string; palette: string[]; isDefault?: boolean;
+};
+
+const COSMETICS: Cosmetic[] = [
+  { id: 'default',          name: 'Workspace Classic',  type: 'Theme',        price: 'Free',  description: 'The clean, familiar look you know.',                isDefault: true, palette: ['#FAF7F3','#1a2e1f','#5a7a60'] },
+  { id: 'midnight-office',  name: 'Midnight Office',    type: 'Theme',        price: '$2.99', description: 'A darker late-night workspace for the night owls.', palette: ['#0f1117','#1e2d3d','#4c9eff'] },
+  { id: 'cozy-desk',        name: 'Cozy Desk',          type: 'Theme',        price: '$1.99', description: 'Warm tones and soft lighting. Like your favourite café.', palette: ['#fdf6ec','#7a4f2a','#d4a76a'] },
+  { id: 'retro-terminal',   name: 'Retro Terminal',     type: 'Theme',        price: '$3.99', description: 'Old-school phosphor glow. Real ones remember CRT.', palette: ['#0a0f0a','#1a3a1a','#33ff33'] },
+  { id: 'neon-nights',      name: 'Neon Nights',        type: 'Theme',        price: '$2.49', description: 'Colorful cyber-inspired glow. Very 1984, very good.', palette: ['#0d0018','#2d0050','#ff2dce','#00f5ff'] },
+  { id: 'forest-mode',      name: 'Forest Mode',        type: 'Background',   price: '$1.49', description: 'Calm woodland background for when you need to breathe.', palette: ['#1a3a1e','#2d6a2e','#6aab6e'] },
+  { id: 'coffee-frame',     name: 'Coffee Cup Frame',   type: 'Avatar Frame', price: '$0.99', description: 'The most important cup of the day. Now around your face.', palette: ['#5c3317','#8b5e3c','#f0c98a'] },
+  { id: 'sparkle-trail',    name: 'Sparkle Trail',      type: 'Cursor',       price: '$1.99', description: 'Leave a little magic behind wherever you click.', palette: ['#ffe566','#ff9ef5','#66e8ff'] },
+  { id: 'winter-pack',      name: 'Winter Office',      type: 'Pack',         price: '$4.99', description: 'Seasonal winter cosmetic collection. Frosty, cosy, limited.', palette: ['#e8f4f8','#a8d4e6','#4a90c4','#2c5f8a'] },
+];
+
+const OWNED_COSMETICS_KEY   = 'cubical-breakroom-owned-cosmetics';
+const EQUIPPED_COSMETIC_KEY = 'cubical-breakroom-equipped';
+
+function getOwnedCosmetics(): string[] {
+  return readLocal<string[]>(OWNED_COSMETICS_KEY, ['default'], isStringArray);
+}
+function getEquippedCosmetic(): string {
+  try { return localStorage.getItem(EQUIPPED_COSMETIC_KEY) ?? 'default'; } catch { return 'default'; }
+}
+function storeOwnedCosmetics(ids: string[]) { writeLocal(OWNED_COSMETICS_KEY, ids); }
+function storeEquippedCosmetic(id: string) { try { localStorage.setItem(EQUIPPED_COSMETIC_KEY, id); } catch {} }
+
+function CosmeticCard({ cosmetic, isOwned, isEquipped, onAcquire, onEquip }: {
+  cosmetic: Cosmetic; isOwned: boolean; isEquipped: boolean;
+  onAcquire: (id: string) => void; onEquip: (id: string) => void;
+}) {
+  const isFree = cosmetic.price === 'Free' || cosmetic.isDefault;
+  return (
+    <div className={`cosmetic-card${isOwned ? ' is-owned' : ''}${isEquipped ? ' is-equipped' : ''}`} data-testid={`card-cosmetic-${cosmetic.id}`}>
+      <div className="cosmetic-preview" aria-hidden>
+        {cosmetic.palette.map((c, i) => <span key={i} style={{ background: c }} />)}
+      </div>
+      <div className="cosmetic-card-body">
+        <div className="cosmetic-meta-row">
+          <span className="cosmetic-type-badge">{cosmetic.type}</span>
+          {isEquipped && <span className="cosmetic-equipped-badge"><Check /> Equipped</span>}
+        </div>
+        <span className="cosmetic-name">{cosmetic.name}</span>
+        <p className="cosmetic-desc">{cosmetic.description}</p>
+        <div className="cosmetic-footer">
+          <span className={`cosmetic-price${isFree ? ' is-free' : ''}`}>{cosmetic.price}</span>
+          {isOwned
+            ? isEquipped
+              ? <span className="cosmetic-active-label">Active</span>
+              : <button className="button-quiet cosmetic-action-btn" onClick={() => onEquip(cosmetic.id)} data-testid={`button-equip-${cosmetic.id}`}>Equip</button>
+            : <button className="button-quiet cosmetic-action-btn" onClick={() => onAcquire(cosmetic.id)} data-testid={`button-buy-${cosmetic.id}`}>{isFree ? 'Get Free' : 'Purchase'} <ArrowRight /></button>
+          }
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Breakroom page ─────────────────────────────────────────────────────────
+
+function BreakroomPage() {
+  const [ownedGames, setOwnedGames]         = useState<string[]>(getOwnedGames);
+  const [ownedCosmetics, setOwnedCosmetics] = useState<string[]>(getOwnedCosmetics);
+  const [equippedCosmetic, setEquippedCosmetic] = useState<string>(getEquippedCosmetic);
+  const [toast, setToast]                   = useState<string | null>(null);
+
+  useEffect(() => { storeOwnedGames(ownedGames); }, [ownedGames]);
+  useEffect(() => { storeOwnedCosmetics(ownedCosmetics); }, [ownedCosmetics]);
+  useEffect(() => { storeEquippedCosmetic(equippedCosmetic); }, [equippedCosmetic]);
+  useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(null), 2600); return () => clearTimeout(t); }, [toast]);
+
+  const acquireGame = (id: string) => {
+    const g = BREAK_GAMES.find((x) => x.id === id);
+    if (!g) return;
+    setOwnedGames((prev) => prev.includes(id) ? prev : [...prev, id]);
+    setToast(g.price === 'FREE' ? `${g.name} added to your games (free)` : `${g.name} purchased — enjoy!`);
+  };
+
+  const acquireCosmetic = (id: string) => {
+    const c = COSMETICS.find((x) => x.id === id);
+    if (!c) return;
+    setOwnedCosmetics((prev) => prev.includes(id) ? prev : [...prev, id]);
+    setToast(c.price === 'Free' ? `${c.name} added to your collection` : `${c.name} purchased!`);
+  };
+
+  const equipCosmetic = (id: string) => {
+    setEquippedCosmetic(id);
+    const c = COSMETICS.find((x) => x.id === id);
+    setToast(`${c?.name ?? id} equipped. Looking sharp.`);
+  };
+
+  const yourGames  = BREAK_GAMES.filter((g) => ownedGames.includes(g.id));
+  const storeGames = BREAK_GAMES.filter((g) => !ownedGames.includes(g.id));
+
+  return (
+    <div className="breakroom-page" data-testid="breakroom-page">
+      {/* Page header */}
+      <div className="page-intro breakroom-intro">
+        <div className="eyebrow">⏸ Take a breather</div>
+        <h1 className="display-title mt-4">The Breakroom.</h1>
+        <p>You've been working. This is the part where you stop for a moment.<br />Games, timers, and a small excuse to close the spreadsheet.</p>
+      </div>
+
+      {/* Daily game + Break timer row */}
+      <div id="daily-game-section" className="breakroom-top-row">
+        <DailyGameCard />
+        <BreakTimerCard />
+      </div>
+
+      {/* Your Games */}
+      {yourGames.length > 0 && (
+        <div className="breakroom-section">
+          <div className="breakroom-section-header">
+            <div>
+              <div className="eyebrow">Your games</div>
+              <h2 className="breakroom-section-title"><Gamepad2 /> Your Library</h2>
+            </div>
+            <span className="library-count">{String(yourGames.length).padStart(2,'0')} owned</span>
+          </div>
+          <div className="game-grid">
+            {yourGames.map((g) => (
+              <GameCard key={g.id} game={g} isOwned onAcquire={acquireGame} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Game store */}
+      {storeGames.length > 0 && (
+        <div className="breakroom-section">
+          <div className="breakroom-section-header">
+            <div>
+              <div className="eyebrow">Get more</div>
+              <h2 className="breakroom-section-title"><Sparkles /> Game Store</h2>
+            </div>
+          </div>
+          <div className="game-grid">
+            {storeGames.map((g) => (
+              <GameCard key={g.id} game={g} isOwned={false} onAcquire={acquireGame} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Cosmetics */}
+      <div className="breakroom-section">
+        <div className="breakroom-section-header">
+          <div>
+            <div className="eyebrow">Cosmetics</div>
+            <h2 className="breakroom-section-title"><Palette /> Make it yours</h2>
+          </div>
+          <span className="library-count">{ownedCosmetics.length} owned</span>
+        </div>
+        <p className="breakroom-section-sub">Themes, backgrounds, and decorations. None of them make you more productive. That's the point.</p>
+        <div className="cosmetics-grid">
+          {COSMETICS.map((c) => (
+            <CosmeticCard
+              key={c.id} cosmetic={c}
+              isOwned={ownedCosmetics.includes(c.id)}
+              isEquipped={equippedCosmetic === c.id}
+              onAcquire={acquireCosmetic}
+              onEquip={equipCosmetic}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Toast */}
+      {toast && (
+        <div className="toast-message" role="status" data-testid="breakroom-toast">
+          <Check /> {toast}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Placeholder & utility pages ──────────────────────────────────────────────
 
 function PlaceholderPage({ type }: { type: 'profile' | 'settings' }) {
@@ -1385,6 +2032,7 @@ function App() {
           return <ProductDetail product={product} isAdded={libraryIds.includes(product.id)} onAdd={() => addToLibrary(product)} onOpen={() => openProduct(product)} />;
         }}</Route>
         <Route path="/library"><LibraryPage products={libraryProducts} onOpen={openProduct} /></Route>
+        <Route path="/breakroom"><BreakroomPage /></Route>
         <Route path="/tool/bulk-file-renamer"><BulkFileRenamer /></Route>
         <Route path="/tool/spreadsheet-cleaner"><SpreadsheetCleaner /></Route>
         <Route path="/profile"><PlaceholderPage type="profile" /></Route>
