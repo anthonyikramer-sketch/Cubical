@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ChangeEvent, type CSSProperties, type ReactNode } from 'react';
 import {
   ArrowLeft,
   ArrowRight,
   Check,
   CircleUserRound,
+  FilePlus2,
   FileArchive,
   FileScan,
   Files,
@@ -11,9 +12,11 @@ import {
   Grid2X2,
   Library as LibraryIcon,
   PackageOpen,
+  RotateCcw,
   Settings,
   Sparkles,
   TableProperties,
+  Trash2,
 } from 'lucide-react';
 import { Link, Route, Switch, useLocation } from 'wouter';
 
@@ -178,6 +181,245 @@ function LibraryPage({ products, onOpen }: { products: Product[]; onOpen: (produ
   );
 }
 
+type RenameMethod = 'prefix' | 'suffix' | 'replace' | 'sequence';
+
+type SelectedFile = {
+  key: string;
+  file: File;
+};
+
+type RenamePreview = {
+  key: string;
+  originalName: string;
+  proposedName: string;
+  conflict: boolean;
+};
+
+function fileStemAndExtension(fileName: string) {
+  const extensionIndex = fileName.lastIndexOf('.');
+  if (extensionIndex <= 0) return { stem: fileName, extension: '' };
+  return { stem: fileName.slice(0, extensionIndex), extension: fileName.slice(extensionIndex) };
+}
+
+function getProposedName(
+  fileName: string,
+  method: RenameMethod,
+  options: { prefix: string; suffix: string; search: string; replacement: string; sequenceStart: number; sequenceDigits: number },
+  index: number,
+) {
+  if (method === 'prefix') return `${options.prefix}${fileName}`;
+  if (method === 'suffix') {
+    const { stem, extension } = fileStemAndExtension(fileName);
+    return `${stem}${options.suffix}${extension}`;
+  }
+  if (method === 'replace') {
+    if (!options.search) return fileName;
+    return fileName.split(options.search).join(options.replacement);
+  }
+  const sequence = String(options.sequenceStart + index).padStart(options.sequenceDigits, '0');
+  return `${sequence} - ${fileName}`;
+}
+
+function ToolIconBadge() {
+  return <span className="renamer-tool-icon"><FileArchive /></span>;
+}
+
+function RenameMethodCard({
+  method,
+  active,
+  title,
+  description,
+  onSelect,
+}: {
+  method: RenameMethod;
+  active: boolean;
+  title: string;
+  description: string;
+  onSelect: (method: RenameMethod) => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={`rename-method-card ${active ? 'active' : ''}`}
+      onClick={() => onSelect(method)}
+      aria-pressed={active}
+      data-testid={`button-method-${method}`}
+    >
+      <span className="rename-method-radio" />
+      <span>
+        <strong>{title}</strong>
+        <small>{description}</small>
+      </span>
+    </button>
+  );
+}
+
+function BulkFileRenamer() {
+  const [selectedFiles, setSelectedFiles] = useState<SelectedFile[]>([]);
+  const [method, setMethod] = useState<RenameMethod>('prefix');
+  const [prefix, setPrefix] = useState('project-');
+  const [suffix, setSuffix] = useState('-final');
+  const [search, setSearch] = useState('');
+  const [replacement, setReplacement] = useState('');
+  const [sequenceStart, setSequenceStart] = useState(1);
+  const [sequenceDigits, setSequenceDigits] = useState(2);
+  const [completion, setCompletion] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const options = { prefix, suffix, search, replacement, sequenceStart, sequenceDigits };
+  const previews = useMemo<RenamePreview[]>(() => {
+    const originalNames = new Set(selectedFiles.map(({ file }) => file.name.toLowerCase()));
+    const proposedNames = selectedFiles.map(({ file }, index) => getProposedName(file.name, method, options, index));
+    const proposedCounts = proposedNames.reduce((counts, name) => {
+      const normalizedName = name.toLowerCase();
+      counts.set(normalizedName, (counts.get(normalizedName) ?? 0) + 1);
+      return counts;
+    }, new Map<string, number>());
+
+    return selectedFiles.map(({ key, file }, index) => {
+      const proposedName = proposedNames[index];
+      const normalizedProposedName = proposedName.toLowerCase();
+      const isSameName = normalizedProposedName === file.name.toLowerCase();
+      const conflict = !proposedName.trim() || (!isSameName && originalNames.has(normalizedProposedName)) || (proposedCounts.get(normalizedProposedName) ?? 0) > 1;
+      return { key, originalName: file.name, proposedName, conflict };
+    });
+  }, [method, options.prefix, options.replacement, options.search, options.sequenceDigits, options.sequenceStart, options.suffix, selectedFiles]);
+
+  const conflictCount = previews.filter((preview) => preview.conflict).length;
+  const blockingReason = selectedFiles.length === 0
+    ? 'Select at least one file to preview new names.'
+    : conflictCount > 0
+      ? 'A proposed filename already exists among the selected files or is duplicated in this batch.'
+      : method === 'replace' && !search
+        ? 'Enter the text you want to replace to create a preview.'
+        : null;
+
+  const updateOption = (update: () => void) => {
+    update();
+    setCompletion(null);
+    setActionError(null);
+  };
+
+  const selectFiles = (event: ChangeEvent<HTMLInputElement>) => {
+    const incomingFiles = Array.from(event.target.files ?? []);
+    setSelectedFiles((current) => {
+      const existingKeys = new Set(current.map(({ key }) => key));
+      const newFiles = incomingFiles
+        .map((file) => ({ key: `${file.name}-${file.size}-${file.lastModified}`, file }))
+        .filter(({ key }) => !existingKeys.has(key));
+      return [...current, ...newFiles];
+    });
+    setCompletion(null);
+    setActionError(null);
+    event.target.value = '';
+  };
+
+  const removeFile = (key: string) => {
+    setSelectedFiles((current) => current.filter((selectedFile) => selectedFile.key !== key));
+    setCompletion(null);
+    setActionError(null);
+  };
+
+  const clearFiles = () => {
+    setSelectedFiles([]);
+    setCompletion(null);
+    setActionError(null);
+  };
+
+  const renameFiles = () => {
+    if (blockingReason) {
+      setActionError(blockingReason);
+      return;
+    }
+    setActionError(null);
+    setCompletion(`${previews.length} file${previews.length === 1 ? '' : 's'} checked successfully. This browser prototype did not change files.`);
+  };
+
+  return (
+    <section className="renamer-page" data-testid="bulk-file-renamer">
+      <Link href="/library" className="detail-back" data-testid="link-back-library"><ArrowLeft /> Back to library</Link>
+      <div className="tool-title-row">
+        <div>
+          <div className="eyebrow">Cubical tool · local prototype</div>
+          <div className="tool-title-with-icon"><ToolIconBadge /><div><h1>Bulk File Renamer.</h1><p>Give a whole folder a thoughtful name in one quick pass.</p></div></div>
+        </div>
+        <span className="tool-status"><i className="status-dot" /> Ready when you are</span>
+      </div>
+
+      <div className="renamer-notice">
+        <FilePlus2 />
+        <div><strong>Safe preview mode</strong><span>Files are selected only for this session. Nothing is changed until you review the preview and click Rename Files.</span></div>
+      </div>
+
+      <div className="renamer-workspace">
+        <div className="renamer-controls">
+          <div className="renamer-section-heading"><span className="eyebrow">01 · Choose files</span><span className="library-count">{selectedFiles.length} selected</span></div>
+          <label className="file-picker">
+            <FilePlus2 />
+            <span>Select files</span>
+            <input type="file" multiple onChange={selectFiles} data-testid="input-file-picker" />
+          </label>
+          <p className="renamer-help">Choose multiple files from your computer to build a rename preview.</p>
+          {selectedFiles.length > 0 && (
+            <div className="selected-file-list" data-testid="selected-file-list">
+              {selectedFiles.map(({ key, file }) => (
+                <div className="selected-file" key={key}>
+                  <span>{file.name}</span>
+                  <button type="button" onClick={() => removeFile(key)} aria-label={`Remove ${file.name}`} data-testid={`button-remove-file-${key}`}><Trash2 /></button>
+                </div>
+              ))}
+              <button type="button" className="text-button" onClick={clearFiles} data-testid="button-clear-files"><RotateCcw /> Clear selection</button>
+            </div>
+          )}
+
+          <div className="renamer-section-heading method-heading"><span className="eyebrow">02 · Rename method</span></div>
+          <div className="rename-method-grid">
+            <RenameMethodCard method="prefix" active={method === 'prefix'} title="Add before" description="Put text at the start" onSelect={(nextMethod) => updateOption(() => setMethod(nextMethod))} />
+            <RenameMethodCard method="suffix" active={method === 'suffix'} title="Add after" description="Put text before extension" onSelect={(nextMethod) => updateOption(() => setMethod(nextMethod))} />
+            <RenameMethodCard method="replace" active={method === 'replace'} title="Replace text" description="Swap a specific phrase" onSelect={(nextMethod) => updateOption(() => setMethod(nextMethod))} />
+            <RenameMethodCard method="sequence" active={method === 'sequence'} title="Number files" description="Add an ordered number" onSelect={(nextMethod) => updateOption(() => setMethod(nextMethod))} />
+          </div>
+
+          <div className="rename-options">
+            {method === 'prefix' && <label className="rename-field"><span>Text before filename</span><input value={prefix} onChange={(event) => updateOption(() => setPrefix(event.target.value))} placeholder="project-" data-testid="input-prefix" /></label>}
+            {method === 'suffix' && <label className="rename-field"><span>Text after filename</span><input value={suffix} onChange={(event) => updateOption(() => setSuffix(event.target.value))} placeholder="-final" data-testid="input-suffix" /></label>}
+            {method === 'replace' && <div className="rename-field-pair"><label className="rename-field"><span>Find</span><input value={search} onChange={(event) => updateOption(() => setSearch(event.target.value))} placeholder="draft" data-testid="input-replace-search" /></label><label className="rename-field"><span>Replace with</span><input value={replacement} onChange={(event) => updateOption(() => setReplacement(event.target.value))} placeholder="final" data-testid="input-replace-value" /></label></div>}
+            {method === 'sequence' && <div className="rename-field-pair"><label className="rename-field"><span>Start at</span><input type="number" min="0" value={sequenceStart} onChange={(event) => updateOption(() => setSequenceStart(Math.max(0, Number(event.target.value) || 0)))} data-testid="input-sequence-start" /></label><label className="rename-field"><span>Number width</span><input type="number" min="1" max="6" value={sequenceDigits} onChange={(event) => updateOption(() => setSequenceDigits(Math.min(6, Math.max(1, Number(event.target.value) || 1))))} data-testid="input-sequence-digits" /></label></div>}
+          </div>
+        </div>
+
+        <div className="renamer-preview-panel">
+          <div className="renamer-section-heading"><span className="eyebrow">03 · Preview changes</span><span className="library-count">{previews.length} preview{previews.length === 1 ? '' : 's'}</span></div>
+          {selectedFiles.length === 0 ? (
+            <div className="renamer-empty" data-testid="renamer-empty"><div className="empty-cube"><Files /></div><h2>Your preview starts here.</h2><p>Select a few files on the left to see the original and proposed names side-by-side.</p></div>
+          ) : (
+            <div className="rename-preview-table" data-testid="rename-preview-table">
+              <div className="preview-table-head"><span>Original filename</span><span>Proposed filename</span></div>
+              <div className="preview-table-body">
+                {previews.map((preview) => (
+                  <div className={`preview-row ${preview.conflict ? 'conflict' : ''}`} key={preview.key}>
+                    <span title={preview.originalName}>{preview.originalName}</span>
+                    <span title={preview.proposedName}>{preview.proposedName || 'No filename proposed'}{preview.conflict && <b>Conflict</b>}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {blockingReason && selectedFiles.length > 0 && <div className="renamer-error" role="alert" data-testid="renamer-error"><span>!</span>{blockingReason}</div>}
+          {actionError && <div className="renamer-error" role="alert" data-testid="renamer-action-error"><span>!</span>{actionError}</div>}
+          {completion && <div className="renamer-completion" role="status" data-testid="renamer-completion"><Check /><div><strong>Rename check complete</strong><span>{completion}</span></div></div>}
+          <div className="renamer-actions">
+            <div><strong>Nothing gets overwritten.</strong><span>Conflicts must be resolved before continuing.</span></div>
+            <button type="button" className="button-primary" onClick={renameFiles} disabled={selectedFiles.length === 0 || Boolean(blockingReason)} data-testid="button-rename-files">Rename Files <ArrowRight /></button>
+          </div>
+        </div>
+      </div>
+
+      <div className="desktop-note"><Sparkles /><p><strong>Desktop functionality required later.</strong> Cubical is currently running in a browser, so it can read selected filenames but cannot safely rename files in place. A future Windows desktop build will connect this preview to a filesystem permission layer; this prototype never deletes or overwrites anything.</p></div>
+    </section>
+  );
+}
+
 function PlaceholderPage({ type }: { type: 'profile' | 'settings' }) {
   const profile = type === 'profile';
   return (
@@ -210,7 +452,13 @@ function App() {
     setLibraryIds((current) => current.includes(product.id) ? current : [...current, product.id]);
     setToast(`${product.name} added to your library`);
   };
-  const openProduct = (product: Product) => setToast(`${product.name} would launch here`);
+  const openProduct = (product: Product) => {
+    if (product.id === 'bulk-file-renamer') {
+      setLocation('/tool/bulk-file-renamer');
+      return;
+    }
+    setToast(`${product.name} would launch here`);
+  };
 
   return (
     <AppShell libraryCount={libraryProducts.length}>
@@ -222,6 +470,7 @@ function App() {
           return <ProductDetail product={product} isAdded={libraryIds.includes(product.id)} onAdd={() => addToLibrary(product)} onOpen={() => openProduct(product)} />;
         }}</Route>
         <Route path="/library"><LibraryPage products={libraryProducts} onOpen={openProduct} /></Route>
+        <Route path="/tool/bulk-file-renamer"><BulkFileRenamer /></Route>
         <Route path="/profile"><PlaceholderPage type="profile" /></Route>
         <Route path="/settings"><PlaceholderPage type="settings" /></Route>
         <Route><NotFound /></Route>
