@@ -207,7 +207,7 @@ function LibraryPage({ products, onOpen }: { products: Product[]; onOpen: (produ
   );
 }
 
-type RenameMethod = 'prefix' | 'suffix' | 'replace' | 'sequence';
+type RenameMethod = 'full' | 'prefix' | 'suffix' | 'replace' | 'sequence';
 
 type SelectedFile = {
   key: string;
@@ -232,7 +232,13 @@ function getProposedName(
   method: RenameMethod,
   options: { prefix: string; suffix: string; search: string; replacement: string; sequenceStart: number; sequenceDigits: number },
   index: number,
+  fullName?: string,
 ) {
+  if (method === 'full') {
+    const { extension, stem } = fileStemAndExtension(fileName);
+    const nextStem = fullName === undefined ? stem : fullName.trim();
+    return nextStem ? `${nextStem}${extension}` : '';
+  }
   if (method === 'prefix') return `${options.prefix}${fileName}`;
   if (method === 'suffix') {
     const { stem, extension } = fileStemAndExtension(fileName);
@@ -282,20 +288,21 @@ function RenameMethodCard({
 
 function BulkFileRenamer() {
   const [selectedFiles, setSelectedFiles] = useState<SelectedFile[]>([]);
-  const [method, setMethod] = useState<RenameMethod>('prefix');
+  const [method, setMethod] = useState<RenameMethod>('full');
   const [prefix, setPrefix] = useState('project-');
   const [suffix, setSuffix] = useState('-final');
   const [search, setSearch] = useState('');
   const [replacement, setReplacement] = useState('');
   const [sequenceStart, setSequenceStart] = useState(1);
   const [sequenceDigits, setSequenceDigits] = useState(2);
+  const [fullRenameNames, setFullRenameNames] = useState<Record<string, string>>({});
   const [completion, setCompletion] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const options = { prefix, suffix, search, replacement, sequenceStart, sequenceDigits };
   const previews = useMemo<RenamePreview[]>(() => {
     const originalNames = new Set(selectedFiles.map(({ file }) => file.name.toLowerCase()));
-    const proposedNames = selectedFiles.map(({ file }, index) => getProposedName(file.name, method, options, index));
+    const proposedNames = selectedFiles.map(({ key, file }, index) => getProposedName(file.name, method, options, index, fullRenameNames[key]));
     const proposedCounts = proposedNames.reduce((counts, name) => {
       const normalizedName = name.toLowerCase();
       counts.set(normalizedName, (counts.get(normalizedName) ?? 0) + 1);
@@ -309,7 +316,7 @@ function BulkFileRenamer() {
       const conflict = !proposedName.trim() || (!isSameName && originalNames.has(normalizedProposedName)) || (proposedCounts.get(normalizedProposedName) ?? 0) > 1;
       return { key, originalName: file.name, proposedName, conflict };
     });
-  }, [method, options.prefix, options.replacement, options.search, options.sequenceDigits, options.sequenceStart, options.suffix, selectedFiles]);
+  }, [fullRenameNames, method, options.prefix, options.replacement, options.search, options.sequenceDigits, options.sequenceStart, options.suffix, selectedFiles]);
 
   const conflictCount = previews.filter((preview) => preview.conflict).length;
   const blockingReason = selectedFiles.length === 0
@@ -326,6 +333,10 @@ function BulkFileRenamer() {
     setActionError(null);
   };
 
+  const setFullRenameName = (key: string, value: string) => {
+    updateOption(() => setFullRenameNames((current) => ({ ...current, [key]: value })));
+  };
+
   const selectFiles = (event: ChangeEvent<HTMLInputElement>) => {
     const incomingFiles = Array.from(event.target.files ?? []);
     setSelectedFiles((current) => {
@@ -335,6 +346,14 @@ function BulkFileRenamer() {
         .filter(({ key }) => !existingKeys.has(key));
       return [...current, ...newFiles];
     });
+    setFullRenameNames((current) => {
+      const next = { ...current };
+      incomingFiles.forEach((file) => {
+        const key = `${file.name}-${file.size}-${file.lastModified}`;
+        if (!(key in next)) next[key] = fileStemAndExtension(file.name).stem;
+      });
+      return next;
+    });
     setCompletion(null);
     setActionError(null);
     event.target.value = '';
@@ -342,12 +361,18 @@ function BulkFileRenamer() {
 
   const removeFile = (key: string) => {
     setSelectedFiles((current) => current.filter((selectedFile) => selectedFile.key !== key));
+    setFullRenameNames((current) => {
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
     setCompletion(null);
     setActionError(null);
   };
 
   const clearFiles = () => {
     setSelectedFiles([]);
+    setFullRenameNames({});
     setCompletion(null);
     setActionError(null);
   };
@@ -400,6 +425,7 @@ function BulkFileRenamer() {
 
           <div className="renamer-section-heading method-heading"><span className="eyebrow">02 · Rename method</span></div>
           <div className="rename-method-grid">
+            <RenameMethodCard method="full" active={method === 'full'} title="Full Rename" description="Type a complete filename" onSelect={(nextMethod) => updateOption(() => setMethod(nextMethod))} />
             <RenameMethodCard method="prefix" active={method === 'prefix'} title="Add before" description="Put text at the start" onSelect={(nextMethod) => updateOption(() => setMethod(nextMethod))} />
             <RenameMethodCard method="suffix" active={method === 'suffix'} title="Add after" description="Put text before extension" onSelect={(nextMethod) => updateOption(() => setMethod(nextMethod))} />
             <RenameMethodCard method="replace" active={method === 'replace'} title="Replace text" description="Swap a specific phrase" onSelect={(nextMethod) => updateOption(() => setMethod(nextMethod))} />
@@ -407,6 +433,15 @@ function BulkFileRenamer() {
           </div>
 
           <div className="rename-options">
+            {method === 'full' && selectedFiles.length === 0 && <p className="rename-mode-note">Select one file to type its complete filename. The extension stays protected.</p>}
+            {method === 'full' && selectedFiles.length === 1 && (() => {
+              const selectedFile = selectedFiles[0];
+              const { extension, stem } = fileStemAndExtension(selectedFile.file.name);
+              return (
+                <label className="rename-field"><span>Filename</span><div className="filename-input-row"><input value={fullRenameNames[selectedFile.key] ?? stem} onChange={(event) => setFullRenameName(selectedFile.key, event.target.value)} placeholder={stem} data-testid="input-full-rename" /><span>{extension || 'no extension'}</span></div><small className="rename-field-hint">The file extension is protected and stays unchanged.</small></label>
+              );
+            })()}
+            {method === 'full' && selectedFiles.length > 1 && <p className="rename-mode-note">Full Rename is for manual per-file editing. Edit each proposed filename directly in the preview table; use the batch methods for larger groups.</p>}
             {method === 'prefix' && <label className="rename-field"><span>Text before filename</span><input value={prefix} onChange={(event) => updateOption(() => setPrefix(event.target.value))} placeholder="project-" data-testid="input-prefix" /></label>}
             {method === 'suffix' && <label className="rename-field"><span>Text after filename</span><input value={suffix} onChange={(event) => updateOption(() => setSuffix(event.target.value))} placeholder="-final" data-testid="input-suffix" /></label>}
             {method === 'replace' && <div className="rename-field-pair"><label className="rename-field"><span>Find</span><input value={search} onChange={(event) => updateOption(() => setSearch(event.target.value))} placeholder="draft" data-testid="input-replace-search" /></label><label className="rename-field"><span>Replace with</span><input value={replacement} onChange={(event) => updateOption(() => setReplacement(event.target.value))} placeholder="final" data-testid="input-replace-value" /></label></div>}
@@ -425,7 +460,14 @@ function BulkFileRenamer() {
                 {previews.map((preview) => (
                   <div className={`preview-row ${preview.conflict ? 'conflict' : ''}`} key={preview.key}>
                     <span title={preview.originalName}>{preview.originalName}</span>
-                    <span title={preview.proposedName}>{preview.proposedName || 'No filename proposed'}{preview.conflict && <b>Conflict</b>}</span>
+                    <span title={preview.proposedName}>
+                      {method === 'full' && selectedFiles.length > 1 ? (
+                        <span className="preview-edit-name"><input value={fullRenameNames[preview.key] ?? fileStemAndExtension(preview.originalName).stem} onChange={(event) => setFullRenameName(preview.key, event.target.value)} aria-label={`New filename for ${preview.originalName}`} data-testid={`input-full-rename-${preview.key}`} /><i>{fileStemAndExtension(preview.originalName).extension || 'no extension'}</i></span>
+                      ) : (
+                        preview.proposedName || 'No filename proposed'
+                      )}
+                      {preview.conflict && <b>Conflict</b>}
+                    </span>
                   </div>
                 ))}
               </div>
