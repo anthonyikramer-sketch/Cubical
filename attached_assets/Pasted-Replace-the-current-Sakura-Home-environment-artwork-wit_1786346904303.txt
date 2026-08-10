@@ -1,0 +1,62 @@
+Replace the current Sakura Home environment artwork with the NEW square Sakura image I just uploaded.
+
+IMPORTANT:
+This is an asset replacement and fitting adjustment only. Do not redesign the Sakura skin or change its existing functionality.
+
+Keep all existing Sakura skin behavior and styling:
+- Sakura remains an equipable skin from Profile.
+- Keep the Sakura sidebar colors and styling.
+- Keep the Sakura widget styling.
+- Keep the pink accent colors.
+- Keep the dark translucent widget surfaces.
+- Keep all widget dragging, resizing, snapping, and persistence behavior.
+- Keep Edit Layout functioning exactly as it does now.
+- Keep the compact "Your workspace" label.
+- Keep all existing navigation and functionality.
+- Do not modify other skins or the Default theme.
+
+NEW HOME ARTWORK:
+
+Use the newly uploaded square Sakura image as the Sakura Home environment.
+
+The new artwork was specifically designed as a complete square cubby/environment, so treat the entire square as the environment.
+
+DISPLAY REQUIREMENTS:
+
+- Display the entire square artwork.
+- Preserve its 1:1 aspect ratio.
+- Do not crop any part of the artwork.
+- Do not stretch or distort it.
+- The complete wooden border must remain visible on all four sides.
+- Center the artwork within the available Home workspace.
+- Scale the entire square uniformly based on the available vertical and horizontal space.
+- The artwork should be as large as possible while remaining completely visible.
+- If the available workspace is wider than the square artwork, allow intentional empty space beside it rather than stretching the image.
+- If necessary, use a dark warm brown surrounding background that visually blends with the outer wooden frame.
+- Do not use object-fit: cover.
+- Prefer object-fit: contain or equivalent sizing logic.
+
+WIDGET LAYER:
+
+Widgets must remain ABOVE the artwork and behave exactly as they currently do.
+
+The square artwork should act as the visual workspace/cubby that the widgets live inside.
+
+Widgets should be positioned relative to the square environment rather than the entire browser viewport whenever possible. This is important so their positions remain visually consistent when the application window changes size.
+
+Dragging, resizing, snapping, saved positions, calendar data, clock behavior, and notepad data must remain unchanged.
+
+The goal is:
+
+The complete square Sakura artwork should appear as a self-contained little cubby/environment inside Cubical, with the user's widgets arranged inside it.
+
+Do not alter the artwork itself.
+
+Before finishing, verify:
+1. The entire square artwork is visible.
+2. No wooden border is cropped.
+3. The image is not distorted.
+4. Widgets remain interactive.
+5. Saved widget positions still persist.
+6. Sakura can still be equipped/unequipped normally.
+7. Default skin remains unchanged.

@@ -1810,37 +1810,50 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
   padding-bottom: 0;
 }
 
+/* Outer shell: dark warm wood background, centers the square artwork */
 .sakura-env-frame {
-  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border-radius: 22px;
   overflow: hidden;
-  /* Warm dark wood — sampled from the outer frame of the artwork */
   background: hsl(22 35% 18%);
-  min-height: 540px;
+  /* Ensure enough vertical room; square will dictate actual height */
+  min-height: 480px;
 }
 
-/* The pixel-art environment image — contained so the full artwork is always visible */
+/* Square container — 1:1, sized to the smaller of available width or viewport height.
+   The 80px offset accounts for the top bar + page padding so the whole square fits
+   on screen without scrolling. */
+.sakura-env-square {
+  aspect-ratio: 1 / 1;
+  width: min(100%, calc(100vh - 80px));
+  position: relative;
+  overflow: hidden;
+  border-radius: 18px;
+}
+
+/* The pixel-art image fills the square exactly — no gaps, no crop, no distortion.
+   The container is already square so object-fit: fill is equivalent to contain here. */
 .sakura-env-img {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: contain;          /* full image always visible, no cropping */
-  object-position: center;
+  object-fit: fill;
   image-rendering: pixelated;   /* preserve pixel-art crispness */
   pointer-events: none;         /* never intercept widget interactions */
   user-select: none;
   display: block;
-  border-radius: 0;
 }
 
-/* Interactive UI floats above the artwork */
+/* Interactive UI layer — covers the square, widgets live here */
 .sakura-env-ui {
-  position: relative;
+  position: absolute;
+  inset: 0;
   z-index: 1;
   display: flex;
   flex-direction: column;
-  min-height: 540px;
 }
 
 /* Compact top bar replacing the large greeting */
