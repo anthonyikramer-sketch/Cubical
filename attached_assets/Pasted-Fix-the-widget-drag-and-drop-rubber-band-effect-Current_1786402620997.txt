@@ -1,0 +1,46 @@
+Fix the widget drag-and-drop "rubber band" effect.
+
+Current behavior:
+
+* While dragging a widget, movement is smooth and follows the cursor correctly.
+* When I release/drop the widget, it briefly snaps back to its previous position.
+* Immediately afterward, it jumps very quickly to the new position where I dropped it.
+* The final position is correct, but the brief snap-back makes the drag feel janky.
+
+Desired behavior:
+
+* When I release a widget, it should remain exactly where I dropped it.
+* There should be no visual snap back to the old position.
+* There should be no delayed jump, second movement, or rubber-band effect.
+* Dragging should feel continuous from mouse-down through mouse-up.
+
+Please investigate the root cause rather than hiding the effect with an animation.
+
+Likely areas to inspect:
+
+* temporary drag coordinates vs persisted widget coordinates
+* state updates occurring in the wrong order on drag end
+* the component rendering old persisted coordinates for one frame after mouse-up
+* asynchronous save/persistence logic updating position after the UI has already reverted
+* multiple sources of truth for widget position
+* drag libraries applying a transform during dragging, then removing the transform before the new absolute position has been committed
+* React state being reset or rehydrated after drop
+* CSS transition/transform rules that could contribute to the snap
+
+Preferred behavior:
+
+* On drag end, immediately commit the final coordinates to the primary UI state before clearing the temporary drag transform/state.
+* Persist/save those coordinates afterward without blocking the visual update.
+* The rendered widget position should use one authoritative source of truth.
+* Persistence should never cause the widget to visually revert to an older position.
+
+Make the smallest safe fix possible and preserve:
+
+* smooth dragging
+* widget persistence
+* tab-to-tab widget movement
+* resizing
+* current widget interactions
+* all existing layout behavior
+
+Do not add a transition that merely disguises the snap-back. The actual old-position frame should be eliminated.

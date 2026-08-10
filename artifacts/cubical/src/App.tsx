@@ -2419,11 +2419,11 @@ function HomeWorkspace({
   const containerRef   = useRef<HTMLDivElement>(null);
   const canvasWRef     = useRef(950);
   const activeItemRef  = useRef<LayoutItem | null>(null);
-  const activeModeRef  = useRef<'drag' | 'resize' | null>(null);
+  const activeModeRef  = useRef<'drag' | 'resize' | 'settling' | null>(null);
 
   const [layout, setLayout]         = useState<LayoutItem[]>(() => getStoredLayout());
   const [activeItem, setActiveItem] = useState<LayoutItem | null>(null);
-  const [activeMode, setActiveMode] = useState<'drag' | 'resize' | null>(null);
+  const [activeMode, setActiveMode] = useState<'drag' | 'resize' | 'settling' | null>(null);
 
   // Portal drag ghost — rendered at document.body so it appears above all stacking contexts
   // including the sidebar. Direct DOM updates keep the ghost smooth at 60 fps.
@@ -2640,11 +2640,29 @@ function HomeWorkspace({
           y: Math.max(0, finalItem.y),
         };
         setLayout((prev) => { const next = prev.map((l) => (l.id === corrected.id ? corrected : l)); storeLayout(next); storeBaselineWidth(cw); return next; });
+
+        // Rubber-band fix: commit the final position into activeItem while
+        // keeping activeMode as 'settling' (→ is-active-outer stays on, so
+        // transition:none is still in effect). The widget becomes visible at
+        // the correct position. One rAF later we clear active state; at that
+        // point the position is the same in both layout and activeItem, so
+        // the re-enabled CSS transition (left 120ms / top 120ms) has nothing
+        // to animate and no snap-back occurs.
+        setActiveItem(corrected);
+        activeModeRef.current = 'settling';
+        setActiveMode('settling');
+        requestAnimationFrame(() => {
+          setActiveItem(null);
+          activeItemRef.current = null;
+          setActiveMode(null);
+          activeModeRef.current = null;
+        });
+      } else {
+        setActiveItem(null);
+        activeItemRef.current = null;
+        setActiveMode(null);
+        activeModeRef.current = null;
       }
-      setActiveItem(null);
-      activeItemRef.current = null;
-      setActiveMode(null);
-      activeModeRef.current = null;
     };
 
     document.addEventListener('pointermove', onMove);
