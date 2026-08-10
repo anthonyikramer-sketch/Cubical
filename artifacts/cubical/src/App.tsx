@@ -1845,9 +1845,27 @@ type DailyGamePhase = 'idle' | 'playing' | 'ended';
 
 const DAILY_GAME_ROTATION: DailyGameId[] = ['snake', 'memory'];
 
-function getDailyPlayedKey(gameId: DailyGameId) {
+function getTodayKey(): string {
   const d = new Date();
-  return `cubical-breakroom-played-${gameId}-${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+}
+
+/** Returns a YYYY-M-D string that updates automatically when the calendar date rolls over. */
+function useTodayKey(): string {
+  const [todayKey, setTodayKey] = useState(getTodayKey);
+  useEffect(() => {
+    const id = setInterval(() => {
+      const next = getTodayKey();
+      setTodayKey((prev) => (prev !== next ? next : prev));
+    }, 60_000);
+    return () => clearInterval(id);
+  }, []);
+  return todayKey;
+}
+
+function getDailyPlayedKey(gameId: DailyGameId, dateKey?: string) {
+  const key = dateKey ?? getTodayKey();
+  return `cubical-breakroom-played-${gameId}-${key}`;
 }
 
 const GAME_META: Record<DailyGameId, {
@@ -1901,8 +1919,9 @@ const COMPLETION_LINES = [
 ];
 
 function DailyGameCard({ onFirstPlay }: { onFirstPlay?: () => void }) {
-  const gameId = getDailyGameId();
-  const meta   = GAME_META[gameId];
+  const todayKey = useTodayKey();
+  const gameId   = useMemo(() => getDailyGameId(), [todayKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const meta     = GAME_META[gameId];
 
   const [phase, setPhase]       = useState<DailyGamePhase>('idle');
   const [liveScore, setLiveScore] = useState(0);
@@ -1911,9 +1930,20 @@ function DailyGameCard({ onFirstPlay }: { onFirstPlay?: () => void }) {
     try { return parseInt(localStorage.getItem(meta.bestKey) ?? '0', 10) || 0; } catch { return 0; }
   });
   const [playedToday, setPlayedToday] = useState(() => {
-    try { return localStorage.getItem(getDailyPlayedKey(gameId)) === 'true'; } catch { return false; }
+    try { return localStorage.getItem(getDailyPlayedKey(gameId, todayKey)) === 'true'; } catch { return false; }
   });
   const [isNewBest, setIsNewBest] = useState(false);
+
+  // Reset card state when the calendar date rolls over (no page reload needed)
+  useEffect(() => {
+    const newGameId = getDailyGameId();
+    const newMeta   = GAME_META[newGameId];
+    setPhase('idle');
+    try { setPlayedToday(localStorage.getItem(getDailyPlayedKey(newGameId, todayKey)) === 'true'); }
+    catch { setPlayedToday(false); }
+    try { setBestScore(parseInt(localStorage.getItem(newMeta.bestKey) ?? '0', 10) || 0); }
+    catch { setBestScore(0); }
+  }, [todayKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const today = new Date().toLocaleDateString('default', { weekday: 'long', month: 'long', day: 'numeric' });
   const completionLine = meta.completionLines[finalScore % meta.completionLines.length];
@@ -1929,7 +1959,7 @@ function DailyGameCard({ onFirstPlay }: { onFirstPlay?: () => void }) {
     setIsNewBest(nb);
     if (!playedToday) {
       setPlayedToday(true);
-      try { localStorage.setItem(getDailyPlayedKey(gameId), 'true'); } catch {}
+      try { localStorage.setItem(getDailyPlayedKey(gameId, todayKey), 'true'); } catch {}
       onFirstPlay?.();
     }
   };
@@ -2570,11 +2600,12 @@ function CosmeticCard({ cosmetic, isOwned, isEquipped, onAcquire, onEquip }: {
 
 // ── Breakroom page ─────────────────────────────────────────────────────────
 
-function BreakroomStatsPanel({ ownedGames, ownedCosmetics, equippedCosmetic, streakVersion }: {
+function BreakroomStatsPanel({ ownedGames, ownedCosmetics, equippedCosmetic, streakVersion, todayKey }: {
   ownedGames: string[];
   ownedCosmetics: string[];
   equippedCosmetic: string;
   streakVersion: number;
+  todayKey: string;
 }) {
   const streak = useMemo(() => {
     let count = 0;
@@ -2592,7 +2623,7 @@ function BreakroomStatsPanel({ ownedGames, ownedCosmetics, equippedCosmetic, str
       } catch { break; }
     }
     return count;
-  }, [streakVersion]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [streakVersion, todayKey]);
 
   const equippedName = COSMETICS.find((c) => c.id === equippedCosmetic)?.name ?? 'Default';
 
@@ -2644,12 +2675,22 @@ function BreakroomStatsPanel({ ownedGames, ownedCosmetics, equippedCosmetic, str
 }
 
 function BreakroomPage() {
+  const todayKey = useTodayKey();
   const [ownedGames, setOwnedGames]         = useState<string[]>(getOwnedGames);
   const [ownedCosmetics, setOwnedCosmetics] = useState<string[]>(getOwnedCosmetics);
   const [equippedCosmetic, setEquippedCosmetic] = useState<string>(getEquippedCosmetic);
   const [toast, setToast]                   = useState<string | null>(null);
   const [activeGameId, setActiveGameId]     = useState<string | null>(null);
   const [streakVersion, setStreakVersion]   = useState(0);
+
+  // When the calendar date rolls over, bump streakVersion so BreakroomStatsPanel recomputes
+  const prevTodayKeyRef = useRef(todayKey);
+  useEffect(() => {
+    if (todayKey !== prevTodayKeyRef.current) {
+      prevTodayKeyRef.current = todayKey;
+      setStreakVersion((v) => v + 1);
+    }
+  }, [todayKey]);
 
   useEffect(() => { storeOwnedGames(ownedGames); }, [ownedGames]);
   useEffect(() => { storeOwnedCosmetics(ownedCosmetics); }, [ownedCosmetics]);
@@ -2697,6 +2738,7 @@ function BreakroomPage() {
           ownedCosmetics={ownedCosmetics}
           equippedCosmetic={equippedCosmetic}
           streakVersion={streakVersion}
+          todayKey={todayKey}
         />
       </div>
 
