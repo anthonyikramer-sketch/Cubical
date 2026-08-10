@@ -1981,7 +1981,7 @@ function getOwnedGames(): string[] {
 }
 function storeOwnedGames(ids: string[]) { writeLocal(OWNED_GAMES_KEY, ids); }
 
-function GameCard({ game, isOwned, onAcquire }: { game: BreakGame; isOwned: boolean; onAcquire: (id: string) => void }) {
+function GameCard({ game, isOwned, onAcquire, onPlay }: { game: BreakGame; isOwned: boolean; onAcquire: (id: string) => void; onPlay: (id: string) => void }) {
   const isFree = game.price === 'FREE';
   return (
     <div className={`game-card${isOwned ? ' is-owned' : ''}`} data-testid={`card-game-${game.id}`}>
@@ -1998,14 +1998,144 @@ function GameCard({ game, isOwned, onAcquire }: { game: BreakGame; isOwned: bool
         <div className="game-card-footer">
           <span className={`game-price${isFree ? ' is-free' : ''}`}>{game.price}</span>
           {isOwned
-            ? (game.id === 'office-snake'
-                ? <button className="button-primary game-action-btn" onClick={() => document.getElementById('daily-game-section')?.scrollIntoView({ behavior: 'smooth' })} data-testid={`button-play-${game.id}`}><Play /> Play</button>
-                : <button className="button-primary game-action-btn" data-testid={`button-play-${game.id}`}><Play /> Play</button>)
+            ? <button className="button-primary game-action-btn" onClick={() => onPlay(game.id)} data-testid={`button-play-${game.id}`}><Play /> Play</button>
             : <button className="button-quiet game-action-btn" onClick={() => onAcquire(game.id)} data-testid={`button-get-${game.id}`}>{isFree ? 'Get Free' : 'Purchase'} <ArrowRight /></button>
           }
         </div>
       </div>
     </div>
+  );
+}
+
+// ── Game Play Modal ────────────────────────────────────────────────────────
+
+const GAME_PLAY_META: Record<string, { unitSingular: string; unit: string; endAction: string; endEmoji: (s: number) => string }> = {
+  'office-snake': {
+    unitSingular: 'memo', unit: 'memos', endAction: 'eaten',
+    endEmoji: (s) => s >= 10 ? '🏆' : s >= 5 ? '🎉' : '😅',
+  },
+  'coffee-solitaire': {
+    unitSingular: 'pair', unit: 'pairs', endAction: 'matched',
+    endEmoji: (s) => s >= 8 ? '🏆' : s >= 5 ? '🎉' : '😅',
+  },
+};
+
+type GamePlayPhase = 'playing' | 'ended';
+
+function GamePlayModal({ gameId, onClose }: { gameId: string; onClose: () => void }) {
+  const game    = BREAK_GAMES.find((g) => g.id === gameId)!;
+  const meta    = GAME_PLAY_META[gameId];
+  const isPlayable = !!meta;
+
+  const [phase, setPhase]           = useState<GamePlayPhase>('playing');
+  const [liveScore, setLiveScore]   = useState(0);
+  const [finalScore, setFinalScore] = useState(0);
+  const [isNewBest, setIsNewBest]   = useState(false);
+  const [playKey, setPlayKey]       = useState(0); // increment to remount game
+
+  const bestKey = `cubical-game-best-${gameId}`;
+  const [bestScore, setBestScore]   = useState(() => {
+    try { return parseInt(localStorage.getItem(bestKey) ?? '0', 10) || 0; } catch { return 0; }
+  });
+
+  // Close on Escape
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onClose]);
+
+  const handleEnd = (score: number) => {
+    setFinalScore(score);
+    setPhase('ended');
+    if (score > bestScore) {
+      setIsNewBest(true);
+      setBestScore(score);
+      try { localStorage.setItem(bestKey, String(score)); } catch {}
+    }
+  };
+
+  const handleRestart = () => {
+    setLiveScore(0);
+    setIsNewBest(false);
+    setPhase('playing');
+    setPlayKey((k) => k + 1);
+  };
+
+  const unit = (s: number) => (s === 1 ? meta?.unitSingular : meta?.unit) ?? '';
+
+  return createPortal(
+    <div className="game-play-overlay" onClick={onClose} aria-modal role="dialog">
+      <div className="game-play-panel" onClick={(e) => e.stopPropagation()}>
+
+        {/* Header */}
+        <div className="game-play-header">
+          <button className="game-play-back" onClick={onClose} data-testid="button-back-breakroom">
+            <ArrowLeft /> Back to Breakroom
+          </button>
+          <div className="game-play-title">
+            <span className="game-play-emoji">{game.emoji}</span>
+            <span>{game.name}</span>
+          </div>
+        </div>
+
+        {/* Body */}
+        {!isPlayable ? (
+          /* ── Coming Soon ── */
+          <div className="game-coming-soon">
+            <div className="game-coming-soon-inner">
+              <div className="game-coming-emoji">{game.emoji}</div>
+              <h2 className="game-coming-title">{game.name}</h2>
+              <p className="game-coming-desc">
+                This one's still being polished. We're ironing out the last few bugs — check back soon.
+              </p>
+              <div className="game-coming-tags">
+                {game.tags.map((t) => <span key={t} className="game-tag">{t}</span>)}
+              </div>
+              <span className="game-coming-badge"><Sparkles /> Coming soon</span>
+              <button className="button-primary" onClick={onClose} style={{ marginTop: 20 }} data-testid="button-back-coming-soon">
+                <ArrowLeft /> Back to Breakroom
+              </button>
+            </div>
+          </div>
+        ) : phase === 'playing' ? (
+          /* ── Playing ── */
+          <div className="game-play-playing">
+            <div className="game-play-score-row">
+              <span className="daily-live-score"><Trophy /> {liveScore} {unit(liveScore)}</span>
+              <button className="button-quiet" onClick={onClose} data-testid="button-give-up-modal"><X /> Give up</button>
+            </div>
+            {gameId === 'office-snake' && (
+              <>
+                <div className="snake-wrapper">
+                  <SnakeGame key={playKey} onEnd={handleEnd} onScoreChange={setLiveScore} />
+                </div>
+                <p className="snake-hint">Arrow keys or WASD to steer · don't hit yourself</p>
+              </>
+            )}
+            {gameId === 'coffee-solitaire' && (
+              <MemoryGame key={playKey} onEnd={handleEnd} onScoreChange={setLiveScore} />
+            )}
+          </div>
+        ) : (
+          /* ── Ended ── */
+          <div className="game-play-ended">
+            <div className="daily-ended-emoji">{meta.endEmoji(finalScore)}</div>
+            <div className="daily-ended-score">{finalScore}</div>
+            <div className="daily-ended-label">{unit(finalScore)} {meta.endAction}</div>
+            {isNewBest && <div className="daily-new-best">✨ New personal best!</div>}
+            {bestScore > 0 && !isNewBest && (
+              <div className="game-play-prev-best"><Trophy /> Best: {bestScore} {unit(bestScore)}</div>
+            )}
+            <div className="daily-ended-actions">
+              <button className="button-quiet" onClick={onClose} data-testid="button-back-ended"><ArrowLeft /> Breakroom</button>
+              <button className="button-primary" onClick={handleRestart} data-testid="button-play-again-modal"><RotateCcw /> Play Again</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -2079,6 +2209,7 @@ function BreakroomPage() {
   const [ownedCosmetics, setOwnedCosmetics] = useState<string[]>(getOwnedCosmetics);
   const [equippedCosmetic, setEquippedCosmetic] = useState<string>(getEquippedCosmetic);
   const [toast, setToast]                   = useState<string | null>(null);
+  const [activeGameId, setActiveGameId]     = useState<string | null>(null);
 
   useEffect(() => { storeOwnedGames(ownedGames); }, [ownedGames]);
   useEffect(() => { storeOwnedCosmetics(ownedCosmetics); }, [ownedCosmetics]);
@@ -2135,7 +2266,7 @@ function BreakroomPage() {
           </div>
           <div className="game-grid">
             {yourGames.map((g) => (
-              <GameCard key={g.id} game={g} isOwned onAcquire={acquireGame} />
+              <GameCard key={g.id} game={g} isOwned onAcquire={acquireGame} onPlay={setActiveGameId} />
             ))}
           </div>
         </div>
@@ -2152,7 +2283,7 @@ function BreakroomPage() {
           </div>
           <div className="game-grid">
             {storeGames.map((g) => (
-              <GameCard key={g.id} game={g} isOwned={false} onAcquire={acquireGame} />
+              <GameCard key={g.id} game={g} isOwned={false} onAcquire={acquireGame} onPlay={setActiveGameId} />
             ))}
           </div>
         </div>
@@ -2186,6 +2317,11 @@ function BreakroomPage() {
         <div className="toast-message" role="status" data-testid="breakroom-toast">
           <Check /> {toast}
         </div>
+      )}
+
+      {/* Game Play Modal */}
+      {activeGameId && (
+        <GamePlayModal gameId={activeGameId} onClose={() => setActiveGameId(null)} />
       )}
     </div>
   );

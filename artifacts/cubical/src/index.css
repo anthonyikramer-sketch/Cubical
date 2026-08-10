@@ -637,6 +637,91 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
 .game-price.is-free { color: hsl(var(--primary)); }
 .game-action-btn { display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; font-size: 11px; font-weight: 800; border-radius: 8px; }
 
+/* ── Game Play Modal ──────────────────────────────────────────────────────── */
+.game-play-overlay {
+  position: fixed; inset: 0; z-index: 9999;
+  background: hsl(var(--foreground) / .32);
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+  animation: fade-in .2s both;
+}
+.game-play-panel {
+  width: min(560px, calc(100vw - 40px));
+  max-height: calc(100dvh - 48px);
+  overflow-y: auto;
+  background: hsl(var(--card));
+  border-radius: 24px;
+  box-shadow: 0 24px 80px hsl(var(--foreground) / .22);
+  animation: rise-in .25s both;
+}
+.game-play-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 18px 22px 16px;
+  border-bottom: 1px solid hsl(var(--border));
+  gap: 14px;
+  flex-shrink: 0;
+}
+.game-play-back {
+  display: inline-flex; align-items: center; gap: 7px;
+  border: 0; background: transparent; padding: 0;
+  color: hsl(var(--muted-foreground)); font-size: 12px; font-weight: 700;
+  cursor: pointer; transition: color .15s;
+  font-family: var(--app-font-sans); white-space: nowrap;
+}
+.game-play-back:hover { color: hsl(var(--primary)); }
+.game-play-back svg { width: 14px; height: 14px; }
+.game-play-title {
+  display: flex; align-items: center; gap: 9px;
+  font-family: var(--app-font-display); font-size: 17px; font-weight: 700; letter-spacing: -.04em;
+}
+.game-play-emoji { font-size: 22px; line-height: 1; }
+.game-play-playing {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 12px; padding: 20px 22px 24px;
+}
+.game-play-score-row {
+  display: flex; align-items: center; justify-content: space-between;
+  width: 100%; max-width: 400px;
+}
+.game-play-ended {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 8px; padding: 32px 24px 28px; text-align: center;
+}
+.game-play-prev-best {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-family: var(--app-font-mono); font-size: 11px;
+  color: hsl(var(--muted-foreground)); font-weight: 600;
+}
+.game-play-prev-best svg { width: 11px; height: 11px; color: hsl(31 75% 43%); }
+
+/* ── Coming soon panel ──────────────────────────────────────────────────── */
+.game-coming-soon {
+  display: flex; align-items: center; justify-content: center;
+  padding: 44px 28px;
+}
+.game-coming-soon-inner {
+  display: flex; flex-direction: column; align-items: center;
+  text-align: center; gap: 10px; max-width: 340px;
+}
+.game-coming-emoji { font-size: 58px; line-height: 1; margin-bottom: 4px; }
+.game-coming-title {
+  font-family: var(--app-font-display); font-size: 26px; font-weight: 700;
+  letter-spacing: -.05em; margin: 0;
+}
+.game-coming-desc {
+  color: hsl(var(--muted-foreground)); font-size: 14px; line-height: 1.6;
+  margin: 2px 0 6px;
+}
+.game-coming-tags { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+.game-coming-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 14px; border-radius: 20px;
+  background: hsl(var(--accent) / .12); color: hsl(var(--accent-foreground));
+  font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
+  margin-top: 4px;
+}
+.game-coming-badge svg { width: 12px; height: 12px; }
+
 /* ── Cosmetic cards ───────────────────────────────────────────────────────── */
 .cosmetics-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 14px; }
 .cosmetic-card { display: flex; flex-direction: column; border: 1px solid hsl(var(--border)); border-radius: 18px; background: hsl(var(--card)); overflow: hidden; transition: box-shadow .2s, border-color .2s, transform .18s; }

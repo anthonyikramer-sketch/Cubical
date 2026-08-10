@@ -27,33 +27,41 @@ That's it. electron-builder downloads the correct Electron binary automatically.
 
 ## Build steps
 
+> **Note:** `electron` and `electron-builder` are not included in the workspace
+> `package.json` because the Replit development environment's package firewall
+> prevents installing them. You must add and install them manually on a Windows
+> machine before running any desktop build commands.
+
 ```bash
-# 1. Install workspace dependencies
+# 1. Clone the repo and install workspace dependencies
 pnpm install
 
-# 2. Install Electron and electron-builder locally in the cubical package
-#    (these are desktop-only and not tracked in the workspace — install once per machine)
+# 2. Add Electron and electron-builder to the cubical package
 cd artifacts/cubical
 pnpm add --save-dev electron electron-builder
-cd ../..
 
 # 3. Build the Vite frontend + package into Windows installers
-pnpm --filter @workspace/cubical run electron:dist
+pnpm exec vite build --config vite.config.ts
+pnpm exec electron-builder --win
 ```
 
-The command:
+The build command:
 - Runs `vite build` to produce the optimised web app in `dist/public/`
 - Runs `electron-builder --win` to bundle Electron + the web app into installers
 - Writes both outputs to `dist/installer/`
 
 ### Build only NSIS installer
 ```bash
-pnpm --filter @workspace/cubical run electron:dist:nsis
+cd artifacts/cubical
+pnpm add --save-dev electron electron-builder
+pnpm exec vite build --config vite.config.ts && pnpm exec electron-builder --win nsis
 ```
 
 ### Build only portable .exe
 ```bash
-pnpm --filter @workspace/cubical run electron:dist:portable
+cd artifacts/cubical
+pnpm add --save-dev electron electron-builder
+pnpm exec vite build --config vite.config.ts && pnpm exec electron-builder --win portable
 ```
 
 ---
@@ -86,14 +94,16 @@ The icon appears in:
 To run Cubical as a desktop window during development (pointing at the Vite dev server):
 
 ```bash
+# 1. Install electron in the cubical package (one-time, not tracked in workspace)
+cd artifacts/cubical
+pnpm add --save-dev electron
+
 # Terminal 1 — start Vite dev server
 pnpm --filter @workspace/cubical run dev
 
 # Terminal 2 — launch Electron pointing at dev server
-pnpm --filter @workspace/cubical run electron:dev
+cd artifacts/cubical && ELECTRON_DEV=true pnpm exec electron .
 ```
-
-> Note: `electron:dev` requires Electron to be installed locally (`pnpm install`).
 
 ---
 
