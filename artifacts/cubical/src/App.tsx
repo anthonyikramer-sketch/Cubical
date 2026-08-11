@@ -5907,6 +5907,7 @@ function ImageConverter() {
   const [maxWidth, setMaxWidth]   = useState('');
   const [maxHeight, setMaxHeight] = useState('');
   const [converting, setConverting] = useState(false);
+  const [progress, setProgress]   = useState<{ done: number; total: number } | null>(null);
   const [results, setResults]     = useState<{ name: string; url: string }[]>([]);
   const [zipFilename, setZipFilename] = useState('converted-images');
 
@@ -5919,6 +5920,7 @@ function ImageConverter() {
   const convertAll = async () => {
     if (!files.length) return;
     setConverting(true);
+    setProgress({ done: 0, total: files.length });
     const out: { name: string; url: string }[] = [];
     const allocatedNames = new Set<string>(); // all output names already assigned
     for (const file of files) {
@@ -5949,9 +5951,11 @@ function ImageConverter() {
       }
       allocatedNames.add(candidate);
       out.push({ name: candidate, url: URL.createObjectURL(blob) });
+      setProgress((p) => p ? { done: p.done + 1, total: p.total } : p);
     }
     setResults(out);
     setConverting(false);
+    setProgress(null);
   };
 
   const downloadAllAsZip = async () => {
@@ -6046,9 +6050,20 @@ function ImageConverter() {
               )}
             </div>
           </div>
-          {results.length === 0 ? (
+          {converting && progress && (
+            <div className="ic-progress-wrap">
+              <div className="ic-progress-label">
+                <span>{progress.done} of {progress.total} converted</span>
+                <span>{Math.round((progress.done / progress.total) * 100)}%</span>
+              </div>
+              <div className="ic-progress-bar">
+                <div className="ic-progress-fill" style={{ width: `${(progress.done / progress.total) * 100}%` }} />
+              </div>
+            </div>
+          )}
+          {results.length === 0 && !converting ? (
             <div className="renamer-empty"><div className="empty-cube"><ImagePlus /></div><h2>Converted images appear here.</h2><p>Choose images and a format, then click Convert.</p></div>
-          ) : (
+          ) : results.length === 0 ? null : (
             <div className="image-result-list">
               {results.map((r, i) => (
                 <div className="image-result-row" key={i}>
@@ -6064,7 +6079,9 @@ function ImageConverter() {
           <div className="renamer-actions">
             <div><strong>Originals untouched.</strong><span>Converted copies are downloaded separately.</span></div>
             <button type="button" className="button-primary" onClick={convertAll} disabled={files.length === 0 || converting} data-testid="button-convert">
-              {converting ? 'Converting…' : 'Convert'} {!converting && <ArrowRight />}
+              {converting && progress
+                ? `${progress.done} of ${progress.total} converted…`
+                : converting ? 'Converting…' : <><span>Convert</span><ArrowRight /></>}
             </button>
           </div>
         </div>
