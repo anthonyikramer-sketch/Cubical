@@ -284,6 +284,24 @@ export function PdfFormFiller() {
           });
           continue;
         }
+        // Checkbox patterns: □ ☐ (empty box), ■ (filled/checked), [ ] or []
+        if (/^[□☐■]$/.test(str) || /^\[[\s]*\]$/.test(str)) {
+          if (itmY / pageH < 0.05) continue;
+          const cbSize = Math.max(itmH / pageH, 0.022);
+          const tooClose = detected.some((d) => d.pageIndex === pNum - 1 && Math.abs(d.yPct - itmY / pageH) < 0.03 && Math.abs(d.xPct - itmX / pageW) < 0.05);
+          if (tooClose) continue;
+          detected.push({
+            id: pffId(), pageIndex: pNum - 1,
+            xPct: Math.max(0, itmX / pageW),
+            yPct: Math.max(0, itmY / pageH),
+            wPct: cbSize,
+            hPct: cbSize,
+            value: str === '■' ? 'checked' : '',
+            fontSize: 10, align: 'left', color: '#000000',
+            label: '', type: 'checkbox', isDetected: true,
+          });
+          continue;
+        }
         if (str.length > 35) continue;
         if (fontSize > 13) continue;
         if (itmY / pageH < 0.09) continue;
