@@ -6776,12 +6776,78 @@ function mimeCategory(type: string) {
   return 'File';
 }
 
+// ─── Text preview helpers ─────────────────────────────────────────────────────
+
+const TEXT_EXTENSIONS = new Set([
+  'txt','md','markdown','rst','log','csv','tsv',
+  'json','yaml','yml','toml','ini','cfg','conf','env','properties',
+  'js','jsx','ts','tsx','mjs','cjs',
+  'py','rb','php','java','c','cpp','cc','h','hpp','cs','go','rs','swift','kt','scala',
+  'html','htm','xml','svg','css','scss','sass','less',
+  'sh','bash','zsh','fish','ps1','bat','cmd',
+  'sql','graphql','gql',
+  'diff','patch','gitignore','editorconfig','prettierrc','eslintrc',
+  'dockerfile','makefile','cmake',
+  'vue','svelte','astro',
+]);
+
+const LANGUAGE_LABELS: Record<string, string> = {
+  js:'JavaScript', jsx:'JavaScript', mjs:'JavaScript', cjs:'JavaScript',
+  ts:'TypeScript', tsx:'TypeScript',
+  py:'Python', rb:'Ruby', php:'PHP', java:'Java',
+  c:'C', cpp:'C++', cc:'C++', h:'C/C++ Header', hpp:'C++ Header',
+  cs:'C#', go:'Go', rs:'Rust', swift:'Swift', kt:'Kotlin', scala:'Scala',
+  html:'HTML', htm:'HTML', xml:'XML', svg:'SVG',
+  css:'CSS', scss:'SCSS', sass:'Sass', less:'Less',
+  sh:'Shell', bash:'Bash', zsh:'Zsh', fish:'Fish', ps1:'PowerShell', bat:'Batch', cmd:'Batch',
+  sql:'SQL', graphql:'GraphQL', gql:'GraphQL',
+  json:'JSON', yaml:'YAML', yml:'YAML', toml:'TOML', ini:'INI',
+  md:'Markdown', markdown:'Markdown', rst:'reStructuredText',
+  vue:'Vue', svelte:'Svelte', astro:'Astro',
+  csv:'CSV', tsv:'TSV', log:'Log', txt:'Plain text',
+};
+
+function fileExt(name: string): string {
+  const parts = name.split('.');
+  return parts.length > 1 ? parts[parts.length - 1].toLowerCase() : '';
+}
+
+function isTextFile(file: File): boolean {
+  if (file.type.startsWith('text/')) return true;
+  if (['application/json','application/xml','application/javascript',
+       'application/typescript','application/x-sh','image/svg+xml'].includes(file.type)) return true;
+  return TEXT_EXTENSIONS.has(fileExt(file.name));
+}
+
+function detectLanguageLabel(file: File): string {
+  const ext = fileExt(file.name);
+  if (ext && LANGUAGE_LABELS[ext]) return LANGUAGE_LABELS[ext];
+  if (file.type === 'application/json') return 'JSON';
+  if (file.type === 'image/svg+xml')    return 'SVG';
+  if (file.type.startsWith('text/'))    return 'Plain text';
+  return 'Text';
+}
+
+const TEXT_PREVIEW_BYTES = 8192;   // read first 8 KB
+const TEXT_PREVIEW_LINES = 100;    // cap display at 100 lines
+
+function readTextSlice(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const blob   = file.slice(0, TEXT_PREVIEW_BYTES);
+    const reader = new FileReader();
+    reader.onload  = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsText(blob);
+  });
+}
+
 function FileInspector() {
-  const [entry,    setEntry]    = useState<ToolboxEntry | null>(null);
-  const [loading,  setLoading]  = useState(false);
-  const [copied,   setCopied]   = useState<string | null>(null);
-  const [imgSrc,   setImgSrc]   = useState<string | null>(null);
-  const [mediaUrl, setMediaUrl] = useState<string | null>(null);
+  const [entry,       setEntry]       = useState<ToolboxEntry | null>(null);
+  const [loading,     setLoading]     = useState(false);
+  const [copied,      setCopied]      = useState<string | null>(null);
+  const [imgSrc,      setImgSrc]      = useState<string | null>(null);
+  const [mediaUrl,    setMediaUrl]    = useState<string | null>(null);
+  const [textPreview, setTextPreview] = useState<{ content: string; truncated: boolean; lang: string } | null>(null);
 
   const clearMedia = () => {
     if (mediaUrl) { URL.revokeObjectURL(mediaUrl); setMediaUrl(null); }
@@ -6790,12 +6856,21 @@ function FileInspector() {
 
   const loadFile = async (file: File) => {
     clearMedia();
+    setTextPreview(null);
     setLoading(true);
     const built = await buildToolboxEntry(file);
     if (built.dims) {
       setImgSrc(URL.createObjectURL(file));
     } else if (file.type.startsWith('video/') || file.type.startsWith('audio/')) {
       setMediaUrl(URL.createObjectURL(file));
+    } else if (isTextFile(file)) {
+      try {
+        const raw       = await readTextSlice(file);
+        const allLines  = raw.split('\n');
+        const truncated = allLines.length > TEXT_PREVIEW_LINES || file.size > TEXT_PREVIEW_BYTES;
+        const lines     = allLines.slice(0, TEXT_PREVIEW_LINES);
+        setTextPreview({ content: lines.join('\n'), truncated, lang: detectLanguageLabel(file) });
+      } catch { /* ignore read errors */ }
     }
     setEntry(built);
     setLoading(false);
@@ -6907,13 +6982,34 @@ function FileInspector() {
                 style={{ width: '100%', marginTop: 12 }}
               />
             )}
+            {textPreview && (
+              <div className="inspector-text-preview">
+                <div className="inspector-text-preview-header">
+                  <span className="inspector-text-lang">{textPreview.lang}</span>
+                  {textPreview.truncated && (
+                    <span className="inspector-text-truncated-note">
+                      Showing first {TEXT_PREVIEW_LINES} lines · {formatFileBytes(entry.file.size)} total
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    className="inspector-text-copy-btn button-quiet"
+                    onClick={() => copyText(textPreview.content, 'text')}
+                  >
+                    <ClipboardCopy className="w-3.5 h-3.5" />
+                    {copied === 'text' ? 'Copied!' : 'Copy content'}
+                  </button>
+                </div>
+                <pre className="inspector-text-code"><code>{textPreview.content}</code></pre>
+              </div>
+            )}
             <div className="toolbox-actions">
               <button type="button" className="button-quiet" onClick={() => copyText(entry.file.name, 'name')}><ClipboardCopy /> {copied === 'name' ? 'Copied!' : 'Copy filename'}</button>
               {entry.hash && <button type="button" className="button-quiet" onClick={() => copyText(entry.hash!, 'hash')}><ClipboardCopy /> {copied === 'hash' ? 'Copied!' : 'Copy SHA-256'}</button>}
               {(isAudio || isVideo) && mediaUrl && (
                 <a href={mediaUrl} download={entry.file.name} className="button-quiet"><Download /> Download</a>
               )}
-              <button type="button" className="button-quiet" onClick={() => { setEntry(null); setCopied(null); clearMedia(); }}>Inspect another file</button>
+              <button type="button" className="button-quiet" onClick={() => { setEntry(null); setCopied(null); clearMedia(); setTextPreview(null); }}>Inspect another file</button>
             </div>
           </div>
         )}
