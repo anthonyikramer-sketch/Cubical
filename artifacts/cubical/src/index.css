@@ -229,6 +229,7 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
 .renamer-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
 .file-picker { min-height: 92px; display: flex; align-items: center; justify-content: center; gap: 9px; border: 1px dashed hsl(var(--primary) / .42); border-radius: 14px; color: hsl(var(--primary)); background: hsl(var(--primary) / .04); font-size: 12px; font-weight: 800; cursor: pointer; transition: border-color .2s ease, background-color .2s ease, transform .2s ease; }
 .file-picker:hover { border-color: hsl(var(--primary)); background: hsl(var(--primary) / .08); transform: translateY(-1px); }
+.file-picker.is-drag-over { border-color: hsl(var(--primary)); border-style: solid; background: hsl(var(--primary) / .12); transform: translateY(-1px); box-shadow: 0 0 0 3px hsl(var(--primary) / .18); }
 .file-picker svg { width: 18px; }
 .file-picker input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .renamer-help { margin: 10px 1px 0; color: hsl(var(--muted-foreground)); font-size: 11px; line-height: 1.55; }

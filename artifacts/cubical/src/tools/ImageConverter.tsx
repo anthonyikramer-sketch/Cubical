@@ -45,9 +45,11 @@ export function ImageConverter() {
   const [previews, setPreviews] = useState<{ name: string; url: string }[]>([]);
   const [failedThumbs, setFailedThumbs] = useState<Set<number>>(new Set());
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
   const cancelledRef = useRef(false);
   const previewUrlsRef = useRef<string[]>([]);
   const dragIndexRef = useRef<number | null>(null);
+  const dropCounterRef = useRef(0);
 
   // Send To incoming queue
   const IC_TOOL_ID = 'image-converter';
@@ -88,6 +90,45 @@ export function ImageConverter() {
     setPreviews(newPreviews);
     setFailedThumbs(new Set());
     setResults([]);
+  };
+
+  /** Append dropped files to the existing list without replacing them. */
+  const addFiles = (list: FileList) => {
+    const incoming = Array.from(list).filter(
+      (f) => f.type.startsWith('image/') || isNonRenderable(f.name),
+    );
+    if (!incoming.length) return;
+    const newPreviews = incoming.map((f) => ({ name: f.name, url: URL.createObjectURL(f) }));
+    previewUrlsRef.current = [...previewUrlsRef.current, ...newPreviews.map((p) => p.url)];
+    setFiles((prev) => [...prev, ...incoming]);
+    setPreviews((prev) => [...prev, ...newPreviews]);
+    setResults([]);
+  };
+
+  const handleDropZoneDragEnter = (e: React.DragEvent) => {
+    if (!e.dataTransfer.types.includes('Files')) return;
+    e.preventDefault();
+    dropCounterRef.current += 1;
+    setIsDraggingOver(true);
+  };
+
+  const handleDropZoneDragLeave = (e: React.DragEvent) => {
+    // Only decrement for file drags — thumbnail reorder drags must not affect this counter.
+    if (!e.dataTransfer.types.includes('Files')) return;
+    dropCounterRef.current = Math.max(0, dropCounterRef.current - 1);
+    if (dropCounterRef.current === 0) setIsDraggingOver(false);
+  };
+
+  const handleDropZoneDragOver = (e: React.DragEvent) => {
+    if (!e.dataTransfer.types.includes('Files')) return;
+    e.preventDefault();
+  };
+
+  const handleDropZoneDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    dropCounterRef.current = 0;
+    setIsDraggingOver(false);
+    if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files);
   };
 
   const removeImage = (index: number) => {
@@ -231,13 +272,19 @@ export function ImageConverter() {
         <div><strong>Converts entirely in your browser</strong><span>No upload, no server. Your images never leave your computer.</span></div>
       </div>
       <div className="image-converter-workspace">
-        <div className="image-converter-controls">
+        <div
+          className="image-converter-controls"
+          onDragEnter={handleDropZoneDragEnter}
+          onDragLeave={handleDropZoneDragLeave}
+          onDragOver={handleDropZoneDragOver}
+          onDrop={handleDropZoneDrop}
+        >
           <div className="renamer-section-heading">
             <span className="eyebrow">01 · Select images</span>
             {files.length > 0 && <span className="library-count">{files.length} image{files.length !== 1 ? 's' : ''}</span>}
           </div>
-          <label className="file-picker">
-            <ImagePlus /><span>{files.length ? 'Choose different images' : 'Select images'}</span>
+          <label className={`file-picker${isDraggingOver ? ' is-drag-over' : ''}`}>
+            <ImagePlus /><span>{isDraggingOver ? 'Drop to add images' : files.length ? 'Choose different images' : 'Select images — or drop files here'}</span>
             <input type="file" accept={IMAGE_ACCEPT} multiple onChange={(e) => handleFiles(e.target.files)} data-testid="input-image-picker" />
           </label>
           {previews.length > 0 && (
