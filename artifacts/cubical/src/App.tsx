@@ -6255,11 +6255,19 @@ function ImageConverter() {
   const [progress, setProgress]   = useState<{ done: number; total: number } | null>(null);
   const [results, setResults]     = useState<{ name: string; url: string }[]>([]);
   const [zipFilename, setZipFilename] = useState('converted-images');
+  const [previews, setPreviews] = useState<{ name: string; url: string }[]>([]);
   const cancelledRef = useRef(false);
+  const previewUrlsRef = useRef<string[]>([]);
 
   const handleFiles = (list: FileList | null) => {
     if (!list) return;
-    setFiles(Array.from(list).filter((f) => f.type.startsWith('image/')));
+    const accepted = Array.from(list).filter((f) => f.type.startsWith('image/'));
+    // Revoke old preview URLs to avoid memory leaks
+    previewUrlsRef.current.forEach((u) => URL.revokeObjectURL(u));
+    const newPreviews = accepted.map((f) => ({ name: f.name, url: URL.createObjectURL(f) }));
+    previewUrlsRef.current = newPreviews.map((p) => p.url);
+    setFiles(accepted);
+    setPreviews(newPreviews);
     setResults([]);
   };
 
@@ -6365,6 +6373,16 @@ function ImageConverter() {
             <ImagePlus /><span>{files.length ? 'Choose different images' : 'Select images'}</span>
             <input type="file" accept="image/*" multiple onChange={(e) => handleFiles(e.target.files)} data-testid="input-image-picker" />
           </label>
+          {previews.length > 0 && (
+            <div className="ic-thumb-strip" data-testid="image-thumbnail-strip">
+              {previews.map((p, i) => (
+                <div className="ic-thumb-item" key={i}>
+                  <img src={p.url} alt={p.name} className="ic-thumb-img" />
+                  <span className="ic-thumb-name">{p.name}</span>
+                </div>
+              ))}
+            </div>
+          )}
           <div className="renamer-section-heading method-heading"><span className="eyebrow">02 · Output format</span></div>
           <div className="rename-method-selector">
             {(['png', 'jpeg', 'webp'] as const).map((f) => (
