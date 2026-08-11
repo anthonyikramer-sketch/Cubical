@@ -180,6 +180,17 @@ export function PdfFormFiller() {
   // My Details
   const [myDetails, setMyDetails] = useState<PersonalDetail[]>(pffGetMyDetails);
 
+  // Keep myDetails in sync when the user edits them in another tab / Settings panel
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === PFF_MY_DETAILS_KEY) {
+        setMyDetails(pffGetMyDetails());
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
+
   // Find
   const [showFind,    setShowFind]    = useState(false);
   const [findQuery,   setFindQuery]   = useState('');
