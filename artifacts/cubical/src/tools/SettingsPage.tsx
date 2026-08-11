@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import {
-  Bell, Check, CircleUserRound, House, Info, Lock, Monitor, Moon,
+  Bell, Check, CircleUserRound, ClipboardCopy, House, Info, Lock, Monitor, Moon,
   Plus, RefreshCw, Settings, Sun, X, Zap,
 } from 'lucide-react';
 import { BackButton } from '../shared/contexts';
@@ -170,8 +170,10 @@ function UpdatePanel() {
 // ── My Details card ───────────────────────────────────────────────────────────
 
 function MyDetailsSettingsCard() {
-  const [details, setDetails] = useState<PersonalDetail[]>(pffGetMyDetails);
-  const [newKey,  setNewKey]  = useState('');
+  const [details,    setDetails]    = useState<PersonalDetail[]>(pffGetMyDetails);
+  const [newKey,     setNewKey]     = useState('');
+  const [copiedIdx,  setCopiedIdx]  = useState<number | null>(null);
+  const [copiedAll,  setCopiedAll]  = useState(false);
 
   const update = (idx: number, value: string) => {
     setDetails((prev) => {
@@ -208,13 +210,34 @@ function MyDetailsSettingsCard() {
     });
   };
 
+  const copyRow = (idx: number) => {
+    const val = details[idx]?.value;
+    if (!val) return;
+    navigator.clipboard.writeText(val).then(() => {
+      setCopiedIdx(idx);
+      setTimeout(() => setCopiedIdx(null), 1800);
+    }).catch(() => {});
+  };
+
+  const copyAll = () => {
+    const filled = details.filter((d) => d.key.trim() && d.value.trim());
+    if (!filled.length) return;
+    const text = filled.map((d) => `${d.key}: ${d.value}`).join('\n');
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedAll(true);
+      setTimeout(() => setCopiedAll(false), 1800);
+    }).catch(() => {});
+  };
+
+  const filledCount = details.filter((d) => d.value.trim()).length;
+
   return (
     <div className="settings-card">
       <div className="settings-card-header">
         <h2 className="settings-section-title"><CircleUserRound className="w-4 h-4" /> My Details</h2>
       </div>
       <p className="settings-hint">
-        Save your name, address, and other details once. PDF Form Filler will use them to autofill matching fields instantly. Everything stays on this device.
+        Save your name, address, and other details once. PDF Form Filler uses them to autofill matching fields automatically. Use the copy buttons to paste any value into any other form or app. Everything stays on this device.
       </p>
       <div className="my-details-grid">
         {details.map((d, idx) => (
@@ -232,6 +255,14 @@ function MyDetailsSettingsCard() {
               placeholder={`Your ${d.key.toLowerCase()}…`}
               onChange={(e) => update(idx, e.target.value)}
             />
+            <button
+              className={`my-details-copy-btn${copiedIdx === idx ? ' is-copied' : ''}`}
+              title={d.value ? `Copy ${d.key}` : 'No value to copy'}
+              disabled={!d.value.trim()}
+              onClick={() => copyRow(idx)}
+            >
+              {copiedIdx === idx ? <Check className="w-3.5 h-3.5" /> : <ClipboardCopy className="w-3.5 h-3.5" />}
+            </button>
             <button className="my-details-del-btn" title="Remove" onClick={() => removeRow(idx)}>
               <X className="w-3.5 h-3.5" />
             </button>
@@ -251,6 +282,20 @@ function MyDetailsSettingsCard() {
           <Plus className="w-3.5 h-3.5" /> Add
         </button>
       </div>
+      {filledCount > 1 && (
+        <div className="my-details-copy-all-row">
+          <button
+            className={`my-details-copy-all-btn${copiedAll ? ' is-copied' : ''}`}
+            onClick={copyAll}
+          >
+            {copiedAll
+              ? <><Check className="w-3.5 h-3.5" /> Copied!</>
+              : <><ClipboardCopy className="w-3.5 h-3.5" /> Copy all as text</>
+            }
+          </button>
+          <span className="my-details-copy-all-hint">{filledCount} filled {filledCount === 1 ? 'field' : 'fields'}</span>
+        </div>
+      )}
     </div>
   );
 }

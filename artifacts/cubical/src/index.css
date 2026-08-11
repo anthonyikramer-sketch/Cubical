@@ -4579,12 +4579,13 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
 }
 .my-details-row {
   display: grid;
-  grid-template-columns: 140px 1fr auto;
+  grid-template-columns: 140px 1fr auto auto;
   gap: 7px;
   align-items: center;
 }
 .my-details-key-input { font-weight: 600; }
 .my-details-val-input {}
+.my-details-copy-btn,
 .my-details-del-btn {
   display: flex;
   align-items: center;
@@ -4598,6 +4599,21 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
   cursor: pointer;
   padding: 0;
   transition: color .15s, background .15s, border-color .15s;
+  flex-shrink: 0;
+}
+.my-details-copy-btn:disabled {
+  opacity: .35;
+  cursor: default;
+}
+.my-details-copy-btn:not(:disabled):hover {
+  color: hsl(var(--primary));
+  background: hsl(var(--primary) / .08);
+  border-color: hsl(var(--primary) / .35);
+}
+.my-details-copy-btn.is-copied {
+  color: hsl(142 52% 40%);
+  background: hsl(142 52% 40% / .08);
+  border-color: hsl(142 52% 40% / .35);
 }
 .my-details-del-btn:hover {
   color: hsl(var(--destructive));
@@ -4611,6 +4627,43 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
   margin-top: 4px;
   padding-top: 10px;
   border-top: 1px solid hsl(var(--border));
+}
+.my-details-copy-all-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid hsl(var(--border));
+}
+.my-details-copy-all-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  background: transparent;
+  color: hsl(var(--primary));
+  font-family: var(--app-font-sans);
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.my-details-copy-all-btn:hover {
+  background: hsl(var(--primary) / .08);
+  border-color: hsl(var(--primary) / .4);
+}
+.my-details-copy-all-btn.is-copied {
+  color: hsl(142 52% 40%);
+  background: hsl(142 52% 40% / .08);
+  border-color: hsl(142 52% 40% / .35);
+}
+.my-details-copy-all-hint {
+  color: hsl(var(--muted-foreground));
+  font-size: 11px;
 }
 
 /* ── File Inspector — text preview ───────────────────────────────────── */
