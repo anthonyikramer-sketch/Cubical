@@ -192,10 +192,11 @@ export function PdfFormFiller() {
   }, []);
 
   // Find
-  const [showFind,    setShowFind]    = useState(false);
-  const [findQuery,   setFindQuery]   = useState('');
-  const [findMatches, setFindMatches] = useState<PffFindMatch[]>([]);
-  const [findIndex,   setFindIndex]   = useState(0);
+  const [showFind,          setShowFind]          = useState(false);
+  const [findQuery,         setFindQuery]         = useState('');
+  const [findMatches,       setFindMatches]       = useState<PffFindMatch[]>([]);
+  const [findIndex,         setFindIndex]         = useState(0);
+  const [noSearchableText,  setNoSearchableText]  = useState(false);
   const findCacheRef  = useRef<PffFindPage[] | null>(null);
   const findInputRef  = useRef<HTMLInputElement>(null);
   const canvasScrollRef = useRef<HTMLDivElement>(null);
@@ -293,6 +294,7 @@ export function PdfFormFiller() {
     setFindMatches([]);
     setFindIndex(0);
     setShowFind(false);
+    setNoSearchableText(false);
     const pdfKey = `${file.name}::${file.size}`;
     setStamps(pffGetStamps(pdfKey));
     try {
@@ -336,6 +338,8 @@ export function PdfFormFiller() {
       cache.push({ pageIndex: p - 1, spans, fullText });
     }
     findCacheRef.current = cache;
+    const hasText = cache.some((pg) => /\S/.test(pg.fullText));
+    setNoSearchableText(!hasText);
     return cache;
   };
 
@@ -389,6 +393,10 @@ export function PdfFormFiller() {
   const openFind = () => {
     setShowFind(true);
     setTimeout(() => findInputRef.current?.focus(), 30);
+    // Build the text cache eagerly so we can warn about scanned PDFs immediately
+    if (!findCacheRef.current && pdfProxy) {
+      void buildFindCache();
+    }
   };
 
   const closeFind = () => {
@@ -846,7 +854,11 @@ export function PdfFormFiller() {
               if (e.key === 'Escape')       { closeFind(); }
               if (e.key === 'F' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); findInputRef.current?.select(); }
             }} />
-          {findQuery && (
+          {noSearchableText ? (
+            <span className="pff-find-no-text">
+              This PDF has no searchable text — it may be a scanned image.
+            </span>
+          ) : findQuery && (
             <span className="pff-find-count">
               {findMatches.length === 0 ? 'No results' : `${findIndex + 1} / ${findMatches.length}`}
             </span>

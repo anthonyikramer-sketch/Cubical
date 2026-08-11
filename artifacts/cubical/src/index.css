@@ -4483,6 +4483,17 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
   min-width: 60px;
   text-align: center;
 }
+.pff-find-no-text {
+  font-size: 12px;
+  font-weight: 600;
+  color: hsl(var(--accent-foreground));
+  background: hsl(var(--accent) / .12);
+  border: 1px solid hsl(var(--accent) / .28);
+  border-radius: 7px;
+  padding: 3px 9px;
+  white-space: nowrap;
+  flex: 1;
+}
 .pff-find-nav {
   display: flex;
   align-items: center;
