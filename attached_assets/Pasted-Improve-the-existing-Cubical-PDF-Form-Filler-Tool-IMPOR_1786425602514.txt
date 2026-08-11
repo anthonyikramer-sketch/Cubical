@@ -1,0 +1,717 @@
+Improve the existing Cubical PDF Form Filler Tool.
+
+IMPORTANT:
+This is an existing full Cubical TOOL, not a widget.
+
+Do not redesign the entire Tool. Preserve the current PDF viewer, toolbar, field property panel, export flow, templates, navigation, and existing functionality unless a change below specifically requires it.
+
+The current Tool works, but several parts need improvement.
+
+---
+
+1. IMPROVE DETECT FIELDS ACCURACY
+
+---
+
+The current "Detect Fields" feature is producing many inaccurate fields.
+
+It is currently detecting areas near headers, text, blank spacing, and other locations that are clearly not intended to be fillable.
+
+Improve the detection logic significantly.
+
+Do not simply create more fields or use broad bounding boxes.
+
+Detection should prioritize actual likely form-entry areas such as:
+
+* Blank horizontal lines following labels
+* Empty rectangular boxes
+* Underlined input areas
+* Clearly empty cells in forms/tables
+* Blank areas immediately following labels such as:
+
+  * Name
+  * Address
+  * Date
+  * Phone
+  * Email
+  * Project
+  * Foreman
+  * Crew Size
+  * Hours Worked
+  * Notes
+  * Signature
+  * Initials
+  * Total
+* Existing AcroForm fields if the PDF already contains them
+
+Detection should avoid:
+
+* Page titles
+* Section headers
+* Decorative horizontal rules
+* Paragraph text
+* Existing labels
+* Random white space
+* Lines that span large portions of the document unless they clearly function as an input line
+* Text areas that are already occupied by printed content
+
+Where possible, combine:
+
+* PDF text positions
+* Nearby label text
+* Line/rectangle geometry
+* Spacing
+* Existing form metadata
+* Relative positioning
+
+Use confidence thresholds.
+
+If a possible field is uncertain, prefer NOT creating it rather than flooding the document with bad detections.
+
+The goal is fewer, better suggestions.
+
+Detected fields should still remain editable and removable.
+
+---
+
+2. FIX MANUAL FIELD PLACEMENT
+
+---
+
+Currently when I use Add Field and click a location on the PDF, the new field can appear somewhere else on the page.
+
+Fix this.
+
+When I click a point on the visible PDF page:
+
+* The new field should appear exactly where I clicked
+* The top-left/start position should correspond closely to the pointer location
+* Placement must account for:
+
+  * Current PDF zoom level
+  * Scrolling
+  * Page position within the viewer
+  * Page padding/margins
+  * Device pixel ratio if relevant
+* Store the final field position using PDF/page-relative coordinates rather than raw screen coordinates
+
+At 100%, 140%, 200%, etc., clicking the same location on the PDF should still place the field correctly.
+
+Do not use approximate offsets or hardcoded correction values.
+
+---
+
+3. TEXT COLOR CONTROL
+
+---
+
+Add text color controls for fields.
+
+The DEFAULT text color for all newly created fields should be:
+
+BLACK
+
+At minimum provide these preset colors:
+
+* Black
+* Red
+* Blue
+
+Also provide additional useful colors if easy, such as:
+
+* Green
+* Dark gray
+* Purple
+
+Prefer a compact color picker or color swatches inside the Field Properties panel.
+
+Requirements:
+
+* Selecting a field should show its current text color
+* Changing color should update immediately
+* Color should persist with the field
+* Exported PDF should preserve that color
+* Template-saved fields should preserve their selected color
+* Detected fields should default to black
+* Manual fields should default to black
+* Stamp-generated fields should default to black unless changed afterward
+
+Do not use light gray as the default field text color anymore.
+
+---
+
+4. DELETE KEY SUPPORT
+
+---
+
+Allow the keyboard Delete key to delete the currently selected field.
+
+Behavior:
+
+* Select a field
+* Press Delete
+* Field is removed
+
+Also support Backspace if appropriate, but only when NOT actively typing inside a text field.
+
+IMPORTANT:
+Do not delete the field when the user is editing text and presses Backspace/Delete to edit characters.
+
+Keyboard deletion should only affect the selected field when focus is not inside its text editor/input.
+
+Preserve the existing Delete button in the Field Properties panel.
+
+---
+
+5. ADD A SIMPLE STAMP SYSTEM
+
+---
+
+Add ONE new toolbar button:
+
+STAMP
+
+Do NOT create a separate "Stamp Box" button.
+
+A Stamp is simply reusable prewritten text that can quickly be placed onto the PDF as a normal text field.
+
+Examples:
+
+APPROVED
+
+N/A
+
+COMPLETE
+
+REVIEWED
+
+John Smith
+
+8/10/2026
+
+Each form/template should support up to approximately 10 saved stamps.
+
+---
+
+6. STAMP POPOUT
+
+---
+
+Clicking the STAMP toolbar button should open a small popout/dropdown panel attached to or near the Stamp button.
+
+This popout contains:
+
+1. A text input at the TOP
+2. The user's existing saved stamps underneath it
+
+The interface should be extremely simple.
+
+Example:
+
+STAMP
+┌───────────────────────┐
+│ Type new stamp...     │
+├───────────────────────┤
+│ APPROVED           ×  │
+│ N/A                ×  │
+│ COMPLETE           ×  │
+│ John Smith         ×  │
+└───────────────────────┘
+
+Do not create a complicated stamp-management screen or modal.
+
+---
+
+7. CREATING A STAMP
+
+---
+
+At the top of the Stamp popout should be a text input.
+
+Placeholder text can be something like:
+
+"Create a stamp..."
+
+The creation flow should be:
+
+1. Click Stamp
+2. Stamp popout opens
+3. Click/type in the input at the top
+4. Type the exact text desired for the stamp
+5. Press ENTER
+6. A new saved stamp is immediately created
+7. The input becomes completely blank again
+8. Focus may remain in the input so another stamp can immediately be created
+
+Example:
+
+User types:
+
+APPROVED
+
+and presses Enter.
+
+The saved stamp list now contains:
+
+APPROVED
+
+The input immediately clears.
+
+There is NO separate stamp name.
+
+There is NO separate stamp text field.
+
+The text entered IS the stamp.
+
+Ignore empty submissions.
+
+Prevent accidental duplicate stamps if practical.
+
+Support up to approximately 10 stamps per form/template.
+
+If the user reaches the limit, show a small friendly message rather than failing silently.
+
+---
+
+8. DELETING SAVED STAMPS
+
+---
+
+Each saved stamp in the popout should have a simple:
+
+×
+
+on the FAR RIGHT side of its row.
+
+Example:
+
+APPROVED                         ×
+
+N/A                              ×
+
+COMPLETE                         ×
+
+The X should normally be subtle and unobtrusive.
+
+When the user HOVERS over the X:
+
+* The X should turn RED
+* It should clearly communicate that clicking it will remove the saved stamp
+
+Clicking the X removes that stamp from the Stamp popout.
+
+Deleting a saved stamp should NOT delete any copies of that stamp that have already been placed onto the current PDF.
+
+Those placed copies are normal text fields and should remain untouched.
+
+---
+
+9. SELECTING AND USING A STAMP
+
+---
+
+Clicking a saved stamp in the popout should:
+
+1. Select that stamp
+2. Immediately close the Stamp popout
+3. Enter Stamp placement mode
+
+Example:
+
+Click Stamp
+→ Popout opens
+→ Click APPROVED
+→ Popout closes
+→ Cursor is now carrying the APPROVED stamp
+
+While Stamp placement mode is active:
+
+* Clicking anywhere on the PDF should place the stamp EXACTLY where clicked
+* The placed stamp becomes a normal text field containing the saved text
+* Placement must use the same corrected page-coordinate system as Add Field
+* It must work correctly at different zoom levels and scroll positions
+
+The stamp should default to BLACK text.
+
+After placement, the resulting field should behave exactly like any other normal field.
+
+The user should be able to:
+
+* Select it
+* Move it
+* Resize it
+* Edit the text
+* Change its color
+* Change font size
+* Change alignment
+* Duplicate it
+* Delete it
+* Export it
+
+---
+
+10. STAMP MODE BEHAVIOR
+
+---
+
+After selecting a saved stamp, keep that stamp active so the user can quickly place multiple copies.
+
+Example:
+
+Select APPROVED
+
+Click location 1
+→ APPROVED appears
+
+Click location 2
+→ APPROVED appears
+
+Click location 3
+→ APPROVED appears
+
+This allows repeated stamping without reopening the Stamp menu every time.
+
+IMPORTANT:
+
+Switching back to the normal SELECT/CURSOR tool should immediately cancel Stamp mode.
+
+Once Select is clicked:
+
+* No stamp remains attached to the cursor
+* Clicking the PDF behaves normally again
+
+Also allow:
+
+ESCAPE
+
+to cancel Stamp mode and return to normal Select mode if practical.
+
+Only one placement mode should be active at a time.
+
+For example:
+
+Selecting Add Field should cancel Stamp mode.
+
+Selecting Stamp should cancel Add Field mode.
+
+Selecting Select should cancel all placement modes.
+
+---
+
+11. STAMP VISUAL FEEDBACK
+
+---
+
+Make it obvious when a stamp is currently selected.
+
+For example, while APPROVED is active, the toolbar could subtly show:
+
+Stamp: APPROVED
+
+or the Stamp button could remain highlighted.
+
+Do not make the UI intrusive.
+
+The user should simply be able to glance at the toolbar and know that clicking the PDF will currently place a stamp.
+
+If practical, show a lightweight preview near the cursor while Stamp mode is active.
+
+Do not let a cursor preview interfere with precise placement.
+
+---
+
+12. STAMP PERSISTENCE
+
+---
+
+Saved stamps should persist with the form/template.
+
+If the user saves the PDF setup as a Cubical template, its saved stamps should be preserved.
+
+When that template is opened again, clicking Stamp should show the same saved stamps.
+
+For now, prefer stamps associated with the current PDF/template rather than automatically making every stamp global across all PDFs.
+
+Structure the data cleanly enough that global stamps could potentially be added later.
+
+---
+
+13. UNIFIED FIELD SYSTEM
+
+---
+
+Do NOT create a separate PDF rendering system for stamps.
+
+All placed objects should ultimately use the same underlying field model.
+
+This includes:
+
+* Smart-detected fields
+* Manually added fields
+* Stamp-generated fields
+
+A stamp is essentially:
+
+SAVED TEXT PRESET
+→ CLICK PDF
+→ CREATE NORMAL TEXT FIELD WITH THAT TEXT
+
+Once placed, there should be nothing fundamentally special about a stamped field.
+
+This allows the existing:
+
+* Dragging
+* Resizing
+* Text editing
+* Colors
+* Alignment
+* Font size
+* Duplication
+* Deletion
+* Export
+
+systems to work normally.
+
+---
+
+14. FIELD PROPERTY CONSISTENCY
+
+---
+
+All fields should support:
+
+* Position
+* Size
+* Text
+* Font size
+* Alignment
+* Text color
+* Duplicate
+* Delete
+* Export
+
+Field properties should behave consistently regardless of whether the field came from:
+
+* Detect Fields
+* Add Field
+* Stamp
+
+---
+
+15. PRESERVE CURRENT FUNCTIONALITY
+
+---
+
+Do not break:
+
+* PDF opening
+* PDF rendering
+* Zoom
+* Page navigation
+* Detect Fields
+* Accept All
+* Clear Detected
+* Manual Add Field
+* Field resizing
+* Field moving
+* Templates
+* PDF export
+* Existing navigation
+
+Keep the current Cubical visual style.
+
+---
+
+16. TEST THESE EXACT SCENARIOS
+
+---
+
+TEST 1 — MANUAL PLACEMENT
+
+Open a PDF at 140% zoom.
+
+Choose Add Field.
+
+Click directly beside a blank field labeled "Project Address."
+
+Confirm the new text box appears exactly where clicked.
+
+---
+
+TEST 2 — DEFAULT COLOR
+
+Create a field.
+
+Type text.
+
+Confirm the text is BLACK by default.
+
+---
+
+TEST 3 — COLOR EXPORT
+
+Change the field to RED.
+
+Export PDF.
+
+Confirm exported text remains red.
+
+---
+
+TEST 4 — DELETE KEY
+
+Select a field.
+
+Press the keyboard Delete key.
+
+Confirm the entire field disappears.
+
+---
+
+TEST 5 — TEXT EDITING
+
+Click inside a field and edit text using Backspace/Delete.
+
+Confirm characters are edited without accidentally deleting the entire field.
+
+---
+
+TEST 6 — CREATE STAMPS
+
+Click Stamp.
+
+Confirm the popout opens.
+
+Type:
+
+APPROVED
+
+into the input at the top.
+
+Press Enter.
+
+Confirm:
+
+* APPROVED appears in the saved stamp list
+* The input immediately becomes blank again
+
+Then create:
+
+N/A
+
+and:
+
+COMPLETE
+
+using the same process.
+
+---
+
+TEST 7 — DELETE SAVED STAMP
+
+Open Stamp.
+
+Hover over the X beside N/A.
+
+Confirm the X turns RED.
+
+Click it.
+
+Confirm N/A disappears from the saved stamp list.
+
+---
+
+TEST 8 — USE STAMP
+
+Click Stamp.
+
+Select APPROVED.
+
+Confirm the popout closes.
+
+Click directly on the PDF.
+
+Confirm APPROVED appears exactly where clicked.
+
+Click another location.
+
+Confirm another APPROVED stamp appears.
+
+---
+
+TEST 9 — EXIT STAMP MODE
+
+With APPROVED still active, click the Select/cursor tool.
+
+Click somewhere on the PDF.
+
+Confirm no new APPROVED stamp is created.
+
+---
+
+TEST 10 — EDIT PLACED STAMP
+
+Place APPROVED on the PDF.
+
+Switch to Select.
+
+Select the placed APPROVED field.
+
+Move it.
+
+Resize it.
+
+Change it to RED.
+
+Edit the text.
+
+Confirm it behaves exactly like a normal text field.
+
+---
+
+TEST 11 — STAMP PERSISTENCE
+
+Create several stamps.
+
+Save the form as a template.
+
+Close/reopen the template.
+
+Click Stamp.
+
+Confirm the saved stamps are still present.
+
+---
+
+TEST 12 — DETECT FIELDS
+
+Run Detect Fields on a normal form.
+
+Confirm it does not place fields over:
+
+* Page titles
+* Section headers
+* Existing printed text
+* Decorative lines
+* Random blank spaces
+
+Prefer fewer high-confidence detected fields over many inaccurate fields.
+
+---
+
+17. PRIORITIES
+
+---
+
+Prioritize these fixes in this order:
+
+1. Correct click-to-PDF coordinate placement
+2. Black default text
+3. Text color selection
+4. Delete key support
+5. Simple Stamp system
+6. Improved Detect Fields accuracy
+
+Do not hide coordinate bugs with visual offsets.
+
+Fix the underlying coordinate transformation so Add Field AND Stamp placement use the same accurate placement system.
