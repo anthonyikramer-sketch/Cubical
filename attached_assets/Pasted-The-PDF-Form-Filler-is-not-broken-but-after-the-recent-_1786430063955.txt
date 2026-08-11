@@ -1,0 +1,89 @@
+The PDF Form Filler is not broken, but after the recent Sakura/Electron packaging changes it appears to have reverted to an older version and is missing features from the most recent update.
+
+Please restore the LATEST PDF Form Filler feature set while preserving the current Sakura/theme and Electron packaging work.
+
+IMPORTANT:
+Do NOT redesign the tool.
+Do NOT rebuild the PDF Form Filler from scratch.
+Do NOT remove Sakura/theme functionality.
+
+Compare the current PDF Form Filler against the most recent working version from before the Sakura/Electron packaging changes and restore any features that were lost.
+
+The latest PDF Form Filler should include:
+
+- Open PDF
+- PDF rendering
+- page navigation
+- zoom
+- Select mode
+- Add Field
+- compact default text boxes
+- default font size of 12 pt
+- default text color black
+- field color options
+- Delete key support
+- Find / Ctrl+F search
+- next/previous search result navigation
+- search highlighting
+- search navigation that brings matches into view
+- Templates
+- Export PDF
+
+STAMP BOX:
+- Toolbar button should be called "Stamp Box"
+- Stamp Box popout
+- Create stamp input
+- Stamp color selector
+- Stamp font size selector
+- Stamp text input clears after pressing Enter
+- Stamp color stays selected after pressing Enter
+- Stamp font size stays selected after pressing Enter
+- Each saved stamp remembers:
+  - text
+  - color
+  - font size
+- Saved stamps have an X on the far right
+- X turns red on hover
+- Selecting a stamp closes the popout and activates stamp placement
+- Stamp placement remains active for repeated placement
+- Selecting Select cancels stamp mode
+- Pressing Escape may also cancel stamp mode
+- Placed stamps become normal editable text fields
+
+CHECKBOX:
+- Checkbox should be grouped visually with Stamp Box in the toolbar
+- Remove the old standalone Add Checkbox button
+- Prefer a combined control such as:
+  Stamp Box | Checkbox
+- Checkbox placement should remain active after placing one checkbox
+- User should be able to click repeatedly to place multiple checkboxes
+- Selecting Select should cancel Checkbox mode
+- Selecting Stamp should cancel Checkbox mode
+- New checkboxes should default to CHECKED
+- Existing checkbox checked/unchecked state should remain preserved
+
+DETECT FIELDS:
+- Detect Fields should remain REMOVED
+- Do not restore Detect Fields
+- Do not restore Accept All
+- Do not restore Clear Detected
+
+PLACEMENT:
+- Preserve the latest corrected PDF coordinate-placement behavior
+- Add Field, Stamp, and Checkbox should all place exactly where clicked
+- Placement should work correctly at different zoom levels and scroll positions
+
+IMPORTANT:
+Do not restore an older PDF Form Filler version wholesale if that would overwrite newer features.
+
+Instead, identify which recent changes disappeared and merge them back into the current codebase.
+
+Preserve:
+- Sakura skins/themes
+- Electron packaging changes
+- existing Store/Library behavior
+- existing installed tools
+- existing user data
+- current Cubical styling
+
+When finished, verify the current PDF Form Filler contains all of the above features and tell me which features had been missing and what was restored.

@@ -2,29 +2,34 @@ import { useState, useEffect, useRef } from 'react';
 import {
   AlertCircle, AlignCenter, AlignLeft, AlignRight, BookOpen, Check,
   ChevronLeft, ChevronRight, CircleUserRound, Download, FilePlus2, Files,
-  FormInput, ListChecks, Minus, MousePointer2, Plus, Sparkles, Stamp, Trash2, X,
+  FormInput, ListChecks, Minus, MousePointer2, Plus, Search, Stamp, Trash2, X,
 } from 'lucide-react';
 import { BackButton, DisplacedWidgetBand } from '../shared/contexts';
 
-// ── Types & constants (mirrors App.tsx) ───────────────────────────────────────
+// ── Types & constants ─────────────────────────────────────────────────────────
 type PffFieldType = 'text' | 'number' | 'date' | 'checkbox';
 type PffAlign    = 'left' | 'center' | 'right';
 type PffMode     = 'select' | 'add' | 'add-checkbox';
 
 interface PffField {
-  id:         string;
-  pageIndex:  number;
-  xPct:       number;
-  yPct:       number;
-  wPct:       number;
-  hPct:       number;
-  value:      string;
-  fontSize:   number;
-  align:      PffAlign;
-  color:      string;
-  label:      string;
-  type:       PffFieldType;
-  isDetected: boolean;
+  id:        string;
+  pageIndex: number;
+  xPct:      number;
+  yPct:      number;
+  wPct:      number;
+  hPct:      number;
+  value:     string;
+  fontSize:  number;
+  align:     PffAlign;
+  color:     string;
+  label:     string;
+  type:      PffFieldType;
+}
+
+interface PffStamp {
+  text:     string;
+  fontSize: number;
+  color:    string;
 }
 
 interface PffTemplate {
@@ -33,26 +38,46 @@ interface PffTemplate {
   pdfKey:    string;
   createdAt: number;
   fields:    Omit<PffField, 'value'>[];
-  stamps?:   string[];
+  stamps?:   PffStamp[];
 }
 
 interface PersonalDetail { key: string; value: string; }
+
+interface PffFindMatch {
+  pageIndex: number;
+  xPct:      number;
+  yPct:      number;
+  wPct:      number;
+  hPct:      number;
+}
+
+interface PffFindSpan {
+  str:       string;
+  x:         number;
+  y:         number;
+  w:         number;
+  h:         number;
+  pageW:     number;
+  pageH:     number;
+  charStart: number;
+  charEnd:   number;
+}
+
+interface PffFindPage {
+  pageIndex: number;
+  spans:     PffFindSpan[];
+  fullText:  string;
+}
 
 const PFF_TEMPLATES_KEY  = 'cubical-pff-templates-v1';
 const PFF_STAMPS_KEY     = 'cubical-pff-stamps-v1';
 const PFF_MY_DETAILS_KEY = 'cubical-pff-my-details-v1';
 const PFF_MAX_STAMPS     = 10;
 
+const PFF_STAMP_FONT_SIZES = [8, 10, 11, 12, 14, 16, 18, 20, 24];
+
 const PFF_DEFAULT_DETAIL_KEYS = [
   'Name', 'Email', 'Phone', 'Address', 'City', 'State', 'ZIP', 'Company', 'Title',
-];
-
-const PFF_LABEL_KEYWORDS = [
-  'name','date','address','phone','email','project','signature','initials',
-  'notes','total','city','state','zip','company','title','department',
-  'description','amount','qty','price','foreman','location','contact',
-  'fax','website','number','ref','reference','id','po','invoice',
-  'crew','hours','size','supervisor','manager','owner','client',
 ];
 
 const PFF_COLORS = [
@@ -99,14 +124,22 @@ function pffSaveTemplates(ts: PffTemplate[]) {
   try { window.localStorage.setItem(PFF_TEMPLATES_KEY, JSON.stringify(ts)); } catch {}
 }
 
-function pffGetStamps(pdfKey: string): string[] {
-  try { return (JSON.parse(window.localStorage.getItem(PFF_STAMPS_KEY) ?? '{}') as Record<string,string[]>)[pdfKey] ?? []; }
-  catch { return []; }
+/** Load stamps from localStorage, migrating legacy string[] entries to PffStamp[]. */
+function pffGetStamps(pdfKey: string): PffStamp[] {
+  try {
+    const all = JSON.parse(window.localStorage.getItem(PFF_STAMPS_KEY) ?? '{}') as Record<string, unknown[]>;
+    const raw = all[pdfKey] ?? [];
+    return raw.map((s) =>
+      typeof s === 'string'
+        ? { text: s, fontSize: 12, color: '#000000' }
+        : (s as PffStamp),
+    );
+  } catch { return []; }
 }
 
-function pffSaveStamps(pdfKey: string, stamps: string[]) {
+function pffSaveStamps(pdfKey: string, stamps: PffStamp[]) {
   try {
-    const all = JSON.parse(window.localStorage.getItem(PFF_STAMPS_KEY) ?? '{}') as Record<string,string[]>;
+    const all = JSON.parse(window.localStorage.getItem(PFF_STAMPS_KEY) ?? '{}') as Record<string, PffStamp[]>;
     all[pdfKey] = stamps;
     window.localStorage.setItem(PFF_STAMPS_KEY, JSON.stringify(all));
   } catch {}
@@ -123,27 +156,46 @@ export function PdfFormFiller() {
   const [fields,       setFields]       = useState<PffField[]>([]);
   const [selectedId,   setSelectedId]   = useState<string | null>(null);
   const [mode,         setMode]         = useState<PffMode>('select');
-  const [detecting,    setDetecting]    = useState(false);
   const [exporting,    setExporting]    = useState(false);
   const [error,        setError]        = useState<string | null>(null);
   const [pdfFileName,  setPdfFileName]  = useState('');
   const [pdfFileSize,  setPdfFileSize]  = useState(0);
   const [pdfjsLib,     setPdfjsLib]     = useState<any>(null);
-  const [stamps,          setStamps]          = useState<string[]>([]);
-  const [stampMode,       setStampMode]       = useState<string | null>(null);
+
+  // Stamp state
+  const [stamps,          setStamps]          = useState<PffStamp[]>([]);
+  const [stampMode,       setStampMode]       = useState<PffStamp | null>(null);
   const [showStampPopout, setShowStampPopout] = useState(false);
   const [stampInput,      setStampInput]      = useState('');
+  const [stampFontSize,   setStampFontSize]   = useState(12);
+  const [stampColor,      setStampColor]      = useState('#000000');
   const stampBtnRef   = useRef<HTMLButtonElement>(null);
+
+  // Templates
   const [templates,     setTemplates]    = useState<PffTemplate[]>(pffGetTemplates);
   const [showTplPanel,  setShowTplPanel] = useState(false);
   const [tplNameInput,  setTplNameInput] = useState('');
   const [offerTemplate, setOfferTemplate] = useState<PffTemplate | null>(null);
+
+  // My Details
   const [myDetails, setMyDetails] = useState<PersonalDetail[]>(pffGetMyDetails);
-  const canvasRef     = useRef<HTMLCanvasElement>(null);
-  const containerRef  = useRef<HTMLDivElement>(null);
+
+  // Find
+  const [showFind,    setShowFind]    = useState(false);
+  const [findQuery,   setFindQuery]   = useState('');
+  const [findMatches, setFindMatches] = useState<PffFindMatch[]>([]);
+  const [findIndex,   setFindIndex]   = useState(0);
+  const findCacheRef  = useRef<PffFindPage[] | null>(null);
+  const findInputRef  = useRef<HTMLInputElement>(null);
+  const canvasScrollRef = useRef<HTMLDivElement>(null);
+
+  const canvasRef    = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const renderTaskRef = useRef<any>(null);
-  const dragRef       = useRef<{ id: string; startX: number; startY: number; ox: number; oy: number } | null>(null);
-  const resizeRef     = useRef<{ id: string; startX: number; startY: number; ow: number; oh: number } | null>(null);
+  const dragRef   = useRef<{ id: string; startX: number; startY: number; ox: number; oy: number } | null>(null);
+  const resizeRef = useRef<{ id: string; startX: number; startY: number; ow: number; oh: number } | null>(null);
+
+  // ── Lifecycle ───────────────────────────────────────────────────────────────
 
   useEffect(() => {
     import('pdfjs-dist').then((lib: any) => {
@@ -157,23 +209,38 @@ export function PdfFormFiller() {
     void renderPage(pdfProxy, currentPage, scale);
   }, [pdfProxy, currentPage, scale]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Keyboard: Delete, Escape, Ctrl+F
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Delete' && e.key !== 'Backspace') return;
-      const tag = (document.activeElement?.tagName ?? '').toLowerCase();
-      if (tag === 'input' || tag === 'textarea') return;
-      if (!selectedId) return;
-      setFields((prev) => prev.filter((f) => f.id !== selectedId));
-      setSelectedId(null);
-    };
-    const onEsc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { setStampMode(null); setMode('select'); setShowStampPopout(false); }
+      // Delete selected field
+      if ((e.key === 'Delete' || e.key === 'Backspace') && !showFind) {
+        const tag = (document.activeElement?.tagName ?? '').toLowerCase();
+        if (tag === 'input' || tag === 'textarea') return;
+        if (!selectedId) return;
+        setFields((prev) => prev.filter((f) => f.id !== selectedId));
+        setSelectedId(null);
+        return;
+      }
+      // Ctrl+F / Cmd+F → open Find
+      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+        if (!pdfProxy) return;
+        e.preventDefault();
+        openFind();
+        return;
+      }
+      // Escape
+      if (e.key === 'Escape') {
+        setStampMode(null);
+        setMode('select');
+        setShowStampPopout(false);
+        closeFind();
+      }
     };
     window.addEventListener('keydown', onKey);
-    window.addEventListener('keydown', onEsc);
-    return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('keydown', onEsc); };
-  }, [selectedId]);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selectedId, showFind, pdfProxy]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Close stamp popout on outside click
   useEffect(() => {
     if (!showStampPopout) return;
     const handler = (e: MouseEvent) => {
@@ -185,6 +252,8 @@ export function PdfFormFiller() {
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [showStampPopout]);
+
+  // ── PDF rendering ───────────────────────────────────────────────────────────
 
   const renderPage = async (doc: any, pageNum: number, sc: number) => {
     if (renderTaskRef.current) { try { renderTaskRef.current.cancel(); } catch {} }
@@ -209,6 +278,10 @@ export function PdfFormFiller() {
     setStampMode(null);
     setPdfFileName(file.name);
     setPdfFileSize(file.size);
+    findCacheRef.current = null;
+    setFindMatches([]);
+    setFindIndex(0);
+    setShowFind(false);
     const pdfKey = `${file.name}::${file.size}`;
     setStamps(pffGetStamps(pdfKey));
     try {
@@ -225,116 +298,102 @@ export function PdfFormFiller() {
     }
   };
 
-  const detectFields = async () => {
-    if (!pdfProxy) return;
-    setDetecting(true);
-    const detected: PffField[] = [];
-    for (let pNum = 1; pNum <= pageCount; pNum++) {
-      const page  = await pdfProxy.getPage(pNum);
-      const vp    = page.getViewport({ scale: 1 });
+  // ── Find ────────────────────────────────────────────────────────────────────
+
+  const buildFindCache = async (): Promise<PffFindPage[]> => {
+    if (!pdfProxy) return [];
+    const cache: PffFindPage[] = [];
+    for (let p = 1; p <= pageCount; p++) {
+      const page = await pdfProxy.getPage(p);
+      const vp   = page.getViewport({ scale: 1 });
       const pageW = vp.width;
       const pageH = vp.height;
-      let foundAcro = false;
-      try {
-        const annotations = await page.getAnnotations();
-        for (const ann of annotations) {
-          if (ann.subtype !== 'Widget') continue;
-          if (!ann.rect) continue;
-          const [x1, y1, x2, y2] = ann.rect as number[];
-          const wPct = (x2 - x1) / pageW;
-          const hPct = (y2 - y1) / pageH;
-          if (wPct < 0.01 || hPct < 0.003) continue;
-          const xPct = x1 / pageW;
-          const yPct = (pageH - y2) / pageH;
-          detected.push({
-            id: pffId(), pageIndex: pNum - 1,
-            xPct: Math.max(0, Math.min(0.97, xPct)),
-            yPct: Math.max(0, Math.min(0.97, yPct)),
-            wPct: Math.min(wPct, 0.92),
-            hPct: Math.max(hPct, 0.02),
-            value: '', fontSize: 10, align: 'left', color: '#000000',
-            label: (ann.fieldName || ann.alternativeText || '').replace(/\[\d+\]$/, '').trim(),
-            type: 'text', isDetected: true,
+      const tc = await page.getTextContent();
+      const spans: PffFindSpan[] = [];
+      let charPos = 0;
+      let fullText = '';
+      for (const item of (tc.items as any[])) {
+        const str = item.str ?? '';
+        const x   = item.transform[4] as number;
+        const y   = item.transform[5] as number;
+        const w   = (item.width  as number) || str.length * 6;
+        const h   = (item.height as number) || 12;
+        spans.push({ str, x, y, w, h, pageW, pageH, charStart: charPos, charEnd: charPos + str.length });
+        fullText += str;
+        charPos  += str.length;
+      }
+      cache.push({ pageIndex: p - 1, spans, fullText });
+    }
+    findCacheRef.current = cache;
+    return cache;
+  };
+
+  const runFind = async (query: string) => {
+    if (!query.trim() || !pdfProxy) { setFindMatches([]); setFindIndex(0); return; }
+    const cache = findCacheRef.current ?? await buildFindCache();
+    const q       = query.toLowerCase();
+    const matches: PffFindMatch[] = [];
+    for (const pg of cache) {
+      const text = pg.fullText.toLowerCase();
+      let idx = 0;
+      while (true) {
+        const pos = text.indexOf(q, idx);
+        if (pos === -1) break;
+        // Find the span that starts at or contains this position
+        const span = pg.spans.find((s) => s.charStart <= pos && s.charEnd > pos)
+                  ?? pg.spans.find((s) => s.charStart >= pos && s.charStart < pos + q.length);
+        if (span) {
+          matches.push({
+            pageIndex: pg.pageIndex,
+            xPct:  span.x / span.pageW,
+            yPct:  Math.max(0, (span.pageH - span.y - span.h) / span.pageH),
+            wPct:  Math.min(span.w / span.pageW, 0.5),
+            hPct:  Math.min(span.h / span.pageH + 0.005, 0.1),
           });
-          foundAcro = true;
         }
-      } catch { /* not all PDFs support getAnnotations */ }
-      if (foundAcro) continue;
-      const tc    = await page.getTextContent();
-      const items = (tc.items as any[]).filter((i: any) => (i.str ?? '').trim());
-      for (const item of items) {
-        const str   = (item.str ?? '').trim();
-        const tx    = item.transform as number[];
-        const itmX  = tx[4];
-        const itmY  = pageH - tx[5] - (item.height || 12);
-        const itmW  = item.width  || 60;
-        const itmH  = Math.max(item.height || 12, 14);
-        const fontSize = Math.abs(tx[3]) || item.height || 12;
-        if (/^[_\-─═]{3,}$/.test(str)) {
-          const widthRatio = itmW / pageW;
-          if (widthRatio < 0.04 || widthRatio > 0.60) continue;
-          if (itmY / pageH < 0.09) continue;
-          const tooClose = detected.some((d) => d.pageIndex === pNum - 1 && Math.abs(d.yPct - itmY / pageH) < 0.02 && Math.abs(d.xPct - itmX / pageW) < 0.10);
-          if (tooClose) continue;
-          detected.push({
-            id: pffId(), pageIndex: pNum - 1,
-            xPct: Math.max(0, itmX / pageW), yPct: Math.max(0, (itmY - 2) / pageH),
-            wPct: Math.min(widthRatio, 0.55), hPct: Math.max(itmH / pageH, 0.025),
-            value: '', fontSize: 10, align: 'left', color: '#000000', label: '', type: 'text', isDetected: true,
-          });
-          continue;
-        }
-        // Checkbox patterns: □ ☐ (empty box), ■ (filled/checked), [ ] or []
-        if (/^[□☐■]$/.test(str) || /^\[[\s]*\]$/.test(str)) {
-          if (itmY / pageH < 0.05) continue;
-          const cbSize = Math.max(itmH / pageH, 0.022);
-          const tooClose = detected.some((d) => d.pageIndex === pNum - 1 && Math.abs(d.yPct - itmY / pageH) < 0.03 && Math.abs(d.xPct - itmX / pageW) < 0.05);
-          if (tooClose) continue;
-          detected.push({
-            id: pffId(), pageIndex: pNum - 1,
-            xPct: Math.max(0, itmX / pageW),
-            yPct: Math.max(0, itmY / pageH),
-            wPct: cbSize,
-            hPct: cbSize,
-            value: str === '■' ? 'checked' : '',
-            fontSize: 10, align: 'left', color: '#000000',
-            label: '', type: 'checkbox', isDetected: true,
-          });
-          continue;
-        }
-        if (str.length > 35) continue;
-        if (fontSize > 13) continue;
-        if (itmY / pageH < 0.09) continue;
-        const strL = str.toLowerCase().replace(/:$/, '').trim();
-        const isLabel = PFF_LABEL_KEYWORDS.some((kw) => {
-          if (strL === kw || strL === `${kw}:`) return true;
-          if ((strL.startsWith(`${kw} `) || strL.startsWith(`${kw}:`)) && str.length <= kw.length + 14) return true;
-          return false;
-        });
-        if (!isLabel) continue;
-        const fx = itmX + itmW + 6;
-        if (fx / pageW > 0.86) continue;
-        const availW = Math.max((pageW - fx) * 0.45, 55);
-        const tooClose = detected.some((d) => d.pageIndex === pNum - 1 && Math.abs(d.yPct - itmY / pageH) < 0.025 && Math.abs(d.xPct - fx / pageW) < 0.12);
-        if (tooClose) continue;
-        const fType: PffFieldType =
-          strL.includes('date') ? 'date'
-          : (strL.includes('phone') || strL.includes('fax') || strL.includes('qty') ||
-             strL.includes('amount') || strL.includes('total') || strL.includes('number') ||
-             strL.includes('zip') || strL.includes('size') || strL.includes('hours')) ? 'number'
-          : 'text';
-        detected.push({
-          id: pffId(), pageIndex: pNum - 1,
-          xPct: Math.min(fx / pageW, 0.90), yPct: Math.max(0, (itmY - 1) / pageH),
-          wPct: Math.min(availW / pageW, 0.5), hPct: Math.max(itmH / pageH, 0.025),
-          value: '', fontSize: 10, align: 'left', color: '#000000',
-          label: str.replace(/:$/, '').trim(), type: fType, isDetected: true,
-        });
+        idx = pos + 1;
       }
     }
-    setFields((prev) => [...prev.filter((f) => !f.isDetected), ...detected]);
-    setDetecting(false);
+    setFindMatches(matches);
+    setFindIndex(0);
+    if (matches.length > 0) navigateToMatchImmediate(0, matches);
   };
+
+  const navigateToMatchImmediate = (idx: number, matches?: PffFindMatch[]) => {
+    const list  = matches ?? findMatches;
+    const match = list[idx];
+    if (!match) return;
+    setFindIndex(idx);
+    if (match.pageIndex !== currentPage - 1) setCurrentPage(match.pageIndex + 1);
+    // Scroll the match into view after a brief render delay
+    setTimeout(() => {
+      const scroll = canvasScrollRef.current;
+      const wrap   = containerRef.current;
+      if (!scroll || !wrap) return;
+      const targetY = match.yPct * wrap.offsetHeight - scroll.clientHeight / 3;
+      scroll.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' });
+    }, 60);
+  };
+
+  const openFind = () => {
+    setShowFind(true);
+    setTimeout(() => findInputRef.current?.focus(), 30);
+  };
+
+  const closeFind = () => {
+    setShowFind(false);
+    setFindQuery('');
+    setFindMatches([]);
+    setFindIndex(0);
+  };
+
+  const stepFind = (dir: 1 | -1) => {
+    if (!findMatches.length) return;
+    const next = (findIndex + dir + findMatches.length) % findMatches.length;
+    navigateToMatchImmediate(next);
+  };
+
+  // ── Export ──────────────────────────────────────────────────────────────────
 
   const exportPdf = async () => {
     if (!pdfBytes) return;
@@ -349,13 +408,11 @@ export function PdfFormFiller() {
         if (!pg) continue;
         const { width, height } = pg.getSize();
         if (field.type === 'checkbox') {
-          // Create a real AcroForm checkbox instead of drawing lines
           const form = doc.getForm();
           const bx = field.xPct * width;
           const by = height - (field.yPct + field.hPct) * height;
           const fw = field.wPct * width;
           const fh = field.hPct * height;
-          // Use a unique name per field so multiple checkboxes don't share state
           const cbName = `cb_${field.pageIndex}_${field.id ?? Math.random().toString(36).slice(2)}`;
           try {
             const cb = form.createCheckBox(cbName);
@@ -381,35 +438,44 @@ export function PdfFormFiller() {
 
   const pdfKey = pdfFileName ? `${pdfFileName}::${pdfFileSize}` : '';
 
+  // ── Stamps ──────────────────────────────────────────────────────────────────
+
   const addStamp = () => {
     const text = stampInput.trim();
     if (!text) return;
-    if (stamps.includes(text)) { setStampInput(''); return; }
+    if (stamps.some((s) => s.text === text && s.fontSize === stampFontSize && s.color === stampColor)) {
+      setStampInput('');
+      return;
+    }
     if (stamps.length >= PFF_MAX_STAMPS) { setError(`Stamp limit reached (max ${PFF_MAX_STAMPS}). Remove a stamp first.`); return; }
-    const next = [...stamps, text];
+    const newStamp: PffStamp = { text, fontSize: stampFontSize, color: stampColor };
+    const next = [...stamps, newStamp];
     setStamps(next);
     if (pdfKey) pffSaveStamps(pdfKey, next);
-    setStampInput('');
+    setStampInput(''); // only clear text; color + size persist
   };
 
-  const removeStamp = (text: string) => {
-    const next = stamps.filter((s) => s !== text);
+  const removeStamp = (stamp: PffStamp) => {
+    const next = stamps.filter((s) => s !== stamp);
     setStamps(next);
-    if (stampMode === text) setStampMode(null);
+    if (stampMode === stamp) setStampMode(null);
     if (pdfKey) pffSaveStamps(pdfKey, next);
   };
 
-  const selectStamp = (text: string) => {
-    setStampMode(text);
+  const selectStamp = (stamp: PffStamp) => {
+    setStampMode(stamp);
     setShowStampPopout(false);
     setMode('select');
   };
+
+  // ── Templates ───────────────────────────────────────────────────────────────
 
   const saveTemplate = () => {
     if (!tplNameInput.trim() || !pdfFileName) return;
     const tpl: PffTemplate = {
       id: pffId(), name: tplNameInput.trim(), pdfKey, createdAt: Date.now(),
-      fields: fields.map(({ value: _v, ...rest }) => rest), stamps,
+      fields: fields.map(({ value: _v, ...rest }) => rest),
+      stamps,
     };
     const existing = pffGetTemplates();
     const updated  = [...existing.filter((t) => !(t.pdfKey === pdfKey && t.name === tpl.name)), tpl];
@@ -421,7 +487,16 @@ export function PdfFormFiller() {
 
   const loadTemplate = (tpl: PffTemplate) => {
     setFields(tpl.fields.map((f) => ({ ...f, color: f.color ?? '#000000', value: '' })));
-    if (tpl.stamps) { setStamps(tpl.stamps); if (pdfKey) pffSaveStamps(pdfKey, tpl.stamps); }
+    if (tpl.stamps) {
+      // Migrate legacy string[] stamps if needed
+      const migrated: PffStamp[] = tpl.stamps.map((s) =>
+        typeof s === 'string'
+          ? { text: s as unknown as string, fontSize: 12, color: '#000000' }
+          : s,
+      );
+      setStamps(migrated);
+      if (pdfKey) pffSaveStamps(pdfKey, migrated);
+    }
     setOfferTemplate(null);
     setShowTplPanel(false);
   };
@@ -432,10 +507,13 @@ export function PdfFormFiller() {
     setTemplates(updated);
   };
 
+  // ── Field helpers ────────────────────────────────────────────────────────────
+
   const makeField = (xPct: number, yPct: number, value = '', label = ''): PffField => ({
     id: pffId(), pageIndex: currentPage - 1,
-    xPct: Math.max(0, Math.min(0.94, xPct)), yPct: Math.max(0, Math.min(0.94, yPct)),
-    wPct: 0.25, hPct: 0.04, value, fontSize: 11, align: 'left', color: '#000000', label, type: 'text', isDetected: false,
+    xPct: Math.max(0, Math.min(0.94, xPct)),
+    yPct: Math.max(0, Math.min(0.94, yPct)),
+    wPct: 0.18, hPct: 0.028, value, fontSize: 12, align: 'left', color: '#000000', label, type: 'text',
   });
 
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -443,38 +521,53 @@ export function PdfFormFiller() {
     const canvas = canvasRef.current;
     const xPct = e.nativeEvent.offsetX / canvas.offsetWidth;
     const yPct = e.nativeEvent.offsetY / canvas.offsetHeight;
+
     if (stampMode !== null) {
-      const f = makeField(xPct, yPct, stampMode, stampMode);
+      const f: PffField = {
+        ...makeField(xPct, yPct, stampMode.text, stampMode.text),
+        fontSize: stampMode.fontSize,
+        color:    stampMode.color,
+      };
       setFields((prev) => [...prev, f]);
       setSelectedId(f.id);
+      // Stamp mode stays active for repeated placement
       return;
     }
+
     if (mode === 'add') {
       const f = makeField(xPct, yPct);
       setFields((prev) => [...prev, f]);
       setSelectedId(f.id);
       setMode('select');
+      return;
     }
+
     if (mode === 'add-checkbox') {
       const f: PffField = {
         id: pffId(), pageIndex: currentPage - 1,
-        xPct: Math.max(0, xPct - 0.02), yPct: Math.max(0, yPct - 0.02),
-        wPct: 0.04, hPct: 0.04, value: '', fontSize: 11, align: 'left', color: '#000000', label: '', type: 'checkbox', isDetected: false,
+        xPct: Math.max(0, xPct - 0.015),
+        yPct: Math.max(0, yPct - 0.015),
+        wPct: 0.035, hPct: 0.035,
+        value: 'checked', // default to checked
+        fontSize: 12, align: 'left', color: '#000000', label: '', type: 'checkbox',
       };
       setFields((prev) => [...prev, f]);
       setSelectedId(f.id);
-      setMode('select');
+      // Checkbox mode stays active for repeated placement
+      return;
     }
   };
 
-  const updateField = (id: string, patch: Partial<PffField>) =>
+  const updateField    = (id: string, patch: Partial<PffField>) =>
     setFields((prev) => prev.map((f) => f.id === id ? { ...f, ...patch } : f));
-  const deleteField = (id: string) => { setFields((prev) => prev.filter((f) => f.id !== id)); if (selectedId === id) setSelectedId(null); };
+  const deleteField    = (id: string) => { setFields((prev) => prev.filter((f) => f.id !== id)); if (selectedId === id) setSelectedId(null); };
   const duplicateField = (field: PffField) => {
     const dup: PffField = { ...field, id: pffId(), xPct: field.xPct + 0.02, yPct: field.yPct + 0.02, value: '' };
     setFields((prev) => [...prev, dup]);
     setSelectedId(dup.id);
   };
+
+  // ── Drag / resize ────────────────────────────────────────────────────────────
 
   const handleFieldPtrDown = (e: React.PointerEvent, field: PffField) => {
     if (!containerRef.current) return;
@@ -494,6 +587,7 @@ export function PdfFormFiller() {
     });
   };
   const handleFieldPtrUp = () => { dragRef.current = null; };
+
   const handleResizePtrDown = (e: React.PointerEvent, field: PffField) => {
     e.preventDefault(); e.stopPropagation();
     resizeRef.current = { id: field.id, startX: e.clientX, startY: e.clientY, ow: field.wPct, oh: field.hPct };
@@ -511,12 +605,17 @@ export function PdfFormFiller() {
   };
   const handleResizePtrUp = () => { resizeRef.current = null; };
 
-  const selectedField = fields.find((f) => f.id === selectedId);
-  const pageFields    = fields.filter((f) => f.pageIndex === currentPage - 1);
+  // ── Derived ──────────────────────────────────────────────────────────────────
+
+  const selectedField     = fields.find((f) => f.id === selectedId);
+  const pageFields        = fields.filter((f) => f.pageIndex === currentPage - 1);
+  const pageMatches       = findMatches.filter((m) => m.pageIndex === currentPage - 1);
   const isPlacingStamp    = stampMode !== null;
   const isAddMode         = mode === 'add';
   const isAddCheckboxMode = mode === 'add-checkbox';
   const canvasClass       = `pff-canvas${isAddMode || isAddCheckboxMode || isPlacingStamp ? ' pff-canvas--add' : ''}`;
+
+  // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
     <section className="renamer-page pff-page" data-testid="pdf-form-filler">
@@ -526,20 +625,21 @@ export function PdfFormFiller() {
           <div className="eyebrow">Cubical tool · works in browser</div>
           <div className="tool-title-with-icon">
             <span className="renamer-tool-icon" style={{ color: 'hsl(210 60% 42%)', background: 'hsl(210 60% 42% / .11)' }}><FormInput /></span>
-            <div><h1>PDF Form Filler.</h1><p>Detect fields, fill them in, export a finished PDF.</p></div>
+            <div><h1>PDF Form Filler.</h1><p>Fill in forms, place stamps, export a finished PDF.</p></div>
           </div>
         </div>
         <span className="tool-status"><i className="status-dot" /> Local only</span>
       </div>
       <DisplacedWidgetBand />
 
-      {/* Toolbar */}
+      {/* ── Toolbar ── */}
       <div className="pff-toolbar">
         <label className="pff-toolbar-btn" title="Open PDF">
           <FilePlus2 className="w-4 h-4" /><span>Open PDF</span>
           <input type="file" accept="application/pdf" className="sr-only"
             onChange={(e) => { const f = e.target.files?.[0]; if (f) void loadPdf(f); e.target.value = ''; }} />
         </label>
+
         {pdfProxy && (<>
           <div className="pff-toolbar-sep" />
           <button className="pff-toolbar-icon" onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage <= 1} title="Previous page"><ChevronLeft /></button>
@@ -550,75 +650,166 @@ export function PdfFormFiller() {
           <button className="pff-toolbar-icon" onClick={() => setScale((s) => Math.min(3, +(s + 0.2).toFixed(1)))} title="Zoom in"><Plus /></button>
           <button className="pff-toolbar-icon" onClick={() => setScale(1.4)} title="Fit page">↔</button>
           <div className="pff-toolbar-sep" />
-          <button className={`pff-toolbar-btn${!isAddMode && !isPlacingStamp ? ' active' : ''}`} onClick={() => { setMode('select'); setStampMode(null); }} title="Select / move fields">
+
+          {/* Mode buttons */}
+          <button
+            className={`pff-toolbar-btn${!isAddMode && !isAddCheckboxMode && !isPlacingStamp ? ' active' : ''}`}
+            onClick={() => { setMode('select'); setStampMode(null); }}
+            title="Select / move fields">
             <MousePointer2 className="w-4 h-4" /><span>Select</span>
           </button>
-          <button className={`pff-toolbar-btn${isAddMode ? ' active' : ''}`} onClick={() => { setMode('add'); setStampMode(null); setShowStampPopout(false); }} title="Click on the PDF to add a text field">
+          <button
+            className={`pff-toolbar-btn${isAddMode ? ' active' : ''}`}
+            onClick={() => { setMode('add'); setStampMode(null); setShowStampPopout(false); }}
+            title="Click on the PDF to add a text field">
             <Plus className="w-4 h-4" /><span>Add Field</span>
           </button>
-          <button className={`pff-toolbar-btn${isAddCheckboxMode ? ' active' : ''}`} onClick={() => { setMode('add-checkbox'); setStampMode(null); setShowStampPopout(false); }} title="Click on the PDF to place a checkbox">
-            <ListChecks className="w-4 h-4" /><span>Add Checkbox</span>
-          </button>
-          <div className="pff-stamp-wrap">
-            <button ref={stampBtnRef} className={`pff-toolbar-btn${isPlacingStamp ? ' active' : ''}`} onClick={() => { setShowStampPopout((v) => !v); }} title="Stamp">
-              <Stamp className="w-4 h-4" /><span>{isPlacingStamp ? `Stamp: ${stampMode}` : 'Stamp'}</span>
-            </button>
-            {showStampPopout && (
-              <div id="pff-stamp-popout" className="pff-stamp-popout">
-                <div className="pff-stamp-popout-header">Stamps</div>
-                <div className="pff-stamp-new">
-                  <input className="pff-side-input" type="text" placeholder="Create a stamp…" value={stampInput}
-                    onChange={(e) => setStampInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') addStamp(); }} autoFocus />
+
+          {/* Stamp Box | Checkbox split control */}
+          <div className="pff-sg-group">
+            <div className="pff-stamp-wrap">
+              <button
+                ref={stampBtnRef}
+                className={`pff-sg-left pff-toolbar-btn${isPlacingStamp ? ' active' : ''}`}
+                onClick={() => { setShowStampPopout((v) => !v); }}
+                title="Stamp Box">
+                <Stamp className="w-4 h-4" />
+                <span>{isPlacingStamp ? `Stamp: ${stampMode!.text}` : 'Stamp Box'}</span>
+              </button>
+              {showStampPopout && (
+                <div id="pff-stamp-popout" className="pff-stamp-popout">
+                  <div className="pff-stamp-popout-header">Stamp Box</div>
+
+                  {/* Color swatches */}
+                  <div className="pff-stamp-meta">
+                    <div className="pff-stamp-meta-label">Color</div>
+                    <div className="pff-color-swatches">
+                      {PFF_COLORS.map(({ hex, label }) => (
+                        <button
+                          key={hex}
+                          className={`pff-color-swatch${stampColor === hex ? ' active' : ''}`}
+                          style={{ background: hex }}
+                          title={label}
+                          onClick={() => setStampColor(hex)} />
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Font size selector */}
+                  <div className="pff-stamp-meta">
+                    <div className="pff-stamp-meta-label">Size</div>
+                    <select
+                      className="pff-stamp-size-select"
+                      value={stampFontSize}
+                      onChange={(e) => setStampFontSize(Number(e.target.value))}>
+                      {PFF_STAMP_FONT_SIZES.map((sz) => (
+                        <option key={sz} value={sz}>{sz} pt</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Text input */}
+                  <div className="pff-stamp-new">
+                    <input
+                      className="pff-side-input"
+                      type="text"
+                      placeholder="Create a stamp…"
+                      value={stampInput}
+                      onChange={(e) => setStampInput(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') addStamp(); }}
+                      autoFocus />
+                  </div>
+
+                  {/* Stamp list */}
+                  {stamps.length === 0 ? (
+                    <p className="pff-stamp-empty">No stamps yet — type above and press Enter.</p>
+                  ) : (
+                    <ul className="pff-stamp-list">
+                      {stamps.map((s, i) => (
+                        <li
+                          key={i}
+                          className={`pff-stamp-item${stampMode === s ? ' active' : ''}`}
+                          onClick={() => selectStamp(s)}>
+                          <span
+                            className="pff-stamp-color-dot"
+                            style={{ background: s.color }} />
+                          <span className="pff-stamp-text">{s.text}</span>
+                          <span className="pff-stamp-size-badge">{s.fontSize}pt</span>
+                          <button
+                            className="pff-stamp-del"
+                            title="Remove stamp"
+                            onClick={(e) => { e.stopPropagation(); removeStamp(s); }}>×</button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {stamps.length >= PFF_MAX_STAMPS && (
+                    <p className="pff-stamp-limit">Limit reached ({PFF_MAX_STAMPS} stamps max)</p>
+                  )}
                 </div>
-                {stamps.length === 0 ? (
-                  <p className="pff-stamp-empty">No stamps yet — type above and press Enter.</p>
-                ) : (
-                  <ul className="pff-stamp-list">
-                    {stamps.map((s) => (
-                      <li key={s} className={`pff-stamp-item${stampMode === s ? ' active' : ''}`} onClick={() => selectStamp(s)}>
-                        <span className="pff-stamp-text">{s}</span>
-                        <button className="pff-stamp-del" title="Remove stamp" onClick={(e) => { e.stopPropagation(); removeStamp(s); }}>×</button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                {stamps.length >= PFF_MAX_STAMPS && <p className="pff-stamp-limit">Limit reached ({PFF_MAX_STAMPS} stamps max)</p>}
-              </div>
-            )}
+              )}
+            </div>
+
+            <button
+              className={`pff-sg-right pff-toolbar-btn${isAddCheckboxMode ? ' active' : ''}`}
+              onClick={() => { setMode('add-checkbox'); setStampMode(null); setShowStampPopout(false); }}
+              title="Click on the PDF to place a checkbox">
+              <ListChecks className="w-4 h-4" /><span>Checkbox</span>
+            </button>
           </div>
+
           <div className="pff-toolbar-sep" />
-          <button className="pff-toolbar-btn" onClick={() => void detectFields()} disabled={detecting} title="Auto-detect fillable areas">
-            <Sparkles className="w-4 h-4" /><span>{detecting ? 'Detecting…' : 'Detect Fields'}</span>
-          </button>
-          {fields.some((f) => f.isDetected) && (<>
-            <button className="pff-toolbar-btn" title="Accept all detected fields" onClick={() => setFields((prev) => prev.map((f) => ({ ...f, isDetected: false })))}>
-              <Check className="w-4 h-4" /><span>Accept All</span>
-            </button>
-            <button className="pff-toolbar-btn pff-toolbar-btn--danger" title="Remove all detected fields" onClick={() => setFields((prev) => prev.filter((f) => !f.isDetected))}>
-              <Trash2 className="w-4 h-4" /><span>Clear Detected</span>
-            </button>
-          </>)}
-          <div className="pff-toolbar-sep" />
+
+          {/* Fill All */}
           {(() => {
             const fillableCount = fields.filter((f) => f.type !== 'checkbox' && pffMatchDetail(f.label, myDetails) && !f.value.trim()).length;
             return fillableCount > 0 ? (
-              <button className="pff-toolbar-btn pff-toolbar-btn--autofill" title={`Fill ${fillableCount} field${fillableCount !== 1 ? 's' : ''} from My Details`}
-                onClick={() => { setFields((prev) => prev.map((f) => { if (f.type === 'checkbox' || f.value.trim()) return f; const match = pffMatchDetail(f.label, myDetails); return match ? { ...f, value: match.value } : f; })); }}>
+              <button
+                className="pff-toolbar-btn pff-toolbar-btn--autofill"
+                title={`Fill ${fillableCount} field${fillableCount !== 1 ? 's' : ''} from My Details`}
+                onClick={() => setFields((prev) => prev.map((f) => {
+                  if (f.type === 'checkbox' || f.value.trim()) return f;
+                  const match = pffMatchDetail(f.label, myDetails);
+                  return match ? { ...f, value: match.value } : f;
+                }))}>
                 <CircleUserRound className="w-4 h-4" /><span>Fill All ({fillableCount})</span>
               </button>
             ) : null;
           })()}
+
+          {/* Find */}
+          <button
+            className={`pff-toolbar-btn${showFind ? ' active' : ''}`}
+            onClick={() => showFind ? closeFind() : openFind()}
+            title="Find text in PDF (Ctrl+F)">
+            <Search className="w-4 h-4" /><span>Find</span>
+          </button>
+
+          {/* Templates */}
           <button className="pff-toolbar-btn" onClick={() => setShowTplPanel((v) => !v)} title="Templates">
             <BookOpen className="w-4 h-4" /><span>Templates</span>
           </button>
-          <button className="pff-toolbar-btn pff-toolbar-btn--primary" onClick={() => void exportPdf()} disabled={exporting || !fields.some((f) => f.type === 'checkbox' ? f.value === 'checked' : f.value.trim())} title="Export filled PDF">
+
+          {/* Export */}
+          <button
+            className="pff-toolbar-btn pff-toolbar-btn--primary"
+            onClick={() => void exportPdf()}
+            disabled={exporting || !fields.some((f) => f.type === 'checkbox' ? f.value === 'checked' : f.value.trim())}
+            title="Export filled PDF">
             <Download className="w-4 h-4" /><span>{exporting ? 'Exporting…' : 'Export PDF'}</span>
           </button>
         </>)}
       </div>
 
-      {error && <div className="pff-error"><AlertCircle className="w-4 h-4 shrink-0" />{error}<button onClick={() => setError(null)}><X className="w-3 h-3" /></button></div>}
+      {/* ── Error banner ── */}
+      {error && (
+        <div className="pff-error">
+          <AlertCircle className="w-4 h-4 shrink-0" />{error}
+          <button onClick={() => setError(null)}><X className="w-3 h-3" /></button>
+        </div>
+      )}
 
+      {/* ── Template offer banner ── */}
       {offerTemplate && (
         <div className="pff-offer-banner">
           <BookOpen className="w-4 h-4 shrink-0" />
@@ -628,12 +819,42 @@ export function PdfFormFiller() {
         </div>
       )}
 
+      {/* ── Find bar ── */}
+      {showFind && (
+        <div className="pff-find-bar">
+          <Search className="w-4 h-4 pff-find-icon" />
+          <input
+            ref={findInputRef}
+            className="pff-find-input"
+            type="text"
+            placeholder="Find in PDF…"
+            value={findQuery}
+            onChange={(e) => { setFindQuery(e.target.value); void runFind(e.target.value); }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter')        { e.preventDefault(); stepFind(e.shiftKey ? -1 : 1); }
+              if (e.key === 'Escape')       { closeFind(); }
+              if (e.key === 'F' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); findInputRef.current?.select(); }
+            }} />
+          {findQuery && (
+            <span className="pff-find-count">
+              {findMatches.length === 0 ? 'No results' : `${findIndex + 1} / ${findMatches.length}`}
+            </span>
+          )}
+          <button className="pff-find-nav" onClick={() => stepFind(-1)} disabled={findMatches.length === 0} title="Previous result (Shift+Enter)">↑</button>
+          <button className="pff-find-nav" onClick={() => stepFind(1)}  disabled={findMatches.length === 0} title="Next result (Enter)">↓</button>
+          <button className="pff-find-close" onClick={closeFind} title="Close find bar"><X className="w-3 h-3" /></button>
+        </div>
+      )}
+
+      {/* ── Drop zone / Editor ── */}
       {!pdfProxy ? (
-        <div className="toolbox-drop-panel" onDragOver={(e) => e.preventDefault()}
+        <div
+          className="toolbox-drop-panel"
+          onDragOver={(e) => e.preventDefault()}
           onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f?.type === 'application/pdf') void loadPdf(f); }}>
           <div className="empty-cube"><FormInput /></div>
           <h2>Open a PDF to get started.</h2>
-          <p>Drop a PDF here, or use "Open PDF" above. Field detection, manual editing, and export all happen locally — nothing leaves your device.</p>
+          <p>Drop a PDF here, or use "Open PDF" above. Fill fields, place stamps, and export — all locally, nothing leaves your device.</p>
           <label className="file-picker" style={{ marginTop: 16 }}>
             <FilePlus2 /><span>Browse for a PDF</span>
             <input type="file" accept="application/pdf" onChange={(e) => { const f = e.target.files?.[0]; if (f) void loadPdf(f); e.target.value = ''; }} />
@@ -641,44 +862,76 @@ export function PdfFormFiller() {
         </div>
       ) : (
         <div className="pff-editor-layout">
-          <div className="pff-canvas-scroll">
-            <div className="pff-canvas-wrap" ref={containerRef}
+          <div className="pff-canvas-scroll" ref={canvasScrollRef}>
+            <div
+              className="pff-canvas-wrap"
+              ref={containerRef}
               onPointerMove={(e) => { handleFieldPtrMove(e); handleResizePtrMove(e); }}
               onPointerUp={() => { handleFieldPtrUp(); handleResizePtrUp(); }}>
               <canvas ref={canvasRef} className={canvasClass} onClick={handleCanvasClick} />
+
+              {/* Find highlights */}
+              {pageMatches.map((m, i) => (
+                <div
+                  key={i}
+                  className={`pff-find-hl${i === findIndex ? ' is-current' : ''}`}
+                  style={{
+                    left:   `${m.xPct * 100}%`,
+                    top:    `${m.yPct * 100}%`,
+                    width:  `${m.wPct * 100}%`,
+                    height: `${m.hPct * 100}%`,
+                  }} />
+              ))}
+
+              {/* Fields */}
               {pageFields.map((field) => {
                 const isSelected = field.id === selectedId;
                 const isChecked  = field.value === 'checked';
                 return (
-                  <div key={field.id}
-                    className={`pff-field${field.type === 'checkbox' ? ' pff-field--checkbox' : ''}${isSelected ? ' is-selected' : ''}${field.isDetected ? ' is-detected' : ''}`}
+                  <div
+                    key={field.id}
+                    className={`pff-field${field.type === 'checkbox' ? ' pff-field--checkbox' : ''}${isSelected ? ' is-selected' : ''}`}
                     style={{ left: `${field.xPct * 100}%`, top: `${field.yPct * 100}%`, width: `${field.wPct * 100}%`, height: `${field.hPct * 100}%` }}
                     onPointerDown={(e) => handleFieldPtrDown(e, field)}>
                     {field.type === 'checkbox' ? (
-                      <button className={`pff-checkbox-btn${isChecked ? ' is-checked' : ''}`}
+                      <button
+                        className={`pff-checkbox-btn${isChecked ? ' is-checked' : ''}`}
                         title={field.label || (isChecked ? 'Checked — click to uncheck' : 'Unchecked — click to check')}
                         onClick={(e) => { e.stopPropagation(); updateField(field.id, { value: isChecked ? '' : 'checked' }); }}
-                        onPointerDown={(e) => e.stopPropagation()} onFocus={() => setSelectedId(field.id)}>
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onFocus={() => setSelectedId(field.id)}>
                         {isChecked && <Check className="pff-checkbox-tick" />}
                       </button>
                     ) : (
-                      <input type={field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : 'text'}
-                        className="pff-field-input" placeholder={field.label || ''}
-                        value={field.value} style={{ fontSize: field.fontSize, textAlign: field.align, color: field.color ?? '#000000' }}
+                      <input
+                        type={field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : 'text'}
+                        className="pff-field-input"
+                        placeholder={field.label || ''}
+                        value={field.value}
+                        style={{ fontSize: field.fontSize, textAlign: field.align, color: field.color ?? '#000000' }}
                         onChange={(e) => updateField(field.id, { value: e.target.value })}
-                        onFocus={() => setSelectedId(field.id)} onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()} />
+                        onFocus={() => setSelectedId(field.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        onPointerDown={(e) => e.stopPropagation()} />
                     )}
-                    {isSelected && <div className="pff-resize-handle" onPointerDown={(e) => handleResizePtrDown(e, field)} />}
+                    {isSelected && (
+                      <div className="pff-resize-handle" onPointerDown={(e) => handleResizePtrDown(e, field)} />
+                    )}
                   </div>
                 );
               })}
             </div>
           </div>
+
+          {/* Side panel */}
           {selectedField && (
             <div className="pff-side-panel">
               <div className="pff-side-title">Field properties</div>
               <label className="pff-side-label">Internal label</label>
-              <input className="pff-side-input" type="text" value={selectedField.label}
+              <input
+                className="pff-side-input"
+                type="text"
+                value={selectedField.label}
                 placeholder={selectedField.type === 'checkbox' ? 'e.g. Agree to terms' : 'e.g. Project Name'}
                 onChange={(e) => updateField(selectedField.id, { label: e.target.value })} />
               {selectedField.type !== 'checkbox' && (() => {
@@ -694,7 +947,9 @@ export function PdfFormFiller() {
               <label className="pff-side-label">Type</label>
               <div className="settings-mode-group" style={{ marginBottom: 10 }}>
                 {(['text','number','date','checkbox'] as PffFieldType[]).map((t) => (
-                  <button key={t} className={`settings-mode-btn${selectedField.type === t ? ' active' : ''}`}
+                  <button
+                    key={t}
+                    className={`settings-mode-btn${selectedField.type === t ? ' active' : ''}`}
                     onClick={() => updateField(selectedField.id, { type: t, value: '' })}>
                     {t.charAt(0).toUpperCase() + t.slice(1)}
                   </button>
@@ -712,14 +967,20 @@ export function PdfFormFiller() {
                 <>
                   <label className="pff-side-label">Font size</label>
                   <div className="pff-side-row">
-                    <input className="pff-side-input" type="number" min={6} max={36} value={selectedField.fontSize}
-                      onChange={(e) => updateField(selectedField.id, { fontSize: +e.target.value })} style={{ width: 70 }} />
+                    <input
+                      className="pff-side-input"
+                      type="number" min={6} max={36}
+                      value={selectedField.fontSize}
+                      onChange={(e) => updateField(selectedField.id, { fontSize: +e.target.value })}
+                      style={{ width: 70 }} />
                     <span style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>pt</span>
                   </div>
                   <label className="pff-side-label">Alignment</label>
                   <div className="settings-mode-group" style={{ marginBottom: 10 }}>
                     {(['left','center','right'] as PffAlign[]).map((a) => (
-                      <button key={a} className={`settings-mode-btn${selectedField.align === a ? ' active' : ''}`}
+                      <button
+                        key={a}
+                        className={`settings-mode-btn${selectedField.align === a ? ' active' : ''}`}
                         onClick={() => updateField(selectedField.id, { align: a })}>
                         {a === 'left' && <AlignLeft className="w-3 h-3" />}
                         {a === 'center' && <AlignCenter className="w-3 h-3" />}
@@ -730,8 +991,12 @@ export function PdfFormFiller() {
                   <label className="pff-side-label">Text color</label>
                   <div className="pff-color-swatches">
                     {PFF_COLORS.map(({ hex, label }) => (
-                      <button key={hex} className={`pff-color-swatch${(selectedField.color ?? '#000000') === hex ? ' active' : ''}`}
-                        style={{ background: hex }} title={label} onClick={() => updateField(selectedField.id, { color: hex })} />
+                      <button
+                        key={hex}
+                        className={`pff-color-swatch${(selectedField.color ?? '#000000') === hex ? ' active' : ''}`}
+                        style={{ background: hex }}
+                        title={label}
+                        onClick={() => updateField(selectedField.id, { color: hex })} />
                     ))}
                   </div>
                 </>
@@ -744,14 +1009,12 @@ export function PdfFormFiller() {
                   <Trash2 className="w-3.5 h-3.5" /> Delete
                 </button>
               </div>
-              {selectedField.isDetected && (
-                <div className="pff-detected-note"><Sparkles className="w-3 h-3" /> Auto-detected — drag to adjust</div>
-              )}
             </div>
           )}
         </div>
       )}
 
+      {/* ── Templates panel ── */}
       {showTplPanel && (
         <div className="pff-tpl-panel">
           <div className="pff-tpl-panel-header">
@@ -762,8 +1025,13 @@ export function PdfFormFiller() {
             <div className="pff-tpl-save">
               <div className="pff-side-label">Save current layout as template</div>
               <div className="pff-side-row" style={{ gap: 8 }}>
-                <input className="pff-side-input" type="text" placeholder="Template name…" value={tplNameInput}
-                  onChange={(e) => setTplNameInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') saveTemplate(); }} />
+                <input
+                  className="pff-side-input"
+                  type="text"
+                  placeholder="Template name…"
+                  value={tplNameInput}
+                  onChange={(e) => setTplNameInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') saveTemplate(); }} />
                 <button className="button-quiet" onClick={saveTemplate} disabled={!tplNameInput.trim()}>Save</button>
               </div>
             </div>
