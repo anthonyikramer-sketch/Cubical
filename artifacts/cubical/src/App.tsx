@@ -6910,6 +6910,9 @@ function FileInspector() {
             <div className="toolbox-actions">
               <button type="button" className="button-quiet" onClick={() => copyText(entry.file.name, 'name')}><ClipboardCopy /> {copied === 'name' ? 'Copied!' : 'Copy filename'}</button>
               {entry.hash && <button type="button" className="button-quiet" onClick={() => copyText(entry.hash!, 'hash')}><ClipboardCopy /> {copied === 'hash' ? 'Copied!' : 'Copy SHA-256'}</button>}
+              {(isAudio || isVideo) && mediaUrl && (
+                <a href={mediaUrl} download={entry.file.name} className="button-quiet"><Download /> Download</a>
+              )}
               <button type="button" className="button-quiet" onClick={() => { setEntry(null); setCopied(null); clearMedia(); }}>Inspect another file</button>
             </div>
           </div>
