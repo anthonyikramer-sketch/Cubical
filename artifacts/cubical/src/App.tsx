@@ -7213,9 +7213,9 @@ function FileInspector() {
 
 // ─── PDF Form Filler ─────────────────────────────────────────────────────────
 
-type PffFieldType = 'text' | 'number' | 'date';
+type PffFieldType = 'text' | 'number' | 'date' | 'checkbox';
 type PffAlign    = 'left' | 'center' | 'right';
-type PffMode     = 'select' | 'add';
+type PffMode     = 'select' | 'add' | 'add-checkbox';
 
 interface PffField {
   id:         string;
@@ -7554,17 +7554,35 @@ function PdfFormFiller() {
       const doc  = await PDFDocument.load(pdfBytes);
       const font = await doc.embedFont(StandardFonts.Helvetica);
       const pages = doc.getPages();
-      for (const field of fields.filter((f) => f.value.trim())) {
+      for (const field of fields) {
         const pg = pages[field.pageIndex];
         if (!pg) continue;
         const { width, height } = pg.getSize();
-        // Convert screen top-left % → PDF bottom-left coords
-        const x = field.xPct * width + 2;
-        const y = height - (field.yPct + field.hPct) * height + 2;
-        const [r, g, b] = pffHexToRgb(field.color ?? '#000000');
-        try {
-          pg.drawText(field.value, { x, y, size: field.fontSize, font, color: rgb(r, g, b), maxWidth: field.wPct * width - 4 });
-        } catch { /* skip malformed field */ }
+        if (field.type === 'checkbox') {
+          if (field.value !== 'checked') continue;
+          // Draw ✓ as two vector line segments — avoids WinAnsi encoding issues
+          const bx = field.xPct * width;
+          const by = height - (field.yPct + field.hPct) * height;
+          const fw = field.wPct * width;
+          const fh = field.hPct * height;
+          const p1 = { x: bx + fw * 0.15, y: by + fh * 0.50 };
+          const p2 = { x: bx + fw * 0.40, y: by + fh * 0.20 };
+          const p3 = { x: bx + fw * 0.85, y: by + fh * 0.78 };
+          const thickness = Math.max(1, Math.min(fw, fh) * 0.1);
+          try {
+            pg.drawLine({ start: p1, end: p2, thickness, color: rgb(0, 0, 0) });
+            pg.drawLine({ start: p2, end: p3, thickness, color: rgb(0, 0, 0) });
+          } catch { /* skip */ }
+        } else {
+          if (!field.value.trim()) continue;
+          // Convert screen top-left % → PDF bottom-left coords
+          const x = field.xPct * width + 2;
+          const y = height - (field.yPct + field.hPct) * height + 2;
+          const [r, g, b] = pffHexToRgb(field.color ?? '#000000');
+          try {
+            pg.drawText(field.value, { x, y, size: field.fontSize, font, color: rgb(r, g, b), maxWidth: field.wPct * width - 4 });
+          } catch { /* skip malformed field */ }
+        }
       }
       const uri = await doc.saveAsBase64({ dataUri: true });
       const a   = document.createElement('a');
@@ -7660,6 +7678,17 @@ function PdfFormFiller() {
       setSelectedId(f.id);
       setMode('select');
     }
+    if (mode === 'add-checkbox') {
+      const f: PffField = {
+        id: pffId(), pageIndex: currentPage - 1,
+        xPct: Math.max(0, xPct - 0.02), yPct: Math.max(0, yPct - 0.02),
+        wPct: 0.04, hPct: 0.04,
+        value: '', fontSize: 11, align: 'left', color: '#000000', label: '', type: 'checkbox', isDetected: false,
+      };
+      setFields((prev) => [...prev, f]);
+      setSelectedId(f.id);
+      setMode('select');
+    }
   };
 
   const updateField = (id: string, patch: Partial<PffField>) =>
@@ -7712,9 +7741,10 @@ function PdfFormFiller() {
   const selectedField = fields.find((f) => f.id === selectedId);
   const pageFields    = fields.filter((f) => f.pageIndex === currentPage - 1);
   const allTemplates  = templates;
-  const isPlacingStamp = stampMode !== null;
-  const isAddMode      = mode === 'add';
-  const canvasClass    = `pff-canvas${isAddMode || isPlacingStamp ? ' pff-canvas--add' : ''}`;
+  const isPlacingStamp    = stampMode !== null;
+  const isAddMode         = mode === 'add';
+  const isAddCheckboxMode = mode === 'add-checkbox';
+  const canvasClass       = `pff-canvas${isAddMode || isAddCheckboxMode || isPlacingStamp ? ' pff-canvas--add' : ''}`;
 
   return (
     <section className="renamer-page pff-page" data-testid="pdf-form-filler">
@@ -7773,6 +7803,14 @@ function PdfFormFiller() {
             onClick={() => { setMode('add'); setStampMode(null); setShowStampPopout(false); }}
             title="Click on the PDF to add a text field">
             <Plus className="w-4 h-4" /><span>Add Field</span>
+          </button>
+
+          {/* Mode: Add Checkbox */}
+          <button
+            className={`pff-toolbar-btn${isAddCheckboxMode ? ' active' : ''}`}
+            onClick={() => { setMode('add-checkbox'); setStampMode(null); setShowStampPopout(false); }}
+            title="Click on the PDF to place a checkbox">
+            <ListChecks className="w-4 h-4" /><span>Add Checkbox</span>
           </button>
 
           {/* Stamp button + popout */}
@@ -7844,7 +7882,7 @@ function PdfFormFiller() {
           <button className="pff-toolbar-btn" onClick={() => setShowTplPanel((v) => !v)} title="Templates">
             <BookOpen className="w-4 h-4" /><span>Templates</span>
           </button>
-          <button className="pff-toolbar-btn pff-toolbar-btn--primary" onClick={() => void exportPdf()} disabled={exporting || !fields.some((f) => f.value.trim())} title="Export filled PDF">
+          <button className="pff-toolbar-btn pff-toolbar-btn--primary" onClick={() => void exportPdf()} disabled={exporting || !fields.some((f) => f.type === 'checkbox' ? f.value === 'checked' : f.value.trim())} title="Export filled PDF">
             <Download className="w-4 h-4" /><span>{exporting ? 'Exporting…' : 'Export PDF'}</span>
           </button>
         </>)}
@@ -7887,24 +7925,37 @@ function PdfFormFiller() {
               {/* Field overlays — positioned as % of the canvas */}
               {pageFields.map((field) => {
                 const isSelected = field.id === selectedId;
+                const isChecked  = field.value === 'checked';
                 return (
                   <div
                     key={field.id}
-                    className={`pff-field${isSelected ? ' is-selected' : ''}${field.isDetected ? ' is-detected' : ''}`}
+                    className={`pff-field${field.type === 'checkbox' ? ' pff-field--checkbox' : ''}${isSelected ? ' is-selected' : ''}${field.isDetected ? ' is-detected' : ''}`}
                     style={{ left: `${field.xPct * 100}%`, top: `${field.yPct * 100}%`, width: `${field.wPct * 100}%`, height: `${field.hPct * 100}%` }}
                     onPointerDown={(e) => handleFieldPtrDown(e, field)}
                   >
-                    <input
-                      type={field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : 'text'}
-                      className="pff-field-input"
-                      placeholder={field.label || ''}
-                      value={field.value}
-                      style={{ fontSize: field.fontSize, textAlign: field.align, color: field.color ?? '#000000' }}
-                      onChange={(e) => updateField(field.id, { value: e.target.value })}
-                      onFocus={() => setSelectedId(field.id)}
-                      onClick={(e) => e.stopPropagation()}
-                      onPointerDown={(e) => e.stopPropagation()}
-                    />
+                    {field.type === 'checkbox' ? (
+                      <button
+                        className={`pff-checkbox-btn${isChecked ? ' is-checked' : ''}`}
+                        title={field.label || (isChecked ? 'Checked — click to uncheck' : 'Unchecked — click to check')}
+                        onClick={(e) => { e.stopPropagation(); updateField(field.id, { value: isChecked ? '' : 'checked' }); }}
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onFocus={() => setSelectedId(field.id)}
+                      >
+                        {isChecked && <Check className="pff-checkbox-tick" />}
+                      </button>
+                    ) : (
+                      <input
+                        type={field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : 'text'}
+                        className="pff-field-input"
+                        placeholder={field.label || ''}
+                        value={field.value}
+                        style={{ fontSize: field.fontSize, textAlign: field.align, color: field.color ?? '#000000' }}
+                        onChange={(e) => updateField(field.id, { value: e.target.value })}
+                        onFocus={() => setSelectedId(field.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        onPointerDown={(e) => e.stopPropagation()}
+                      />
+                    )}
                     {isSelected && (
                       <div className="pff-resize-handle" onPointerDown={(e) => handleResizePtrDown(e, field)} />
                     )}
@@ -7920,48 +7971,62 @@ function PdfFormFiller() {
               <div className="pff-side-title">Field properties</div>
 
               <label className="pff-side-label">Internal label</label>
-              <input className="pff-side-input" type="text" value={selectedField.label} placeholder="e.g. Project Name"
+              <input className="pff-side-input" type="text" value={selectedField.label} placeholder={selectedField.type === 'checkbox' ? 'e.g. Agree to terms' : 'e.g. Project Name'}
                 onChange={(e) => updateField(selectedField.id, { label: e.target.value })} />
 
               <label className="pff-side-label">Type</label>
               <div className="settings-mode-group" style={{ marginBottom: 10 }}>
-                {(['text','number','date'] as PffFieldType[]).map((t) => (
+                {(['text','number','date','checkbox'] as PffFieldType[]).map((t) => (
                   <button key={t} className={`settings-mode-btn${selectedField.type === t ? ' active' : ''}`}
-                    onClick={() => updateField(selectedField.id, { type: t })}>
+                    onClick={() => updateField(selectedField.id, { type: t, value: '' })}>
                     {t.charAt(0).toUpperCase() + t.slice(1)}
                   </button>
                 ))}
               </div>
 
-              <label className="pff-side-label">Font size</label>
-              <div className="pff-side-row">
-                <input className="pff-side-input" type="number" min={6} max={36} value={selectedField.fontSize}
-                  onChange={(e) => updateField(selectedField.id, { fontSize: +e.target.value })} style={{ width: 70 }} />
-                <span style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>pt</span>
-              </div>
+              {selectedField.type === 'checkbox' ? (
+                <>
+                  <label className="pff-side-label">State</label>
+                  <div className="settings-mode-group" style={{ marginBottom: 10 }}>
+                    <button className={`settings-mode-btn${selectedField.value !== 'checked' ? ' active' : ''}`}
+                      onClick={() => updateField(selectedField.id, { value: '' })}>Unchecked</button>
+                    <button className={`settings-mode-btn${selectedField.value === 'checked' ? ' active' : ''}`}
+                      onClick={() => updateField(selectedField.id, { value: 'checked' })}>Checked</button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <label className="pff-side-label">Font size</label>
+                  <div className="pff-side-row">
+                    <input className="pff-side-input" type="number" min={6} max={36} value={selectedField.fontSize}
+                      onChange={(e) => updateField(selectedField.id, { fontSize: +e.target.value })} style={{ width: 70 }} />
+                    <span style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>pt</span>
+                  </div>
 
-              <label className="pff-side-label">Alignment</label>
-              <div className="settings-mode-group" style={{ marginBottom: 10 }}>
-                {(['left','center','right'] as PffAlign[]).map((a) => (
-                  <button key={a} className={`settings-mode-btn${selectedField.align === a ? ' active' : ''}`}
-                    onClick={() => updateField(selectedField.id, { align: a })}>
-                    {a.charAt(0).toUpperCase() + a.slice(1)}
-                  </button>
-                ))}
-              </div>
+                  <label className="pff-side-label">Alignment</label>
+                  <div className="settings-mode-group" style={{ marginBottom: 10 }}>
+                    {(['left','center','right'] as PffAlign[]).map((a) => (
+                      <button key={a} className={`settings-mode-btn${selectedField.align === a ? ' active' : ''}`}
+                        onClick={() => updateField(selectedField.id, { align: a })}>
+                        {a.charAt(0).toUpperCase() + a.slice(1)}
+                      </button>
+                    ))}
+                  </div>
 
-              <label className="pff-side-label">Text color</label>
-              <div className="pff-color-swatches">
-                {PFF_COLORS.map(({ hex, label }) => (
-                  <button
-                    key={hex}
-                    className={`pff-color-swatch${(selectedField.color ?? '#000000') === hex ? ' active' : ''}`}
-                    style={{ background: hex }}
-                    title={label}
-                    onClick={() => updateField(selectedField.id, { color: hex })}
-                  />
-                ))}
-              </div>
+                  <label className="pff-side-label">Text color</label>
+                  <div className="pff-color-swatches">
+                    {PFF_COLORS.map(({ hex, label }) => (
+                      <button
+                        key={hex}
+                        className={`pff-color-swatch${(selectedField.color ?? '#000000') === hex ? ' active' : ''}`}
+                        style={{ background: hex }}
+                        title={label}
+                        onClick={() => updateField(selectedField.id, { color: hex })}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
 
               <div className="pff-side-actions">
                 <button className="button-quiet" onClick={() => duplicateField(selectedField)}>

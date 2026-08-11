@@ -4165,6 +4165,18 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
 .pff-field.is-selected            { border-color: hsl(var(--primary)); border-width: 2px; background: hsl(var(--primary) / .08); }
 .pff-field.is-detected            { border-color: hsl(38 90% 50% / .7); background: hsl(38 90% 50% / .06); }
 .pff-field.is-detected.is-selected{ border-color: hsl(38 90% 50%); }
+/* Checkbox variant — square field with centred tick button */
+.pff-field--checkbox { border-radius: 4px; display: flex; align-items: center; justify-content: center; }
+.pff-checkbox-btn {
+  width: 100%; height: 100%;
+  display: flex; align-items: center; justify-content: center;
+  border: none; background: transparent; cursor: pointer;
+  border-radius: 3px; padding: 0;
+  transition: background .12s;
+}
+.pff-checkbox-btn:hover { background: hsl(var(--primary) / .12); }
+.pff-checkbox-btn.is-checked { background: hsl(var(--primary) / .15); }
+.pff-checkbox-tick { width: 65%; height: 65%; color: hsl(var(--primary)); stroke-width: 3; }
 .pff-field-input {
   width: 100%;
   height: 100%;
