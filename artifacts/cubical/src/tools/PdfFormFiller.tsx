@@ -2,8 +2,13 @@ import { useState, useEffect, useRef } from 'react';
 import {
   AlertCircle, AlignCenter, AlignLeft, AlignRight, BookOpen, Check,
   ChevronLeft, ChevronRight, CircleUserRound, Download, FilePlus2, Files,
-  FormInput, ListChecks, Minus, MousePointer2, Plus, Search, Stamp, Trash2, X,
+  FormInput, Inbox, ListChecks, Minus, MousePointer2, Plus, Search, Stamp, Trash2, X,
 } from 'lucide-react';
+import {
+  peekHandoffs, removeHandoff, clearHandoffs, subscribeHandoffs, handoffToFile,
+  type FileHandoff,
+} from '../shared/sendTo';
+import { IncomingFilesQueue } from '../shared/IncomingFilesQueue';
 import { BackButton, DisplacedWidgetBand } from '../shared/contexts';
 
 // ── Types & constants ─────────────────────────────────────────────────────────
@@ -201,6 +206,12 @@ export function PdfFormFiller() {
   const findInputRef  = useRef<HTMLInputElement>(null);
   const canvasScrollRef = useRef<HTMLDivElement>(null);
 
+  // Incoming files queue (Send To system)
+  const TOOL_ID = 'pdf-form-filler';
+  const [incomingFiles, setIncomingFiles] = useState<FileHandoff[]>(() => [...peekHandoffs(TOOL_ID)]);
+  const [showIncoming,  setShowIncoming]  = useState(() => peekHandoffs(TOOL_ID).length > 0);
+  const pendingAutoOpenRef = useRef<string | null>(null);
+
   const canvasRef    = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const renderTaskRef = useRef<any>(null);
@@ -215,6 +226,33 @@ export function PdfFormFiller() {
       setPdfjsLib(lib);
     });
   }, []);
+
+  // Mount: subscribe to Send To handoffs and note any auto-open item
+  useEffect(() => {
+    const items = [...peekHandoffs(TOOL_ID)];
+    if (items.length > 0) {
+      setIncomingFiles(items);
+      setShowIncoming(true);
+      const first = items.find((h) => h.autoOpen);
+      if (first) pendingAutoOpenRef.current = first.id;
+    }
+    return subscribeHandoffs(TOOL_ID, () => {
+      const updated = [...peekHandoffs(TOOL_ID)];
+      setIncomingFiles(updated);
+      setShowIncoming(updated.length > 0);
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-open once pdfjsLib is ready (Follow ON path)
+  useEffect(() => {
+    if (!pdfjsLib || !pendingAutoOpenRef.current) return;
+    const id = pendingAutoOpenRef.current;
+    pendingAutoOpenRef.current = null;
+    const h = peekHandoffs(TOOL_ID).find((item) => item.id === id);
+    if (!h) return;
+    removeHandoff(TOOL_ID, id);
+    void loadPdf(handoffToFile(h));
+  }, [pdfjsLib]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!pdfProxy) return;
@@ -836,6 +874,17 @@ export function PdfFormFiller() {
           <button className="button-quiet" onClick={() => loadTemplate(offerTemplate)}>Apply template</button>
           <button className="pff-offer-dismiss" onClick={() => setOfferTemplate(null)}><X className="w-3 h-3" /></button>
         </div>
+      )}
+
+      {/* ── Incoming files queue (Send To) ── */}
+      {showIncoming && incomingFiles.length > 0 && (
+        <IncomingFilesQueue
+          files={incomingFiles}
+          onOpen={(h) => { removeHandoff(TOOL_ID, h.id); void loadPdf(handoffToFile(h)); }}
+          onRemove={(h) => removeHandoff(TOOL_ID, h.id)}
+          onClear={() => { clearHandoffs(TOOL_ID); setShowIncoming(false); }}
+          onDismiss={() => setShowIncoming(false)}
+        />
       )}
 
       {/* ── Find bar ── */}

@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import ExifReader from 'exifreader';
 import { Check, ClipboardCopy, Download, ExternalLink, FilePlus2, FileText } from 'lucide-react';
 import { BackButton, DisplacedWidgetBand } from '../shared/contexts';
+import { peekHandoffs, removeHandoff, clearHandoffs, subscribeHandoffs, handoffToFile, type FileHandoff } from '../shared/sendTo';
+import { IncomingFilesQueue } from '../shared/IncomingFilesQueue';
 
 // ── Local types & utilities (mirrors App.tsx) ─────────────────────────────────
 
@@ -281,6 +283,25 @@ export function FileInspector() {
   const [mediaUrl,    setMediaUrl]    = useState<string | null>(null);
   const [textPreview, setTextPreview] = useState<{ content: string; truncated: boolean; lang: string } | null>(null);
 
+  // Send To incoming queue
+  const FI_TOOL_ID = 'file-inspector';
+  const [incomingFI,     setIncomingFI]     = useState<FileHandoff[]>(() => [...peekHandoffs(FI_TOOL_ID)]);
+  const [showIncomingFI, setShowIncomingFI] = useState(() => peekHandoffs(FI_TOOL_ID).length > 0);
+
+  useEffect(() => {
+    const items = [...peekHandoffs(FI_TOOL_ID)];
+    if (items.length > 0) {
+      setShowIncomingFI(true);
+      const first = items.find((h) => h.autoOpen);
+      if (first) { void loadFile(handoffToFile(first)); removeHandoff(FI_TOOL_ID, first.id); setIncomingFI([...peekHandoffs(FI_TOOL_ID)]); }
+    }
+    return subscribeHandoffs(FI_TOOL_ID, () => {
+      const updated = [...peekHandoffs(FI_TOOL_ID)];
+      setIncomingFI(updated);
+      setShowIncomingFI(updated.length > 0);
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const clearMedia = () => {
     if (mediaUrl) { URL.revokeObjectURL(mediaUrl); setMediaUrl(null); }
     if (imgSrc)   { URL.revokeObjectURL(imgSrc);   setImgSrc(null);   }
@@ -330,6 +351,15 @@ export function FileInspector() {
         <span className="tool-status"><i className="status-dot" /> Local only</span>
       </div>
       <DisplacedWidgetBand />
+      {showIncomingFI && (
+        <IncomingFilesQueue
+          files={incomingFI}
+          onOpen={(h) => { void loadFile(handoffToFile(h)); removeHandoff(FI_TOOL_ID, h.id); setIncomingFI([...peekHandoffs(FI_TOOL_ID)]); }}
+          onRemove={(h) => { removeHandoff(FI_TOOL_ID, h.id); setIncomingFI([...peekHandoffs(FI_TOOL_ID)]); }}
+          onClear={() => { clearHandoffs(FI_TOOL_ID); setIncomingFI([]); setShowIncomingFI(false); }}
+          onDismiss={() => setShowIncomingFI(false)}
+        />
+      )}
       <div
         className="toolbox-drop-panel"
         onDragOver={(e) => e.preventDefault()}

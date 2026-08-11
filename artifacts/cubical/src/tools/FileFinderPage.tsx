@@ -1,24 +1,29 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import {
   Check, ClipboardCopy, Clock, ExternalLink, FolderOpen, FolderSearch,
-  HardDrive, Lock, Search, X,
+  HardDrive, Lock, Search, Share2, X,
 } from 'lucide-react';
 import { BackButton, DisplacedWidgetBand } from '../shared/contexts';
+import {
+  SEND_TO_REGISTRY, getCompatibleDestinations, getDefaultDest, setDefaultDest,
+  getSendToFollow, setSendToFollow, extToCategory, extToMime, enqueueHandoffs,
+  type FileHandoff, type FileCategory,
+} from '../shared/sendTo';
 
-// ── Types used only in this file ──────────────────────────────────────────────
+// ── Types ─────────────────────────────────────────────────────────────────────
 interface FileResult {
-  name: string;
-  path: string;
-  dir: string;
-  size: number;
-  modified: number; // ms timestamp
-  ext: string;
+  name:     string;
+  path:     string;
+  dir:      string;
+  size:     number;
+  modified: number;
+  ext:      string;
 }
 
 type FileTypeCategory = 'all' | 'documents' | 'pdfs' | 'spreadsheets' | 'images' | 'videos' | 'audio' | 'archives';
-type DateCategory    = 'anytime' | 'today' | 'week' | 'month' | 'year';
-type SortField       = 'relevance' | 'name' | 'date' | 'size' | 'type';
-type SearchScope     = 'common' | 'custom' | 'all';
+type DateCategory     = 'anytime' | 'today' | 'week' | 'month' | 'year';
+type SortField        = 'relevance' | 'name' | 'date' | 'size' | 'type';
+type SearchScope      = 'common' | 'custom' | 'all';
 
 const FILE_TYPE_EXTS: Record<FileTypeCategory, string[]> = {
   all:          [],
@@ -31,7 +36,7 @@ const FILE_TYPE_EXTS: Record<FileTypeCategory, string[]> = {
   archives:     ['.zip', '.rar', '.7z', '.tar', '.gz', '.bz2'],
 };
 
-const RECENT_SEARCHES_KEY = 'cubical-file-finder-recent';
+const RECENT_SEARCHES_KEY  = 'cubical-file-finder-recent';
 const FF_PENDING_QUERY_KEY = 'cubical-file-finder-pending';
 
 function readLocal<T>(key: string, fallback: T, validate: (v: unknown) => v is T): T {
@@ -52,9 +57,9 @@ function isStringArray(v: unknown): v is string[] {
 }
 
 function formatBytes(bytes: number): string {
-  if (bytes < 1024)              return `${bytes} B`;
-  if (bytes < 1024 * 1024)       return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 ** 3)         return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  if (bytes < 1024)        return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 ** 3)   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
   return `${(bytes / 1024 ** 3).toFixed(2)} GB`;
 }
 
@@ -108,9 +113,10 @@ const FF_SORT_OPTS: { key: SortField; label: string }[] = [
 ];
 
 export function FileFinderPage() {
-  const ff = typeof window !== 'undefined' ? window.cubicalDesktop?.fileFinder : undefined;
-  const isDesktop = !!ff;
+  const ff         = typeof window !== 'undefined' ? window.cubicalDesktop?.fileFinder : undefined;
+  const isDesktop  = !!ff;
 
+  // ── Search state ──
   const [query,          setQuery]         = useState('');
   const [results,        setResults]       = useState<FileResult[]>([]);
   const [hasSearched,    setHasSearched]   = useState(false);
@@ -128,28 +134,46 @@ export function FileFinderPage() {
   );
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // ── Send To state ──
+  const [follow, setFollow] = useState<boolean>(getSendToFollow);
+  const [sendToDefaults, setSendToDefaults] = useState<Record<FileCategory, string | null>>(() => ({
+    pdf:   getDefaultDest('pdf'),
+    image: getDefaultDest('image'),
+    other: getDefaultDest('other'),
+  }));
+  const [pickerState, setPickerState] = useState<{
+    file: FileResult; anchorY: number; anchorX: number;
+  } | null>(null);
+  const [pickerSearch, setPickerSearch] = useState('');
+  const [sendingPath,  setSendingPath]  = useState<string | null>(null);
+  const [toast,        setToast]        = useState<string | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── Effects ──
   useEffect(() => {
     try {
       const pending = window.localStorage?.getItem(FF_PENDING_QUERY_KEY);
-      if (pending) {
-        window.localStorage.removeItem(FF_PENDING_QUERY_KEY);
-        setQuery(pending);
-      }
-    } catch { /* localStorage unavailable */ }
+      if (pending) { window.localStorage.removeItem(FF_PENDING_QUERY_KEY); setQuery(pending); }
+    } catch { /* unavailable */ }
     inputRef.current?.focus();
   }, []);
 
   useEffect(() => {
     if (!ff) return;
     const unsub1 = ff.onProgress(setProgress);
-    const unsub2 = ff.onComplete((data) => {
-      setResults(data.results);
-      setSearching(false);
-      setProgress(null);
-    });
+    const unsub2 = ff.onComplete((data) => { setResults(data.results); setSearching(false); setProgress(null); });
     return () => { unsub1(); unsub2(); };
   }, [ff]);
 
+  // Close picker on Escape
+  useEffect(() => {
+    if (!pickerState) return;
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setPickerState(null); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [pickerState]);
+
+  // ── Search helpers ──
   const doSearch = (overrideQuery?: string) => {
     if (!ff) return;
     const term = (overrideQuery ?? query).trim();
@@ -160,18 +184,12 @@ export function FileFinderPage() {
     const next = [term, ...recentSearches.filter((s) => s !== term)].slice(0, 8);
     setRecentSearches(next);
     writeLocal(RECENT_SEARCHES_KEY, next);
-    setSearching(true);
-    setResults([]);
-    setHasSearched(true);
+    setSearching(true); setResults([]); setHasSearched(true);
     setProgress({ found: 0, scanning: 'Starting…' });
     ff.startSearch(term, folders);
   };
 
-  const handleCancel = () => {
-    ff?.cancelSearch();
-    setSearching(false);
-    setProgress(null);
-  };
+  const handleCancel = () => { ff?.cancelSearch(); setSearching(false); setProgress(null); };
 
   const handleChooseFolder = async () => {
     if (!ff) return;
@@ -184,11 +202,70 @@ export function FileFinderPage() {
       await navigator.clipboard.writeText(filePath);
       setCopiedPath(filePath);
       setTimeout(() => setCopiedPath((p) => (p === filePath ? null : p)), 1800);
-    } catch { /* clipboard unavailable */ }
+    } catch { /* unavailable */ }
   };
 
   const clearRecent = () => { setRecentSearches([]); writeLocal(RECENT_SEARCHES_KEY, []); };
 
+  // ── Send To helpers ──
+  const showToast = (msg: string) => {
+    setToast(msg);
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => setToast(null), 3000);
+  };
+
+  const openPicker = (file: FileResult, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    setPickerState({ file, anchorY: rect.bottom + 6, anchorX: rect.left });
+    setPickerSearch('');
+  };
+
+  const toggleFollow = () => {
+    const next = !follow;
+    setFollow(next);
+    setSendToFollow(next);
+  };
+
+  const handleSendTo = async (file: FileResult, destId: string) => {
+    const dest = SEND_TO_REGISTRY.find((d) => d.toolId === destId);
+    if (!dest || !ff) return;
+    setPickerState(null);
+    setSendingPath(file.path);
+    try {
+      // Read bytes via Electron IPC (readFileBytes added to bridge)
+      const ab: ArrayBuffer | null = await (ff as any).readFileBytes?.(file.path) ?? null;
+      if (!ab) { showToast(`Could not read "${file.name}"`); return; }
+      const category = extToCategory(file.ext);
+      const handoff: FileHandoff = {
+        id:         `st-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`,
+        name:       file.name,
+        path:       file.path,
+        ext:        file.ext,
+        size:       file.size,
+        mimeType:   extToMime(file.ext),
+        sourceTool: 'file-finder',
+        destTool:   destId,
+        timestamp:  Date.now(),
+        batchId:    `batch-${Date.now().toString(36)}`,
+        bytes:      new Uint8Array(ab),
+        autoOpen:   follow,
+      };
+      enqueueHandoffs(destId, [handoff]);
+      // Persist default for this category
+      setDefaultDest(category, destId);
+      setSendToDefaults((prev) => ({ ...prev, [category]: destId }));
+      if (follow) {
+        window.location.hash = dest.route;
+      } else {
+        showToast(`Sent "${file.name}" to ${dest.label} ✓`);
+      }
+    } finally {
+      setSendingPath(null);
+    }
+  };
+
+  // ── Filtering / sorting ──
   const filteredResults = useMemo(() => {
     let out = results;
     if (typeFilter !== 'all') {
@@ -217,6 +294,7 @@ export function FileFinderPage() {
     });
   }, [filteredResults, sortBy, sortAsc, query]);
 
+  // ── Desktop-required gate ──
   if (!isDesktop) {
     return (
       <section className="ff-page">
@@ -246,6 +324,7 @@ export function FileFinderPage() {
     ? (customFolder.split(/[\\/]/).filter(Boolean).pop() ?? customFolder)
     : 'Choose Folder';
 
+  // ── Render ──
   return (
     <section className="ff-page">
       <BackButton fallback="/library" label="Back to library" />
@@ -335,6 +414,17 @@ export function FileFinderPage() {
             {sortedResults.length} {sortedResults.length === 1 ? 'result' : 'results'}
             {filteredResults.length < results.length ? ` (filtered from ${results.length})` : ''}
           </span>
+          {/* Follow toggle */}
+          <div className="ff-follow-wrap">
+            <span className="ff-follow-label-text">Follow</span>
+            <button
+              className={`ff-follow-btn${follow ? ' on' : ''}`}
+              onClick={toggleFollow}
+              title={follow ? 'Follow ON — navigates to tool after sending' : 'Follow OFF — stays in File Finder after sending'}
+            >
+              {follow ? 'ON' : 'OFF'}
+            </button>
+          </div>
           <div className="ff-sort-group">
             <span className="ff-sort-label">Sort:</span>
             {FF_SORT_OPTS.map(({ key, label }) => (
@@ -357,29 +447,68 @@ export function FileFinderPage() {
               <FolderSearch className="ff-empty-icon" />
               <p>No luck. Try another name or somewhere else.</p>
             </div>
-          ) : sortedResults.map((r) => (
-            <div key={r.path} className="ff-row">
-              <span className="ff-row-icon">{getFileIcon(r.ext)}</span>
-              <div className="ff-row-main">
-                <div className="ff-row-name">{highlightMatch(r.name, query)}</div>
-                <div className="ff-row-path" title={r.path}>{r.dir}</div>
-                <div className="ff-row-meta">{formatBytes(r.size)} · {formatModDate(r.modified)}</div>
+          ) : sortedResults.map((r) => {
+            const category     = extToCategory(r.ext);
+            const defaultId    = sendToDefaults[category] ?? null;
+            const defaultDest  = defaultId ? SEND_TO_REGISTRY.find((d) => d.toolId === defaultId) : null;
+            const compatible   = getCompatibleDestinations(r.ext);
+            const isSending    = sendingPath === r.path;
+
+            return (
+              <div key={r.path} className="ff-row">
+                <span className="ff-row-icon">{getFileIcon(r.ext)}</span>
+                <div className="ff-row-main">
+                  <div className="ff-row-name">{highlightMatch(r.name, query)}</div>
+                  <div className="ff-row-path" title={r.path}>{r.dir}</div>
+                  <div className="ff-row-meta">{formatBytes(r.size)} · {formatModDate(r.modified)}</div>
+                </div>
+                <div className="ff-row-actions">
+                  <button className="ff-action" onClick={() => ff.openFile(r.path)} title="Open with default app">
+                    <ExternalLink className="w-3.5 h-3.5" /> Open
+                  </button>
+                  <button className="ff-action" onClick={() => ff.openLocation(r.path)} title="Show in File Explorer">
+                    <FolderOpen className="w-3.5 h-3.5" /> Location
+                  </button>
+                  <button
+                    className={`ff-action${copiedPath === r.path ? ' ff-action-copied' : ''}`}
+                    onClick={() => handleCopyPath(r.path)}
+                  >
+                    {copiedPath === r.path
+                      ? <><Check className="w-3.5 h-3.5" /> Copied</>
+                      : <><ClipboardCopy className="w-3.5 h-3.5" /> Copy Path</>}
+                  </button>
+                  {/* Send To — only show when compatible destinations exist */}
+                  {compatible.length > 0 && (
+                    <div className="ff-sendto-wrap">
+                      <button
+                        className={`ff-action ff-sendto-main${isSending ? ' ff-action-copied' : ''}`}
+                        disabled={isSending}
+                        onClick={(e) => {
+                          if (defaultDest && !isSending) void handleSendTo(r, defaultDest.toolId);
+                          else openPicker(r, e);
+                        }}
+                        title={defaultDest ? `Send to ${defaultDest.label}` : 'Send to another tool'}
+                      >
+                        <Share2 className="w-3.5 h-3.5" />
+                        {isSending
+                          ? 'Sending…'
+                          : defaultDest
+                            ? <>Send to <span className="ff-sendto-dest">{defaultDest.label}</span></>
+                            : 'Send to…'}
+                      </button>
+                      {/* Chevron always opens picker */}
+                      <button
+                        className="ff-sendto-chevron"
+                        onClick={(e) => openPicker(r, e)}
+                        title="Choose destination"
+                        disabled={isSending}
+                      >▾</button>
+                    </div>
+                  )}
+                </div>
               </div>
-              <div className="ff-row-actions">
-                <button className="ff-action" onClick={() => ff.openFile(r.path)} title="Open with default app">
-                  <ExternalLink className="w-3.5 h-3.5" /> Open
-                </button>
-                <button className="ff-action" onClick={() => ff.openLocation(r.path)} title="Show in File Explorer">
-                  <FolderOpen className="w-3.5 h-3.5" /> Location
-                </button>
-                <button className={`ff-action${copiedPath === r.path ? ' ff-action-copied' : ''}`} onClick={() => handleCopyPath(r.path)}>
-                  {copiedPath === r.path
-                    ? <><Check className="w-3.5 h-3.5" /> Copied</>
-                    : <><ClipboardCopy className="w-3.5 h-3.5" /> Copy Path</>}
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -396,6 +525,53 @@ export function FileFinderPage() {
               </button>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Destination picker overlay (fixed, dismisses on backdrop click) */}
+      {pickerState && (
+        <div className="ff-sendto-overlay" onMouseDown={() => setPickerState(null)}>
+          <div
+            className="ff-sendto-picker"
+            style={{ top: pickerState.anchorY, left: pickerState.anchorX }}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <div className="ff-sendto-picker-head">
+              <Search className="w-3.5 h-3.5 shrink-0" />
+              <input
+                className="ff-sendto-picker-search"
+                placeholder="Search tools…"
+                value={pickerSearch}
+                onChange={(e) => setPickerSearch(e.target.value)}
+                autoFocus
+              />
+            </div>
+            {(() => {
+              const compatible = getCompatibleDestinations(pickerState.file.ext);
+              const filtered   = compatible.filter(
+                (d) => !pickerSearch.trim() || d.label.toLowerCase().includes(pickerSearch.toLowerCase()),
+              );
+              return filtered.length === 0 ? (
+                <p className="ff-sendto-picker-empty">No compatible tools found.</p>
+              ) : filtered.map((dest) => (
+                <button
+                  key={dest.toolId}
+                  className="ff-sendto-picker-item"
+                  onClick={() => void handleSendTo(pickerState.file, dest.toolId)}
+                >
+                  {dest.label}
+                </button>
+              ));
+            })()}
+          </div>
+        </div>
+      )}
+
+      {/* Toast notification */}
+      {toast && (
+        <div className="ff-sendto-toast">
+          <Check className="w-3.5 h-3.5" style={{ color: 'hsl(var(--primary))' }} />
+          {toast}
         </div>
       )}
     </section>

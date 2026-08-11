@@ -1,7 +1,9 @@
-import { useState, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { zipSync } from 'fflate';
 import { ArrowRight, Download, FileArchive, ImagePlus, X } from 'lucide-react';
 import { BackButton, DisplacedWidgetBand } from '../shared/contexts';
+import { peekHandoffs, removeHandoff, clearHandoffs, subscribeHandoffs, handoffToFile, type FileHandoff } from '../shared/sendTo';
+import { IncomingFilesQueue } from '../shared/IncomingFilesQueue';
 
 /** Extract the uppercased file extension without the leading dot. */
 function getFileExt(name: string): string {
@@ -23,6 +25,32 @@ export function ImageConverter() {
   const [failedThumbs, setFailedThumbs] = useState<Set<number>>(new Set());
   const cancelledRef = useRef(false);
   const previewUrlsRef = useRef<string[]>([]);
+
+  // Send To incoming queue
+  const IC_TOOL_ID = 'image-converter';
+  const [incomingIC,     setIncomingIC]     = useState<FileHandoff[]>(() => [...peekHandoffs(IC_TOOL_ID)]);
+  const [showIncomingIC, setShowIncomingIC] = useState(() => peekHandoffs(IC_TOOL_ID).length > 0);
+
+  useEffect(() => {
+    const items = [...peekHandoffs(IC_TOOL_ID)];
+    if (items.length > 0) {
+      setShowIncomingIC(true);
+      const first = items.find((h) => h.autoOpen);
+      if (first) {
+        const file = handoffToFile(first);
+        const dt = new DataTransfer();
+        dt.items.add(file);
+        handleFiles(dt.files);
+        removeHandoff(IC_TOOL_ID, first.id);
+        setIncomingIC([...peekHandoffs(IC_TOOL_ID)]);
+      }
+    }
+    return subscribeHandoffs(IC_TOOL_ID, () => {
+      const updated = [...peekHandoffs(IC_TOOL_ID)];
+      setIncomingIC(updated);
+      setShowIncomingIC(updated.length > 0);
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleFiles = (list: FileList | null) => {
     if (!list) return;
@@ -141,6 +169,22 @@ export function ImageConverter() {
         <span className="tool-status"><i className="status-dot" /> Original stays safe</span>
       </div>
       <DisplacedWidgetBand />
+      {showIncomingIC && (
+        <IncomingFilesQueue
+          files={incomingIC}
+          onOpen={(h) => {
+            const file = handoffToFile(h);
+            const dt = new DataTransfer();
+            dt.items.add(file);
+            handleFiles(dt.files);
+            removeHandoff(IC_TOOL_ID, h.id);
+            setIncomingIC([...peekHandoffs(IC_TOOL_ID)]);
+          }}
+          onRemove={(h) => { removeHandoff(IC_TOOL_ID, h.id); setIncomingIC([...peekHandoffs(IC_TOOL_ID)]); }}
+          onClear={() => { clearHandoffs(IC_TOOL_ID); setIncomingIC([]); setShowIncomingIC(false); }}
+          onDismiss={() => setShowIncomingIC(false)}
+        />
+      )}
       <div className="renamer-notice">
         <ImagePlus />
         <div><strong>Converts entirely in your browser</strong><span>No upload, no server. Your images never leave your computer.</span></div>

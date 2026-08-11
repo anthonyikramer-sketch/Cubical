@@ -1,0 +1,633 @@
+Add a cross-tool "Send To" system to Cubical, starting with the File Finder Tool.
+
+IMPORTANT:
+This is a full Cubical Tool-to-Tool workflow.
+
+Do not redesign File Finder or the destination Tools.
+Do not create a separate app or widget.
+Build this as reusable Cubical infrastructure so other Tools can use the same Send To system later.
+
+The goal is:
+
+Find a file
+→ Send it directly to another compatible Cubical Tool
+→ Optionally follow the file into that Tool
+
+--------------------------------------------------
+1. ADD "SEND TO..." TO FILE FINDER
+--------------------------------------------------
+
+For files displayed in File Finder results, add an action:
+
+Send to...
+
+This can appear:
+
+- In the file result row
+- In the selected-file action area
+- In the right-click/context menu if one already exists
+
+Use whichever location best matches the existing File Finder UI.
+
+The action should send the selected file to another installed Cubical Tool that can accept that file type.
+
+Example:
+
+PDF file
+→ PDF Form Filler
+
+Image file
+→ Image Converter
+→ File Inspector
+→ File Toolbox
+
+General file
+→ File Inspector
+→ File Toolbox
+
+Only show destinations that can actually accept the selected file type.
+
+--------------------------------------------------
+2. DESTINATION PICKER
+--------------------------------------------------
+
+When the user clicks:
+
+Send to...
+
+and no default destination has been selected yet, open a compact popup/menu.
+
+At the TOP of the popup, include a search bar.
+
+Example:
+
+Search tools...
+
+Then show compatible destination Tools underneath.
+
+Example for a PDF:
+
+PDF Form Filler
+File Inspector
+File Toolbox
+
+The list should:
+
+- Only contain installed/available compatible Tools
+- Filter live as the user types
+- Be easy to scan
+- Match Cubical's existing design language
+
+--------------------------------------------------
+3. SELECTING A DESTINATION
+--------------------------------------------------
+
+When the user selects a Tool from the Send To popup:
+
+That Tool becomes the DEFAULT destination for that file type/action.
+
+Example:
+
+User clicks:
+
+Send to...
+
+Then selects:
+
+PDF Form Filler
+
+The button should immediately change from:
+
+Send to...
+
+to:
+
+Send to PDF Form Filler
+
+IMPORTANT VISUAL RULE:
+
+The destination Tool name should always appear in BLUE.
+
+Example:
+
+Send to [PDF Form Filler]
+
+where:
+
+"Send to" = normal Cubical text color
+
+"PDF Form Filler" = blue
+
+Use the existing Cubical blue/accent color if one exists.
+
+--------------------------------------------------
+4. CHANGING THE DESTINATION
+--------------------------------------------------
+
+The user should still be able to change the default destination.
+
+Provide a small dropdown arrow, menu affordance, or clicking behavior that reopens the destination picker.
+
+Example:
+
+Send to PDF Form Filler ▼
+
+Clicking the dropdown should reopen:
+
+Search tools...
+PDF Form Filler
+File Inspector
+File Toolbox
+
+Selecting another destination updates the default button.
+
+--------------------------------------------------
+5. REMEMBER DEFAULT DESTINATIONS
+--------------------------------------------------
+
+Remember the user's selected destination.
+
+Example:
+
+User sends PDFs to PDF Form Filler.
+
+Later they select another PDF.
+
+The button should already say:
+
+Send to PDF Form Filler
+
+The user should NOT have to choose the destination every time.
+
+Persist this preference between normal Cubical sessions if practical.
+
+Destination defaults should preferably be aware of file type/category.
+
+Example:
+
+PDF:
+Default → PDF Form Filler
+
+PNG/JPG:
+Default → Image Converter
+
+General file:
+Default → File Inspector
+
+Do not force every file type to use the same destination.
+
+--------------------------------------------------
+6. ADD A "FOLLOW" TOGGLE
+--------------------------------------------------
+
+Add a small toggle near the Send To action:
+
+Follow
+
+Behavior:
+
+FOLLOW ON:
+When the user sends the file, Cubical immediately navigates to the destination Tool and opens/loads the sent file.
+
+FOLLOW OFF:
+The file is sent to the destination Tool, but the user remains in File Finder.
+
+Example:
+
+Follow ON
+
+File Finder
+→ Send to PDF Form Filler
+→ Cubical opens PDF Form Filler
+→ PDF is ready there
+
+Example:
+
+Follow OFF
+
+File Finder
+→ Send to PDF Form Filler
+→ PDF is delivered to PDF Form Filler
+→ User remains in File Finder
+
+The Follow toggle should clearly show ON/OFF state.
+
+Do not reload Cubical when following.
+
+Use internal Cubical navigation.
+
+--------------------------------------------------
+7. DESTINATION FILE PERSISTENCE
+--------------------------------------------------
+
+This is IMPORTANT.
+
+Files sent to another Tool while Follow is OFF must NOT disappear.
+
+The destination Tool should retain the incoming file reference until the user opens that Tool.
+
+Example:
+
+Follow OFF.
+
+User sends:
+
+Contract1.pdf
+Contract2.pdf
+FormA.pdf
+
+to PDF Form Filler.
+
+User remains in File Finder.
+
+Later they open PDF Form Filler.
+
+PDF Form Filler should know that these files were sent to it.
+
+Do NOT let each new send overwrite the previous one.
+
+Use an Incoming Files queue/list.
+
+--------------------------------------------------
+8. INCOMING FILES QUEUE
+--------------------------------------------------
+
+Tools that support Send To should have a lightweight incoming-file queue.
+
+Example:
+
+PDF Form Filler
+
+Incoming Files:
+
+Contract1.pdf
+Contract2.pdf
+FormA.pdf
+
+The Tool can then:
+
+- Open one
+- Remove one from the queue
+- Clear handled items
+- Keep remaining files available
+
+Do not force every file to open simultaneously.
+
+The queue should preserve file order.
+
+--------------------------------------------------
+9. FOLLOW ON WITH MULTIPLE FILES
+--------------------------------------------------
+
+If Follow is ON and one file is sent:
+
+Navigate to the destination Tool and open that file immediately.
+
+If multiple files are sent as a batch:
+
+Navigate to the destination Tool and show/open the incoming batch in a sensible way.
+
+For PDF Form Filler, for example:
+
+- Open the first PDF
+- Keep the remaining PDFs in Incoming Files
+
+Do not silently discard extra files.
+
+--------------------------------------------------
+10. FILE HANDOFF MODEL
+--------------------------------------------------
+
+Build a reusable Cubical file handoff system.
+
+A handoff should contain useful metadata such as:
+
+- File path
+- File name
+- Extension
+- MIME/type if known
+- Source Tool
+- Destination Tool
+- Timestamp
+- Optional batch ID
+
+Do not copy the entire file unnecessarily if both Tools can safely access the original local path.
+
+Prefer passing a safe local file reference/path.
+
+--------------------------------------------------
+11. COMPATIBILITY REGISTRY
+--------------------------------------------------
+
+Each Cubical Tool that accepts files should declare what it supports.
+
+Example:
+
+PDF Form Filler:
+- .pdf
+
+Image Converter:
+- .png
+- .jpg
+- .jpeg
+- .webp
+- etc.
+
+File Inspector:
+- most/all file types
+
+File Toolbox:
+- supported general file types
+
+File Finder should use this compatibility data to determine which Tools appear in the Send To menu.
+
+Do not hardcode destination menus separately for every individual file if a shared registry can be used.
+
+--------------------------------------------------
+12. INSTALLED TOOLS ONLY
+--------------------------------------------------
+
+By default, only show Tools that are currently installed/owned and available.
+
+If a compatible Tool exists in the Store but is not installed, either:
+
+- Do not show it
+
+OR, if this fits the current Cubical architecture cleanly:
+
+- Show it separately as "Available in Store"
+
+Do not interrupt the main Send To workflow with installation prompts unless necessary.
+
+--------------------------------------------------
+13. MULTI-SELECT SUPPORT
+--------------------------------------------------
+
+If File Finder currently supports selecting multiple files, Send To should work with multiple selected files.
+
+Example:
+
+Select 5 PDFs.
+
+Send to PDF Form Filler.
+
+All 5 should be added to PDF Form Filler's incoming queue.
+
+If Follow is OFF:
+
+Stay in File Finder.
+
+If Follow is ON:
+
+Open PDF Form Filler and make the batch available there.
+
+--------------------------------------------------
+14. SEND CONFIRMATION
+--------------------------------------------------
+
+When Follow is OFF, give subtle confirmation that the send succeeded.
+
+Example:
+
+Sent 3 files to PDF Form Filler ✓
+
+Do not use a large modal.
+
+A small toast/status message is enough.
+
+--------------------------------------------------
+15. SOURCE TOOL SHOULD KEEP WORKING
+--------------------------------------------------
+
+Sending a file must NOT:
+
+- Remove it from File Finder
+- Move the original file
+- Rename it
+- Modify it
+- Delete it
+
+This is a logical handoff inside Cubical.
+
+The actual local file stays where it is unless the destination Tool later performs an explicit file operation.
+
+--------------------------------------------------
+16. DESTINATION TOOL BEHAVIOR
+--------------------------------------------------
+
+Start by supporting:
+
+PDF Form Filler
+
+File Finder should be able to send a PDF directly to PDF Form Filler.
+
+When PDF Form Filler receives a file:
+
+If Follow is ON:
+- Navigate there
+- Load the PDF
+
+If Follow is OFF:
+- Add it to Incoming Files
+- Do not navigate away from File Finder
+
+Then structure the system so other Tools can participate later.
+
+--------------------------------------------------
+17. DEFAULT DESTINATION BUTTON DESIGN
+--------------------------------------------------
+
+Desired UI behavior:
+
+Initial:
+
+Send to...
+
+After selecting a destination:
+
+Send to PDF Form Filler
+
+The Tool name should always be blue.
+
+Example visual hierarchy:
+
+Send to  PDF Form Filler
+         ^ blue text
+
+If the destination changes:
+
+Send to File Inspector
+
+"File Inspector" should also be blue.
+
+The destination name is the visually emphasized portion of the action.
+
+--------------------------------------------------
+18. FOLLOW STATE
+--------------------------------------------------
+
+Remember the Follow toggle during the current session.
+
+If practical, persist the user's preferred Follow setting between sessions.
+
+Do not unexpectedly toggle Follow back on after every send.
+
+--------------------------------------------------
+19. PRESERVE EXISTING FUNCTIONALITY
+--------------------------------------------------
+
+Do not break:
+
+- File Finder searching
+- Filters
+- File results
+- Open file
+- Show in folder
+- Copy path
+- PDF Form Filler
+- PDF opening
+- Cubical navigation
+- Store/Library installation
+- Existing Tool state
+
+Do not redesign Cubical.
+
+--------------------------------------------------
+20. SUCCESS TESTS
+--------------------------------------------------
+
+TEST 1:
+
+Find a PDF in File Finder.
+
+Click Send to...
+
+Confirm a popup appears containing compatible Tools and a search bar.
+
+--------------------------------------------------
+
+TEST 2:
+
+Select:
+
+PDF Form Filler
+
+Confirm the button changes to:
+
+Send to PDF Form Filler
+
+Confirm "PDF Form Filler" is blue.
+
+--------------------------------------------------
+
+TEST 3:
+
+Turn Follow ON.
+
+Send the PDF.
+
+Confirm:
+
+- Cubical navigates to PDF Form Filler
+- PDF Form Filler receives/opens the selected PDF
+
+--------------------------------------------------
+
+TEST 4:
+
+Return to File Finder.
+
+Turn Follow OFF.
+
+Send another PDF to PDF Form Filler.
+
+Confirm:
+
+- User stays in File Finder
+- A success confirmation appears
+- The PDF is available in PDF Form Filler later
+
+--------------------------------------------------
+
+TEST 5:
+
+With Follow OFF, send three PDFs.
+
+Open PDF Form Filler afterward.
+
+Confirm all three are still available in Incoming Files.
+
+None should have been overwritten.
+
+--------------------------------------------------
+
+TEST 6:
+
+Send a PDF to File Inspector instead.
+
+Confirm the default destination changes to:
+
+Send to File Inspector
+
+and "File Inspector" appears blue.
+
+--------------------------------------------------
+
+TEST 7:
+
+Select another PDF later.
+
+Confirm Cubical remembers the previously selected PDF destination.
+
+--------------------------------------------------
+
+TEST 8:
+
+Search inside the destination picker.
+
+Confirm compatible Tool results filter correctly.
+
+--------------------------------------------------
+
+TEST 9:
+
+Multi-select several compatible files.
+
+Send them with Follow OFF.
+
+Confirm all selected files arrive in the destination queue.
+
+--------------------------------------------------
+
+TEST 10:
+
+Restart Cubical if destination persistence is implemented.
+
+Confirm the preferred destination and queued files behave consistently and safely.
+
+--------------------------------------------------
+21. ARCHITECTURAL GOAL
+--------------------------------------------------
+
+This should become Cubical's reusable inter-Tool handoff system.
+
+The long-term idea is that Cubical Tools can work together instead of functioning as isolated applications.
+
+Example:
+
+File Finder
+→ PDF Form Filler
+
+File Finder
+→ Image Converter
+
+File Finder
+→ File Inspector
+
+Storage Explorer
+→ File Inspector
+
+File Inspector
+→ File Toolbox
+
+Build the initial implementation around File Finder and PDF Form Filler, but avoid architecture that prevents additional Tools from using Send To later.

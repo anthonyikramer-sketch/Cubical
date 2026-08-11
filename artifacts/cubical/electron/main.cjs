@@ -246,6 +246,16 @@ ipcMain.handle('file-finder:open-location', (_event, filePath) => {
   shell.showItemInFolder(filePath);
 });
 
+ipcMain.handle('file-finder:read-file', async (_event, filePath) => {
+  try {
+    // Returns a Buffer which Electron serialises to an ArrayBuffer in the renderer.
+    return await fs.promises.readFile(filePath);
+  } catch (e) {
+    console.warn('[file-finder] read-file error:', e.message);
+    return null;
+  }
+});
+
 ipcMain.handle('file-finder:choose-folder', async (event) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   const result = await dialog.showOpenDialog(win, {

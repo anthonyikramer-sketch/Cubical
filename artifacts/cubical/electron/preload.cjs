@@ -62,6 +62,13 @@ contextBridge.exposeInMainWorld('cubicalDesktop', {
     },
 
     /**
+     * Read a local file's bytes for the Send To handoff system.
+     * @param {string} filePath — absolute path to the file
+     * @returns {Promise<ArrayBuffer|null>} Raw bytes, or null on error.
+     */
+    readFileBytes: (filePath) => ipcRenderer.invoke('file-finder:read-file', filePath),
+
+    /**
      * Subscribe to the search-complete event.
      * @param {function} cb — called with { results: FileResult[] }
      * @returns {function} Unsubscribe function.

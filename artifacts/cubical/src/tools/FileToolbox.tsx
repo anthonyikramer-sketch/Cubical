@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ClipboardCopy, ExternalLink, FilePlus2, FolderOpen, Sparkles } from 'lucide-react';
 import { BackButton, DisplacedWidgetBand } from '../shared/contexts';
+import { peekHandoffs, removeHandoff, clearHandoffs, subscribeHandoffs, handoffToFile, type FileHandoff } from '../shared/sendTo';
+import { IncomingFilesQueue } from '../shared/IncomingFilesQueue';
 
 // ── Local copies of utilities (pure functions, same logic as App.tsx) ─────────
 
@@ -149,6 +151,25 @@ export function FileToolbox() {
   const [loading, setLoading] = useState(false);
   const [copied,  setCopied]  = useState<string | null>(null);
 
+  // Send To incoming queue
+  const FTB_TOOL_ID = 'file-toolbox';
+  const [incomingFTB,     setIncomingFTB]     = useState<FileHandoff[]>(() => [...peekHandoffs(FTB_TOOL_ID)]);
+  const [showIncomingFTB, setShowIncomingFTB] = useState(() => peekHandoffs(FTB_TOOL_ID).length > 0);
+
+  useEffect(() => {
+    const items = [...peekHandoffs(FTB_TOOL_ID)];
+    if (items.length > 0) {
+      setShowIncomingFTB(true);
+      const first = items.find((h) => h.autoOpen);
+      if (first) { void loadFile(handoffToFile(first)); removeHandoff(FTB_TOOL_ID, first.id); setIncomingFTB([...peekHandoffs(FTB_TOOL_ID)]); }
+    }
+    return subscribeHandoffs(FTB_TOOL_ID, () => {
+      const updated = [...peekHandoffs(FTB_TOOL_ID)];
+      setIncomingFTB(updated);
+      setShowIncomingFTB(updated.length > 0);
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const loadFile = async (file: File) => {
     setLoading(true);
     setEntry(await buildToolboxEntry(file));
@@ -178,6 +199,15 @@ export function FileToolbox() {
         <span className="tool-status"><i className="status-dot" /> Local only</span>
       </div>
       <DisplacedWidgetBand />
+      {showIncomingFTB && (
+        <IncomingFilesQueue
+          files={incomingFTB}
+          onOpen={(h) => { void loadFile(handoffToFile(h)); removeHandoff(FTB_TOOL_ID, h.id); setIncomingFTB([...peekHandoffs(FTB_TOOL_ID)]); }}
+          onRemove={(h) => { removeHandoff(FTB_TOOL_ID, h.id); setIncomingFTB([...peekHandoffs(FTB_TOOL_ID)]); }}
+          onClear={() => { clearHandoffs(FTB_TOOL_ID); setIncomingFTB([]); setShowIncomingFTB(false); }}
+          onDismiss={() => setShowIncomingFTB(false)}
+        />
+      )}
       {!entry && !loading && (
         <div className="renamer-notice">
           <FolderOpen />
