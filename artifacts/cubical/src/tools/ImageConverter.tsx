@@ -28,6 +28,16 @@ export function ImageConverter() {
     setResults([]);
   };
 
+  const removeImage = (index: number) => {
+    URL.revokeObjectURL(previewUrlsRef.current[index]);
+    const newFiles    = files.filter((_, i) => i !== index);
+    const newPreviews = previews.filter((_, i) => i !== index);
+    previewUrlsRef.current = newPreviews.map((p) => p.url);
+    setFiles(newFiles);
+    setPreviews(newPreviews);
+    setResults([]);
+  };
+
   const cancelConversion = () => {
     cancelledRef.current = true;
   };
@@ -136,7 +146,18 @@ export function ImageConverter() {
             <div className="ic-thumb-strip" data-testid="image-thumbnail-strip">
               {previews.map((p, i) => (
                 <div className="ic-thumb-item" key={i}>
-                  <img src={p.url} alt={p.name} className="ic-thumb-img" />
+                  <div className="ic-thumb-img-wrap">
+                    <img src={p.url} alt={p.name} className="ic-thumb-img" />
+                    <button
+                      type="button"
+                      className="ic-thumb-remove"
+                      aria-label={`Remove ${p.name}`}
+                      onClick={() => removeImage(i)}
+                      data-testid={`button-remove-image-${i}`}
+                    >
+                      <X />
+                    </button>
+                  </div>
                   <span className="ic-thumb-name">{p.name}</span>
                 </div>
               ))}
