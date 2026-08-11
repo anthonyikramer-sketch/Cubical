@@ -196,7 +196,7 @@ export function ProfilePage() {
                     </div>
                   )}
                   {skin.id === 'sakura' && (
-                    <img src="/sakura-env.png" className="skin-preview-sakura-img" alt="Sakura environment" draggable={false} />
+                    <img src={import.meta.env.BASE_URL + 'sakura-env.png'} className="skin-preview-sakura-img" alt="Sakura environment" draggable={false} />
                   )}
                   {skin.comingSoon && <div className="skin-coming-soon-badge">Coming soon</div>}
                   {isEquipped && !isPreviewing && (

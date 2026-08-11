@@ -2439,11 +2439,16 @@ function CalculatorWidget() {
 // Positioned absolutely relative to .grid-widget-outer (overflow: visible),
 // so decorations can overhang the widget edge.
 
+// Base path for Sakura assets — relative so packaged Electron (file://) resolves correctly.
+// Vite sets import.meta.env.BASE_URL to './' for desktop builds and to the preview
+// subpath (e.g. '/cubical/') for Replit web builds; either way the paths resolve.
+const _B = import.meta.env.BASE_URL;
+
 const SAKURA_DECOS: Partial<Record<WidgetId, React.ReactNode>> = {
   // Wide blossom branch draped along the top-centre of the calendar
   calendar: (
     <img
-      src="/sakura/branch-wide.png"
+      src={_B + 'sakura/branch-wide.png'}
       className="sakura-deco sakura-deco--calendar"
       alt="" aria-hidden draggable={false}
     />
@@ -2451,7 +2456,7 @@ const SAKURA_DECOS: Partial<Record<WidgetId, React.ReactNode>> = {
   // Cat resting on a branch, peeking over the top-right of the clock
   clock: (
     <img
-      src="/sakura/cat-branch.png"
+      src={_B + 'sakura/cat-branch.png'}
       className="sakura-deco sakura-deco--clock"
       alt="" aria-hidden draggable={false}
     />
@@ -2459,7 +2464,7 @@ const SAKURA_DECOS: Partial<Record<WidgetId, React.ReactNode>> = {
   // Single large sakura flower at the top-right corner of the notepad
   notepad: (
     <img
-      src="/sakura/flower-corner.png"
+      src={_B + 'sakura/flower-corner.png'}
       className="sakura-deco sakura-deco--notepad"
       alt="" aria-hidden draggable={false}
     />
@@ -2467,7 +2472,7 @@ const SAKURA_DECOS: Partial<Record<WidgetId, React.ReactNode>> = {
   // Small blossom branch draping over the top-left of the link shelf
   'link-shelf': (
     <img
-      src="/sakura/branch-wide.png"
+      src={_B + 'sakura/branch-wide.png'}
       className="sakura-deco sakura-deco--link-shelf"
       alt="" aria-hidden draggable={false}
     />
@@ -2475,7 +2480,7 @@ const SAKURA_DECOS: Partial<Record<WidgetId, React.ReactNode>> = {
   // Flower petal cluster at the top-right of the decision maker
   'decision-maker': (
     <img
-      src="/sakura/flower-corner.png"
+      src={_B + 'sakura/flower-corner.png'}
       className="sakura-deco sakura-deco--decision-maker"
       alt="" aria-hidden draggable={false}
     />
@@ -2483,7 +2488,7 @@ const SAKURA_DECOS: Partial<Record<WidgetId, React.ReactNode>> = {
   // Cat on branch peeking over the top-right of the calculator
   calculator: (
     <img
-      src="/sakura/cat-branch.png"
+      src={_B + 'sakura/cat-branch.png'}
       className="sakura-deco sakura-deco--calculator"
       alt="" aria-hidden draggable={false}
     />
@@ -2491,7 +2496,7 @@ const SAKURA_DECOS: Partial<Record<WidgetId, React.ReactNode>> = {
   // Flower bloom at the top-left corner of the file finder (mirrored for variety)
   'file-finder': (
     <img
-      src="/sakura/flower-corner.png"
+      src={_B + 'sakura/flower-corner.png'}
       className="sakura-deco sakura-deco--file-finder"
       alt="" aria-hidden draggable={false}
     />
@@ -3131,7 +3136,7 @@ function HomePage() {
     return (
       <div className="home-page home-sakura" data-testid="home-page">
         <div className="sakura-env-frame">
-          <img src="/sakura-env.png" className="sakura-env-img" alt="" aria-hidden draggable={false} />
+          <img src={import.meta.env.BASE_URL + 'sakura-env.png'} className="sakura-env-img" alt="" aria-hidden draggable={false} />
           <div className="sakura-env-ui">
             <div className="sakura-top-bar">
               <span className="sakura-greeting">✦ Your workspace</span>

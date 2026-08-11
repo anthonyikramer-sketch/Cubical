@@ -1,0 +1,36 @@
+I am preparing to package the current version of Cubical as the Electron Windows desktop application again.
+
+IMPORTANT:
+Cubical has already been configured and packaged as an Electron application previously. Do NOT rebuild or replace the existing Electron architecture.
+
+Before packaging, verify that ALL of Cubical's Sakura theme/skin functionality will work in the installed desktop build.
+
+Specifically:
+
+1. Identify all files/assets used by the Sakura skins/themes.
+
+2. Make sure Sakura assets are bundled locally with the Electron application and are included in the production build.
+
+3. Make sure no Sakura images, backgrounds, icons, CSS, or other required assets depend on the Replit development/preview environment.
+
+4. Verify that Sakura works when the application is running from the packaged Electron production build.
+
+5. Preserve all existing Sakura skins/themes. Do not redesign, remove, rename, or replace them.
+
+6. Make sure the user's selected skin/theme can persist between launches of the installed Electron application.
+
+7. If the current theme preference uses localStorage or another existing persistence system that works correctly in Electron, preserve it. Do not unnecessarily replace working persistence.
+
+8. Verify that switching to Sakura in the packaged application works exactly as it does in Replit Preview.
+
+9. Verify that restarting Cubical does not cause missing Sakura assets or unexpectedly reset the selected skin.
+
+10. Do not change any unrelated Cubical functionality.
+
+After verifying this, prepare the CURRENT version of Cubical for packaging using the existing Electron build/package configuration.
+
+Do not package an old build.
+
+The packaged application must contain the latest Cubical changes, including the current PDF Form Filler and all current tools, widgets, Store/Library changes, themes, and Sakura skins.
+
+Before packaging, tell me whether Sakura is fully bundled and safe to package, and mention any changes you had to make to ensure it works offline in the installed Electron version.
