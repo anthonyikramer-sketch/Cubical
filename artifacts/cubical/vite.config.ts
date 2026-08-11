@@ -1,9 +1,13 @@
 import path from 'path';
+import { createRequire } from 'module';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vite';
 
 import runtimeErrorOverlay from '@replit/vite-plugin-runtime-error-modal';
+
+const _require = createRequire(import.meta.url);
+const pkg = _require('./package.json') as { version: string };
 
 const rawPort = process.env.PORT;
 
@@ -23,6 +27,11 @@ const basePath = process.env.BASE_PATH ?? './';
 
 export default defineConfig({
   base: basePath,
+  define: {
+    // Inject the canonical app version from package.json at build time.
+    // Access in app code as: declare const __APP_VERSION__: string;
+    __APP_VERSION__: JSON.stringify(pkg.version),
+  },
   plugins: [
     react(),
     tailwindcss(),

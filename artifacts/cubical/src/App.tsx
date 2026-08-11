@@ -3,6 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import ExifReader from 'exifreader';
 import { zipSync } from 'fflate';
 import {
+  AlertCircle,
   AlignCenter,
   AlignLeft,
   AlignRight,
@@ -43,6 +44,7 @@ import {
   HardDrive,
   Hash,
   Heading1,
+  Info,
   Heading2,
   House,
   ImagePlus,
@@ -64,6 +66,7 @@ import {
   PinOff,
   Play,
   Plus,
+  RefreshCw,
   RotateCcw,
   Search,
   Settings,
@@ -80,6 +83,10 @@ import {
   Zap,
 } from 'lucide-react';
 import { Link, Route, Router, Switch, useLocation } from 'wouter';
+
+// ─── App version (injected by Vite define at build time) ─────────────────────
+declare const __APP_VERSION__: string;
+const APP_VERSION: string = (typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.2.0');
 
 // ─── Tiptap (headless rich-text engine) ───────────────────────────────────────
 import { Editor } from '@tiptap/core';
@@ -104,6 +111,8 @@ interface FileResult {
 
 // Extend the window type so TypeScript knows about the Electron bridge.
 // When running as a web app the whole cubicalDesktop object will be undefined.
+type UpdateStatusEvent = { type: string; percent?: number; version?: string; message?: string };
+
 declare global {
   interface Window {
     cubicalDesktop?: {
@@ -116,6 +125,12 @@ declare global {
         chooseFolderDialog: () => Promise<string | null>;
         onProgress:  (cb: (data: { found: number; scanning: string }) => void) => () => void;
         onComplete:  (cb: (data: { results: FileResult[] }) => void) => () => void;
+      };
+      updater?: {
+        checkForUpdates: () => Promise<{ devMode?: boolean; message?: string }>;
+        downloadUpdate:  () => void;
+        installUpdate:   () => void;
+        onStatus:        (cb: (evt: UpdateStatusEvent) => void) => () => void;
       };
     };
   }
@@ -245,49 +260,113 @@ function highlightMatch(name: string, query: string): ReactNode {
   );
 }
 
-// ─── Product catalog ──────────────────────────────────────────────────────────
+// ─── Product catalog — types ──────────────────────────────────────────────────
 
-type Product = {
-  id: string;
-  name: string;
+type ProductType   = 'tool' | 'skin' | 'game';
+type DeliveryType  = 'bundled' | 'asset-package' | 'client-update-required';
+type ProductStatus = 'active' | 'coming-soon' | 'deprecated';
+type CatalogStatus = 'idle' | 'loading' | 'ok' | 'cached' | 'error';
+
+type CatalogProduct = {
+  // Stable unique ID — never changes after publishing (e.g. 'tool.file-finder')
+  id:          string;
+  type:        ProductType;
+  name:        string;
   description: string;
-  price: string;
-  icon: typeof Files;
+  version:     string;   // product-specific semver, independent of Cubical version
+  price:       string;
+  isFree:      boolean;
+  // Icon resolved from ICON_REGISTRY at runtime
+  iconName:  string;
   iconColor: string;
-  iconBg: string;
+  iconBg:    string;
+  // Optional catalog fields
+  category?:               string;
+  tags?:                   string[];
+  deliveryType:            DeliveryType;
+  minimumCubicalVersion?:  string;  // e.g. '0.3.0' — show upgrade prompt if unmet
+  featured?:               boolean;
+  isNew?:                  boolean;
+  status:                  ProductStatus;
+  releaseNotes?:           string;
+  packageUrl?:             string;
+  downloadSize?:           number;
 };
 
-const PRODUCTS: Product[] = [
-  { id: 'file-organizer', name: 'File Organizer', description: 'A calmer way to sort, group, and find everything on your desktop.', price: 'FREE', icon: FolderCog, iconColor: 'hsl(164 48% 32%)', iconBg: 'hsl(164 48% 32% / .12)' },
-  { id: 'spreadsheet-cleaner', name: 'Spreadsheet Cleaner', description: 'Sweep out the clutter hiding between your rows and columns.', price: 'FREE', icon: TableProperties, iconColor: 'hsl(31 75% 43%)', iconBg: 'hsl(31 75% 43% / .13)' },
-  { id: 'pdf-toolkit', name: 'PDF Toolkit', description: 'Small, sharp tools for the PDFs you touch every day.', price: 'FREE', icon: FileScan, iconColor: 'hsl(1 68% 54%)', iconBg: 'hsl(1 68% 54% / .12)' },
-  { id: 'bulk-file-renamer', name: 'Bulk File Renamer', description: 'Give a whole folder a thoughtful name in one quick pass.', price: 'FREE', icon: FileArchive, iconColor: 'hsl(226 45% 49%)', iconBg: 'hsl(226 45% 49% / .12)' },
-  { id: 'duplicate-finder',   name: 'Duplicate Finder',  description: 'Spot the copies taking up space and keep the best version.', price: 'FREE', icon: Files,       iconColor: 'hsl(287 40% 47%)', iconBg: 'hsl(287 40% 47% / .12)' },
-  { id: 'file-finder',        name: 'File Finder',       description: 'Find the file. Skip the folder archaeology.',                  price: 'FREE', icon: FolderSearch, iconColor: 'hsl(197 55% 38%)', iconBg: 'hsl(197 55% 38% / .12)' },
-  { id: 'storage-explorer',   name: 'Storage Explorer',  description: "See exactly what's taking up space on your PC.",               price: 'FREE', icon: HardDrive,    iconColor: 'hsl(215 60% 43%)', iconBg: 'hsl(215 60% 43% / .12)' },
-  { id: 'image-converter',    name: 'Image Converter',   description: 'Convert, resize, and process images locally.',                 price: 'FREE', icon: ImagePlus,    iconColor: 'hsl(140 50% 35%)', iconBg: 'hsl(140 50% 35% / .11)' },
-  { id: 'file-toolbox',       name: 'File Toolbox',      description: 'One place for all your everyday file utilities.',              price: 'FREE', icon: FolderOpen,   iconColor: 'hsl(25 65% 42%)',  iconBg: 'hsl(25 65% 42% / .11)'  },
-  { id: 'startup-manager',    name: 'Startup Manager',   description: 'See and manage what launches with Windows.',                   price: 'FREE', icon: PackageOpen,  iconColor: 'hsl(262 48% 50%)', iconBg: 'hsl(262 48% 50% / .11)' },
-  { id: 'file-inspector',     name: 'File Inspector',    description: "Drop in a file and see what's inside.",                       price: 'FREE', icon: FileText,     iconColor: 'hsl(350 58% 46%)', iconBg: 'hsl(350 58% 46% / .11)' },
-  { id: 'system-info',        name: 'System Info',       description: 'A clean overview of your PC and hardware.',                   price: 'FREE', icon: Monitor,      iconColor: 'hsl(45 68% 40%)',  iconBg: 'hsl(45 68% 40% / .12)'  },
+// Backward-compat alias so existing code compiles without changes
+type Product = CatalogProduct;
+
+// ─── Icon registry ────────────────────────────────────────────────────────────
+// Maps iconName strings from catalog JSON → imported Lucide React components.
+// Add new entries here when adding products with new icon names.
+
+const ICON_REGISTRY: Record<string, typeof Files> = {
+  File, FileArchive, FileScan, FileSpreadsheet, FileText, Files,
+  FolderCog, FolderOpen, FolderSearch,
+  Gamepad2, Globe, HardDrive, Hash, ImagePlus, Monitor,
+  PackageOpen, Palette, Sparkles, TableProperties, Zap,
+};
+function resolveIcon(name: string): typeof Files {
+  return ICON_REGISTRY[name] ?? File;
+}
+
+// ─── Bundled default catalog (offline fallback) ───────────────────────────────
+// Mirrors public/catalog.json. Served when remote catalog is unreachable.
+
+const DEFAULT_CATALOG_PRODUCTS: CatalogProduct[] = [
+  { id: 'tool.file-organizer',      type: 'tool', name: 'File Organizer',      description: 'A calmer way to sort, group, and find everything on your desktop.',      version: '1.0.0', price: 'FREE', isFree: true, iconName: 'FolderCog',       iconColor: 'hsl(164 48% 32%)', iconBg: 'hsl(164 48% 32% / .12)', deliveryType: 'bundled', status: 'active' },
+  { id: 'tool.spreadsheet-cleaner', type: 'tool', name: 'Spreadsheet Cleaner', description: 'Sweep out the clutter hiding between your rows and columns.',            version: '1.0.0', price: 'FREE', isFree: true, iconName: 'TableProperties', iconColor: 'hsl(31 75% 43%)',  iconBg: 'hsl(31 75% 43% / .13)',  deliveryType: 'bundled', status: 'active' },
+  { id: 'tool.pdf-toolkit',         type: 'tool', name: 'PDF Toolkit',         description: 'Small, sharp tools for the PDFs you touch every day.',                   version: '1.0.0', price: 'FREE', isFree: true, iconName: 'FileScan',        iconColor: 'hsl(1 68% 54%)',   iconBg: 'hsl(1 68% 54% / .12)',   deliveryType: 'bundled', status: 'active' },
+  { id: 'tool.bulk-file-renamer',   type: 'tool', name: 'Bulk File Renamer',   description: 'Give a whole folder a thoughtful name in one quick pass.',               version: '1.0.0', price: 'FREE', isFree: true, iconName: 'FileArchive',     iconColor: 'hsl(226 45% 49%)', iconBg: 'hsl(226 45% 49% / .12)', deliveryType: 'bundled', status: 'active' },
+  { id: 'tool.duplicate-finder',    type: 'tool', name: 'Duplicate Finder',    description: 'Spot the copies taking up space and keep the best version.',             version: '1.0.0', price: 'FREE', isFree: true, iconName: 'Files',           iconColor: 'hsl(287 40% 47%)', iconBg: 'hsl(287 40% 47% / .12)', deliveryType: 'bundled', status: 'active' },
+  { id: 'tool.file-finder',         type: 'tool', name: 'File Finder',         description: 'Find the file. Skip the folder archaeology.',                             version: '1.0.0', price: 'FREE', isFree: true, iconName: 'FolderSearch',    iconColor: 'hsl(197 55% 38%)', iconBg: 'hsl(197 55% 38% / .12)', deliveryType: 'bundled', status: 'active', featured: true },
+  { id: 'tool.storage-explorer',    type: 'tool', name: 'Storage Explorer',    description: "See exactly what's taking up space on your PC.",                         version: '1.0.0', price: 'FREE', isFree: true, iconName: 'HardDrive',       iconColor: 'hsl(215 60% 43%)', iconBg: 'hsl(215 60% 43% / .12)', deliveryType: 'bundled', status: 'active' },
+  { id: 'tool.image-converter',     type: 'tool', name: 'Image Converter',     description: 'Convert, resize, and process images locally.',                           version: '1.0.0', price: 'FREE', isFree: true, iconName: 'ImagePlus',       iconColor: 'hsl(140 50% 35%)', iconBg: 'hsl(140 50% 35% / .11)', deliveryType: 'bundled', status: 'active' },
+  { id: 'tool.file-toolbox',        type: 'tool', name: 'File Toolbox',        description: 'One place for all your everyday file utilities.',                         version: '1.0.0', price: 'FREE', isFree: true, iconName: 'FolderOpen',      iconColor: 'hsl(25 65% 42%)',  iconBg: 'hsl(25 65% 42% / .11)',  deliveryType: 'bundled', status: 'active' },
+  { id: 'tool.startup-manager',     type: 'tool', name: 'Startup Manager',     description: 'See and manage what launches with Windows.',                             version: '1.0.0', price: 'FREE', isFree: true, iconName: 'PackageOpen',     iconColor: 'hsl(262 48% 50%)', iconBg: 'hsl(262 48% 50% / .11)', deliveryType: 'bundled', status: 'active' },
+  { id: 'tool.file-inspector',      type: 'tool', name: 'File Inspector',      description: "Drop in a file and see what's inside.",                                  version: '1.0.0', price: 'FREE', isFree: true, iconName: 'FileText',        iconColor: 'hsl(350 58% 46%)', iconBg: 'hsl(350 58% 46% / .11)', deliveryType: 'bundled', status: 'active' },
+  { id: 'tool.system-info',         type: 'tool', name: 'System Info',         description: 'A clean overview of your PC and hardware.',                              version: '1.0.0', price: 'FREE', isFree: true, iconName: 'Monitor',         iconColor: 'hsl(45 68% 40%)',  iconBg: 'hsl(45 68% 40% / .12)',  deliveryType: 'bundled', status: 'active' },
+  { id: 'skin.sakura',              type: 'skin', name: 'Sakura',              description: 'Cherry blossoms and soft pinks. A peaceful seasonal look.',               version: '1.0.0', price: 'FREE', isFree: true, iconName: 'Sparkles',        iconColor: 'hsl(340 55% 55%)', iconBg: 'hsl(340 55% 55% / .12)', deliveryType: 'bundled', status: 'active', featured: true },
+  { id: 'game.memory-match',        type: 'game', name: 'Memory Match',        description: 'A clean card-flipping memory game. Find all the pairs as fast as you can.', version: '1.0.0', price: 'FREE', isFree: true, iconName: 'Gamepad2',     iconColor: 'hsl(262 50% 52%)', iconBg: 'hsl(262 50% 52% / .12)', deliveryType: 'bundled', status: 'active' },
 ];
 
-const TOOL_ROUTES: Partial<Record<Product['id'], string>> = {
-  'file-organizer':      '/tool/file-organizer',
-  'bulk-file-renamer':   '/tool/bulk-file-renamer',
-  'spreadsheet-cleaner': '/tool/spreadsheet-cleaner',
-  'pdf-toolkit':         '/tool/pdf-toolkit',
-  'duplicate-finder':    '/tool/duplicate-finder',
-  'file-finder':         '/tool/file-finder',
-  'storage-explorer':    '/tool/storage-explorer',
-  'image-converter':     '/tool/image-converter',
-  'file-toolbox':        '/tool/file-toolbox',
-  'startup-manager':     '/tool/startup-manager',
-  'file-inspector':      '/tool/file-inspector',
-  'system-info':         '/tool/system-info',
+// ─── Tool routes & semver utilities ──────────────────────────────────────────
+
+const TOOL_ROUTES: Record<string, string> = {
+  'tool.file-organizer':      '/tool/file-organizer',
+  'tool.bulk-file-renamer':   '/tool/bulk-file-renamer',
+  'tool.spreadsheet-cleaner': '/tool/spreadsheet-cleaner',
+  'tool.pdf-toolkit':         '/tool/pdf-toolkit',
+  'tool.duplicate-finder':    '/tool/duplicate-finder',
+  'tool.file-finder':         '/tool/file-finder',
+  'tool.storage-explorer':    '/tool/storage-explorer',
+  'tool.image-converter':     '/tool/image-converter',
+  'tool.file-toolbox':        '/tool/file-toolbox',
+  'tool.startup-manager':     '/tool/startup-manager',
+  'tool.file-inspector':      '/tool/file-inspector',
+  'tool.system-info':         '/tool/system-info',
 };
 
-function getToolRoute(product: Product) { return TOOL_ROUTES[product.id]; }
+function getToolRoute(product: CatalogProduct): string | undefined {
+  return TOOL_ROUTES[product.id];
+}
+
+/** Compare two semver strings. Returns positive if a > b. */
+function semverCompare(a: string, b: string): number {
+  const pa = a.split('.').map(Number);
+  const pb = b.split('.').map(Number);
+  for (let i = 0; i < 3; i++) {
+    const d = (pa[i] ?? 0) - (pb[i] ?? 0);
+    if (d !== 0) return d;
+  }
+  return 0;
+}
+
+/** True when the product requires a newer Cubical client than the current build. */
+function requiresCubicalUpdate(product: CatalogProduct): boolean {
+  if (!product.minimumCubicalVersion) return false;
+  return semverCompare(product.minimumCubicalVersion, APP_VERSION) > 0;
+}
 
 // ─── Local-storage helpers ────────────────────────────────────────────────────
 
@@ -324,13 +403,143 @@ function isStringArray(v: unknown): v is string[] {
   return Array.isArray(v) && v.every((x) => typeof x === 'string');
 }
 
+// ─── Library ID migration ─────────────────────────────────────────────────────
+// Maps legacy plain-slug IDs stored in localStorage → new stable catalog IDs.
+const LEGACY_ID_MAP: Record<string, string> = {
+  'file-organizer':      'tool.file-organizer',
+  'spreadsheet-cleaner': 'tool.spreadsheet-cleaner',
+  'pdf-toolkit':         'tool.pdf-toolkit',
+  'bulk-file-renamer':   'tool.bulk-file-renamer',
+  'duplicate-finder':    'tool.duplicate-finder',
+  'file-finder':         'tool.file-finder',
+  'storage-explorer':    'tool.storage-explorer',
+  'image-converter':     'tool.image-converter',
+  'file-toolbox':        'tool.file-toolbox',
+  'startup-manager':     'tool.startup-manager',
+  'file-inspector':      'tool.file-inspector',
+  'system-info':         'tool.system-info',
+};
+
 function getStoredLibrary(): string[] {
-  const validIds = new Set(PRODUCTS.map((p) => p.id));
-  const stored = readLocal<string[]>(LIBRARY_STORAGE_KEY, [], isStringArray).filter((id) => validIds.has(id));
-  // file-finder is always free and pre-installed — ensure it is always in the library.
-  return stored.includes('file-finder') ? stored : ['file-finder', ...stored];
+  const stored = readLocal<string[]>(LIBRARY_STORAGE_KEY, [], isStringArray);
+  // Migrate any legacy IDs to the new catalog format
+  const migrated = stored.map((id) => LEGACY_ID_MAP[id] ?? id);
+  // File Finder is always pre-installed
+  const result = migrated.includes('tool.file-finder') ? migrated : ['tool.file-finder', ...migrated];
+  // Persist migrated IDs so subsequent reads skip the migration step
+  if (stored.some((id) => LEGACY_ID_MAP[id] !== undefined) || !migrated.includes('tool.file-finder')) {
+    writeLocal(LIBRARY_STORAGE_KEY, result);
+  }
+  return result;
 }
 function storeLibrary(ids: string[]) { writeLocal(LIBRARY_STORAGE_KEY, ids); }
+
+// ─── Remote Store Catalog ─────────────────────────────────────────────────────
+
+const CATALOG_CACHE_KEY = 'cubical-catalog-cache-v1';
+const CATALOG_TTL_MS    = 60 * 60 * 1000; // 1 hour
+
+interface CatalogCache {
+  products:        CatalogProduct[];
+  fetchedAt:       number;
+  catalogVersion?: string;
+}
+
+function getCatalogCache(): CatalogCache | null {
+  try {
+    const raw = window.localStorage.getItem(CATALOG_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    if (!Array.isArray(parsed.products)) return null;
+    return parsed as unknown as CatalogCache;
+  } catch { return null; }
+}
+
+function setCatalogCache(cache: CatalogCache) {
+  try { window.localStorage.setItem(CATALOG_CACHE_KEY, JSON.stringify(cache)); } catch {}
+}
+
+/** Validate a single raw product entry from a remote catalog response. */
+function validateCatalogProduct(raw: unknown): CatalogProduct | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const p = raw as Record<string, unknown>;
+  if (typeof p.id !== 'string' || !p.id) return null;
+  if (!['tool', 'skin', 'game'].includes(p.type as string)) return null;
+  if (typeof p.name !== 'string' || !p.name) return null;
+  return {
+    id:          p.id as string,
+    type:        p.type as ProductType,
+    name:        p.name as string,
+    description: typeof p.description === 'string' ? p.description : '',
+    version:     typeof p.version === 'string' ? p.version : '1.0.0',
+    price:       typeof p.price === 'string' ? p.price : 'FREE',
+    isFree:      p.isFree !== false,
+    iconName:    typeof p.iconName === 'string' ? p.iconName : 'File',
+    iconColor:   typeof p.iconColor === 'string' ? p.iconColor : 'hsl(var(--primary))',
+    iconBg:      typeof p.iconBg === 'string' ? p.iconBg : 'hsl(var(--primary) / .12)',
+    category:    typeof p.category === 'string' ? p.category : undefined,
+    tags:        Array.isArray(p.tags) ? (p.tags as unknown[]).filter((t) => typeof t === 'string') as string[] : undefined,
+    deliveryType: (['bundled', 'asset-package', 'client-update-required'].includes(p.deliveryType as string)
+      ? p.deliveryType : 'bundled') as DeliveryType,
+    minimumCubicalVersion: typeof p.minimumCubicalVersion === 'string' ? p.minimumCubicalVersion : undefined,
+    featured:    typeof p.featured === 'boolean' ? p.featured : false,
+    isNew:       typeof p.isNew === 'boolean' ? p.isNew : false,
+    status:      (['active', 'coming-soon', 'deprecated'].includes(p.status as string)
+      ? p.status : 'active') as ProductStatus,
+    releaseNotes:  typeof p.releaseNotes === 'string' ? p.releaseNotes : undefined,
+    packageUrl:    typeof p.packageUrl === 'string' ? p.packageUrl : undefined,
+    downloadSize:  typeof p.downloadSize === 'number' ? p.downloadSize : undefined,
+  };
+}
+
+/**
+ * Fetch and cache the Store Catalog.
+ * Priority: fresh remote → valid cache → bundled default.
+ * Never throws — falls back gracefully to keep the Store usable offline.
+ */
+function useCatalog() {
+  const [products, setProducts] = useState<CatalogProduct[]>(() => {
+    const cached = getCatalogCache();
+    return cached?.products ?? DEFAULT_CATALOG_PRODUCTS;
+  });
+  const [status, setStatus] = useState<CatalogStatus>('idle');
+
+  const catalogUrl = (import.meta.env.VITE_CATALOG_URL as string | undefined) ?? '';
+
+  const fetchCatalog = useCallback(async (force = false) => {
+    if (!catalogUrl) {
+      // No remote catalog configured — use bundled products
+      setStatus('ok');
+      return;
+    }
+    const cached = getCatalogCache();
+    if (!force && cached && Date.now() - cached.fetchedAt < CATALOG_TTL_MS) {
+      setProducts(cached.products);
+      setStatus('ok');
+      return;
+    }
+    setStatus('loading');
+    try {
+      const res = await fetch(catalogUrl, { signal: AbortSignal.timeout(8000) });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json() as Record<string, unknown>;
+      const rawList = Array.isArray(data.products) ? data.products : [];
+      const valid = (rawList as unknown[]).map(validateCatalogProduct).filter(Boolean) as CatalogProduct[];
+      if (valid.length === 0) throw new Error('Catalog returned no valid products');
+      setCatalogCache({ products: valid, fetchedAt: Date.now(), catalogVersion: data.catalogVersion as string | undefined });
+      setProducts(valid);
+      setStatus('ok');
+    } catch (e) {
+      console.warn('[catalog] fetch failed:', e);
+      if (cached) { setProducts(cached.products); setStatus('cached'); }
+      else { setStatus('error'); }
+    }
+  }, [catalogUrl]);
+
+  useEffect(() => { fetchCatalog(); }, [fetchCatalog]);
+
+  return { products, status, refresh: () => fetchCatalog(true) };
+}
 
 // ─── Calendar types & storage ─────────────────────────────────────────────────
 
@@ -836,7 +1045,7 @@ function AppShell({ children, libraryCount }: { children: ReactNode; libraryCoun
 // ─── Store components ─────────────────────────────────────────────────────────
 
 function ProductIcon({ product, size = 'normal' }: { product: Product; size?: 'normal' | 'large' }) {
-  const Icon = product.icon;
+  const Icon = resolveIcon(product.iconName);
   return (
     <span
       className={`tool-icon ${size === 'large' ? 'h-[66px] w-[66px] rounded-[19px]' : ''}`}
@@ -869,13 +1078,29 @@ function ProductCard({ product, isOwned }: { product: Product; isOwned?: boolean
   );
 }
 
-function StorePage({ libraryIds }: { libraryIds: string[] }) {
-  const [query, setQuery] = useState('');
+type StoreCategory = 'all' | 'tool' | 'skin' | 'game';
+const STORE_CATEGORY_LABELS: Record<StoreCategory, string> = { all: 'All', tool: 'Tools', skin: 'Skins', game: 'Games' };
+
+function StorePage({ libraryIds, catalogProducts, catalogStatus, onRefresh }: {
+  libraryIds: string[];
+  catalogProducts: CatalogProduct[];
+  catalogStatus: CatalogStatus;
+  onRefresh: () => void;
+}) {
+  const [query,    setQuery]    = useState('');
+  const [category, setCategory] = useState<StoreCategory>('all');
+
   const filtered = useMemo(() => {
-    if (!query.trim()) return PRODUCTS;
-    const q = query.toLowerCase();
-    return PRODUCTS.filter((p) => p.name.toLowerCase().includes(q) || p.description.toLowerCase().includes(q));
-  }, [query]);
+    let list = catalogProducts.filter((p) => p.status === 'active');
+    if (category !== 'all') list = list.filter((p) => p.type === category);
+    if (query.trim()) {
+      const q = query.toLowerCase();
+      list = list.filter((p) => p.name.toLowerCase().includes(q) || p.description.toLowerCase().includes(q));
+    }
+    return list;
+  }, [catalogProducts, category, query]);
+
+  const activeCount = filtered.length;
 
   return (
     <section>
@@ -886,17 +1111,37 @@ function StorePage({ libraryIds }: { libraryIds: string[] }) {
         <p>Browse focused desktop tools made to do one thing well. Pick the ones that feel like you.</p>
       </div>
       <DisplacedWidgetBand />
+
+      {/* Category tabs */}
+      <div className="catalog-tabs" role="tablist" aria-label="Store categories">
+        {(Object.keys(STORE_CATEGORY_LABELS) as StoreCategory[]).map((cat) => (
+          <button key={cat} role="tab" aria-selected={category === cat}
+            className={`catalog-tab${category === cat ? ' active' : ''}`}
+            onClick={() => setCategory(cat)}>
+            {STORE_CATEGORY_LABELS[cat]}
+          </button>
+        ))}
+        <div className="catalog-actions">
+          {catalogStatus === 'loading' && <span className="catalog-status-pill">Refreshing…</span>}
+          {catalogStatus === 'cached'  && <span className="catalog-status-pill catalog-status-pill--warn">Offline</span>}
+          {catalogStatus === 'error'   && <span className="catalog-status-pill catalog-status-pill--err">Could not load catalog</span>}
+          <button type="button" className="catalog-refresh-btn" onClick={onRefresh} title="Refresh catalog" aria-label="Refresh catalog">
+            <RefreshCw className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+
       <div className="mb-3 flex items-center justify-between">
         <span className="eyebrow" style={{ color: 'hsl(var(--muted-foreground))' }}>The current edit</span>
-        <span className="library-count">{String(PRODUCTS.length).padStart(2, '0')} tools · no noise</span>
+        <span className="library-count">{String(activeCount).padStart(2, '0')} {category === 'all' ? 'items' : STORE_CATEGORY_LABELS[category].toLowerCase()} · no noise</span>
       </div>
       <div className="tool-search-bar mb-5">
         <Search className="tool-search-icon" />
-        <input type="text" className="tool-search-input" placeholder="Search tools…" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search store tools" />
+        <input type="text" className="tool-search-input" placeholder={`Search ${category === 'all' ? 'store' : STORE_CATEGORY_LABELS[category].toLowerCase()}…`} value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search store" />
         {query && <button type="button" className="tool-search-clear" onClick={() => setQuery('')} aria-label="Clear search"><X /></button>}
       </div>
       {filtered.length === 0
-        ? <div className="tool-search-empty">No tools found for "{query}"</div>
+        ? <div className="tool-search-empty">{query ? `No results for "${query}"` : `No ${STORE_CATEGORY_LABELS[category].toLowerCase()} available`}</div>
         : <div className="product-grid" data-testid="product-catalog">{filtered.map((product) => <ProductCard key={product.id} product={product} isOwned={libraryIds.includes(product.id)} />)}</div>}
     </section>
   );
@@ -915,8 +1160,9 @@ function ScreenshotPlaceholder({ product }: { product: Product }) {
 }
 
 function ProductDetail({ product, isAdded, onAdd, onOpen }: { product: Product; isAdded: boolean; onAdd: () => void; onOpen: () => void }) {
-  const toolRoute = getToolRoute(product);
-  const isFree = product.price === 'FREE';
+  const toolRoute    = getToolRoute(product);
+  const isFree       = product.isFree;
+  const needsUpdate  = requiresCubicalUpdate(product);
   return (
     <section>
       <BackButton fallback="/store" label="Back to store" />
@@ -924,11 +1170,17 @@ function ProductDetail({ product, isAdded, onAdd, onOpen }: { product: Product; 
       <div className="detail-layout">
         <div className="detail-copy">
           <ProductIcon product={product} size="large" />
-          <div className="eyebrow mt-7">A focused little utility</div>
+          <div className="eyebrow mt-7">{product.type === 'skin' ? 'Visual theme' : product.type === 'game' ? 'Breakroom game' : 'A focused little utility'}</div>
           <h1 data-testid="text-detail-name">{product.name}</h1>
           <p data-testid="text-detail-description">{product.description} Built to stay out of your way, feel good to use, and make a small part of your day lighter.</p>
           <div className="detail-price" data-testid="text-detail-price">{isFree ? 'FREE · local-only' : `${product.price} · one-time, local-only`}</div>
-          {isAdded ? (
+          {needsUpdate ? (
+            <div className="detail-update-required">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>Requires Cubical {product.minimumCubicalVersion}. Your version is {APP_VERSION}.</span>
+              <Link href="/settings" className="button-quiet">Update Cubical</Link>
+            </div>
+          ) : isAdded ? (
             toolRoute ? (
               <Link href={toolRoute} className="button-primary" data-testid="button-open-added"><Check /> In your library · Open</Link>
             ) : (
@@ -5536,6 +5788,79 @@ function ProfilePage() {
 
 // ─── Settings page ─────────────────────────────────────────────────────────────
 
+// ─── UpdatePanel ──────────────────────────────────────────────────────────────
+
+type UpdateState = 'idle' | 'checking' | 'up-to-date' | 'available' | 'downloading' | 'ready' | 'error';
+
+function UpdatePanel() {
+  const [state,    setState]    = useState<UpdateState>('idle');
+  const [version,  setVersion]  = useState<string | null>(null);
+  const [progress, setProgress] = useState<number>(0);
+  const [message,  setMessage]  = useState<string | null>(null);
+  const updater = window.cubicalDesktop?.updater;
+
+  useEffect(() => {
+    if (!updater) return;
+    const unsub = updater.onStatus((evt: UpdateStatusEvent) => {
+      if (evt.type === 'checking-for-update')  { setState('checking'); }
+      if (evt.type === 'update-not-available') { setState('up-to-date'); }
+      if (evt.type === 'update-available')     { setState('available');  setVersion(evt.version ?? null); }
+      if (evt.type === 'download-progress')    { setState('downloading'); setProgress(evt.percent ?? 0); }
+      if (evt.type === 'update-downloaded')    { setState('ready'); }
+      if (evt.type === 'error')                { setState('error'); setMessage(evt.message ?? 'Unknown error'); }
+    });
+    return unsub;
+  }, [updater]);
+
+  const handleCheck = async () => {
+    if (!updater) return;
+    setState('checking');
+    try {
+      const res = await updater.checkForUpdates();
+      if (res?.devMode) { setState('idle'); setMessage('Update checks are disabled in dev mode.'); }
+    } catch { setState('error'); setMessage('Could not reach the update server.'); }
+  };
+
+  if (!updater) {
+    return (
+      <div className="update-panel-devnote">
+        Running in browser — update checks are available in the packaged desktop app.
+      </div>
+    );
+  }
+
+  return (
+    <div className="update-panel">
+      {state === 'idle'        && <p className="update-panel-hint">Check for a newer version of Cubical.</p>}
+      {state === 'checking'    && <p className="update-panel-hint">Checking for updates…</p>}
+      {state === 'up-to-date'  && <p className="update-panel-hint update-panel-ok">You're on the latest version.</p>}
+      {state === 'available'   && <p className="update-panel-hint">Version {version ?? 'update'} is available.</p>}
+      {state === 'downloading' && (
+        <div>
+          <p className="update-panel-hint">Downloading… {Math.round(progress)}%</p>
+          <div className="update-progress-bar"><div className="update-progress-fill" style={{ width: `${progress}%` }} /></div>
+        </div>
+      )}
+      {state === 'ready'  && <p className="update-panel-hint update-panel-ok">Download complete. Restart to apply.</p>}
+      {state === 'error'  && <p className="update-panel-hint update-panel-err">{message ?? 'Update failed.'}</p>}
+      {message && state === 'idle' && <p className="update-panel-hint" style={{ opacity: .7 }}>{message}</p>}
+      <div className="update-panel-actions">
+        {(state === 'idle' || state === 'up-to-date' || state === 'error') && (
+          <button className="button-quiet" onClick={handleCheck}>Check for updates</button>
+        )}
+        {state === 'available' && (
+          <button className="button-primary" onClick={() => updater.downloadUpdate()}>Download update</button>
+        )}
+        {state === 'ready' && (
+          <button className="button-primary" onClick={() => updater.installUpdate()}>Restart &amp; Update</button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Settings page ────────────────────────────────────────────────────────────
+
 function SettingsPage() {
   const [settings,      setSettings_]    = useState<AppSettings>(readSettings);
   const [clearConfirm,  setClearConfirm]  = useState(false);
@@ -5729,6 +6054,20 @@ function SettingsPage() {
             : <button className="settings-danger-btn" onClick={() => setClearConfirm(true)}>Clear data</button>
           }
         </div>
+      </div>
+
+      {/* About */}
+      <div className="settings-card">
+        <div className="settings-card-header">
+          <h2 className="settings-section-title"><Info className="w-4 h-4" /> About Cubical</h2>
+        </div>
+        <div className="settings-row settings-row-border">
+          <div className="settings-row-info">
+            <div className="settings-row-label">Version</div>
+            <div className="settings-row-hint">Cubical {APP_VERSION} Alpha</div>
+          </div>
+        </div>
+        <UpdatePanel />
       </div>
 
     </section>
@@ -6953,9 +7292,14 @@ function useHashLocation(): [string, (to: string, opts?: { replace?: boolean }) 
 // ─── Root app ─────────────────────────────────────────────────────────────────
 
 function App() {
-  const [libraryIds, setLibraryIds] = useState<string[]>(getStoredLibrary);
-  const [toast, setToast]           = useState<string | null>(null);
-  const libraryProducts = useMemo(() => PRODUCTS.filter((product) => libraryIds.includes(product.id)), [libraryIds]);
+  const [libraryIds, setLibraryIds]         = useState<string[]>(getStoredLibrary);
+  const [toast, setToast]                   = useState<string | null>(null);
+  const { products: catalogProducts, status: catalogStatus, refresh: refreshCatalog } = useCatalog();
+
+  const libraryProducts = useMemo(
+    () => catalogProducts.filter((product) => libraryIds.includes(product.id)),
+    [catalogProducts, libraryIds],
+  );
 
   // Apply persisted theme mode, cosmetic palette, and skin on first mount.
   useEffect(() => {
@@ -6974,11 +7318,18 @@ function App() {
   useEffect(() => { storeLibrary(libraryIds); }, [libraryIds]);
   useEffect(() => { if (!toast) return; const t = window.setTimeout(() => setToast(null), 2800); return () => window.clearTimeout(t); }, [toast]);
 
-  const addToLibrary = (product: Product) => {
+  const addToLibrary = (product: CatalogProduct) => {
     setLibraryIds((current) => current.includes(product.id) ? current : [...current, product.id]);
     setToast(`${product.name} added to your library`);
   };
-  const openProduct = (product: Product) => {
+
+  const openProduct = (product: CatalogProduct) => {
+    if (product.deliveryType === 'client-update-required') {
+      setToast(`${product.name} requires a newer version of Cubical`);
+      return;
+    }
+    if (product.type === 'skin') { window.location.hash = '/profile'; return; }
+    if (product.type === 'game') { window.location.hash = '/breakroom'; return; }
     const toolRoute = getToolRoute(product);
     if (toolRoute) { window.location.hash = toolRoute; return; }
     setToast(`${product.name} would launch here`);
@@ -6996,9 +7347,16 @@ function App() {
           <AppShell libraryCount={libraryProducts.length}>
             <Switch>
               <Route path="/"><HomePage /></Route>
-              <Route path="/store"><StorePage libraryIds={libraryIds} /></Route>
+              <Route path="/store">
+                <StorePage
+                  libraryIds={libraryIds}
+                  catalogProducts={catalogProducts}
+                  catalogStatus={catalogStatus}
+                  onRefresh={refreshCatalog}
+                />
+              </Route>
               <Route path="/product/:id">{(params) => {
-                const product = PRODUCTS.find((item) => item.id === params.id);
+                const product = catalogProducts.find((item) => item.id === params.id);
                 if (!product) return <NotFound />;
                 return <ProductDetail product={product} isAdded={libraryIds.includes(product.id)} onAdd={() => addToLibrary(product)} onOpen={() => openProduct(product)} />;
               }}</Route>

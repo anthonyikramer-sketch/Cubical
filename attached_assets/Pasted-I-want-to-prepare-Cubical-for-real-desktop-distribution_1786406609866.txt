@@ -1,0 +1,932 @@
+I want to prepare Cubical for real desktop distribution and ongoing updates.
+
+Cubical is currently packaged as a Windows Electron application using electron-builder and NSIS.
+
+The goals of this task are:
+
+1. Give Cubical proper alpha versioning.
+2. Make future Windows client updates easy for installed users.
+3. Create a REMOTE Store Catalog so new Tools, Skins, and Games can appear in an already-installed Cubical client without rebuilding/reinstalling Cubical merely to display the new Store listing.
+4. Separate Store/catalog updates from actual Cubical client updates.
+5. Preserve the current local prototype behavior where possible.
+6. Make the architecture easy to publish later without hardcoding one hosting provider throughout the app.
+
+IMPORTANT:
+
+Do not redesign Cubical.
+Do not change existing widget behavior.
+Do not redesign Sakura.
+Do not remove existing tools.
+Do not add payments/accounts/cloud sync yet.
+Do not execute arbitrary downloaded remote JavaScript inside Cubical.
+Security and future maintainability are more important than making every remote product immediately executable in this first pass.
+
+==================================================
+1. PROPER CUBICAL VERSIONING
+==================================================
+
+Cubical is still an alpha prototype.
+
+Change the application version away from:
+
+1.0.0
+
+Use an appropriate alpha version such as:
+
+0.2.0
+
+or the next sensible current alpha version based on the project.
+
+Use semantic versioning:
+
+major.minor.patch
+
+Examples:
+
+0.2.0
+0.2.1
+0.3.0
+
+The application version should come from ONE canonical project/package source rather than being separately hardcoded in multiple components.
+
+Expose the current version somewhere appropriate in Settings/About.
+
+Example:
+
+Cubical
+Version 0.2.0 Alpha
+
+Do not make the version visually prominent during normal use.
+
+==================================================
+2. PREPARE WINDOWS AUTO-UPDATES
+==================================================
+
+Cubical uses:
+
+Electron
+electron-builder
+Windows NSIS
+
+Add/update the architecture necessary to use:
+
+electron-updater
+
+for future Windows desktop updates.
+
+Use the existing Electron main-process architecture.
+
+Do not enable unsafe Node access in the renderer.
+
+Use secure IPC/preload patterns where renderer UI needs update information.
+
+==================================================
+3. UPDATE PROVIDER MUST BE CONFIGURABLE
+==================================================
+
+Do not tightly hardcode Cubical to one release host throughout the codebase.
+
+Create centralized update configuration.
+
+Support a configurable HTTPS release/update URL or electron-builder publish provider.
+
+It should be easy later to use something such as:
+
+- GitHub Releases
+- generic HTTPS hosting
+- Cloudflare R2 / object storage
+- another electron-builder-supported provider
+
+If a final public release URL does not exist yet:
+
+Use a clearly named configuration placeholder/environment value rather than inventing a fake production URL.
+
+Example conceptual configuration:
+
+CUBICAL_UPDATE_URL
+
+or equivalent project configuration.
+
+The development app should not crash if this URL has not yet been configured.
+
+==================================================
+4. UPDATE CHECKING
+==================================================
+
+In a packaged production build:
+
+Cubical should be capable of checking for a newer application version.
+
+Suggested behavior:
+
+App launches
+↓
+Cubical starts normally
+↓
+Check for update quietly
+↓
+If none exists:
+do nothing
+
+If an update exists:
+show a subtle in-app update status/control.
+
+Do not interrupt application startup with a blocking update dialog.
+
+Do not run the updater during ordinary browser/Replit preview in a way that produces errors.
+
+Detect whether the app is actually running as a packaged Electron build.
+
+==================================================
+5. UPDATE USER EXPERIENCE
+==================================================
+
+Create a simple update experience.
+
+Possible states:
+
+Checking for updates
+Update available
+Downloading update
+Update ready
+Up to date
+Update error
+
+Keep this understated.
+
+A good final interaction would be:
+
+"Update ready"
+
+[ Restart & Update ]
+
+When the user chooses Restart & Update:
+
+Allow electron-updater to quit/install/restart using the supported update mechanism.
+
+Do not manually overwrite application files from renderer JavaScript.
+
+==================================================
+6. DOWNLOAD PROGRESS
+==================================================
+
+If practical with electron-updater's existing events, expose download progress.
+
+Example:
+
+Downloading update...
+43%
+
+Do not create a giant update page.
+
+A small Settings/About update section or discreet update notification is sufficient.
+
+==================================================
+7. MANUAL CHECK
+==================================================
+
+In Settings/About, add:
+
+Check for Updates
+
+This allows the user to manually trigger an update check.
+
+If the updater cannot run because Cubical is:
+
+- browser preview
+- development mode
+- missing release configuration
+
+show a useful development-safe message instead of throwing an error.
+
+==================================================
+8. PRESERVE USER DATA DURING APP UPDATE
+==================================================
+
+Application updates must not intentionally erase user data.
+
+Preserve existing locally stored:
+
+- widget layouts
+- notes
+- Calendar events
+- settings
+- profile information
+- owned/equipped skins
+- installed product state
+
+Do not place persistent user data inside disposable application-install directories if the current architecture can avoid it.
+
+Use the appropriate persistent Electron user-data location/architecture for desktop-specific persistent data where needed.
+
+Do not perform a full data migration in this task unless necessary.
+
+==================================================
+9. CREATE A REMOTE STORE CATALOG ARCHITECTURE
+==================================================
+
+The Cubical Store must no longer depend exclusively on product listings hardcoded into the installed client.
+
+Create a remote Store Catalog architecture.
+
+Cubical should be capable of loading a JSON/API catalog from a configured HTTPS endpoint.
+
+Example conceptual endpoint:
+
+CUBICAL_CATALOG_URL
+
+The catalog controls which products are AVAILABLE in the Cubical Store.
+
+The installed client should render Store products from this catalog.
+
+==================================================
+10. ONE SHARED PRODUCT MODEL
+==================================================
+
+Create one common product/catalog model that can represent:
+
+- tool
+- skin
+- game
+
+Example conceptual product fields:
+
+id
+type
+name
+description
+version
+price
+isFree
+icon
+previewImages
+category
+tags
+status
+featured
+new
+minimumCubicalVersion
+deliveryType
+packageUrl
+downloadSize
+releaseNotes
+
+Not every field has to be required.
+
+Use a clean extensible schema.
+
+Product type should be something like:
+
+tool
+skin
+game
+
+Do not maintain three completely unrelated catalog systems.
+
+==================================================
+11. PRODUCT IDS MUST BE STABLE
+==================================================
+
+Every Store product needs a stable unique ID.
+
+Example:
+
+tool.file-finder
+tool.pdf-toolkit
+skin.sakura
+game.example-name
+
+The ID should not depend on the current display name.
+
+Renaming a product later should not cause Cubical to think it is a brand-new unrelated product.
+
+==================================================
+12. REMOTE CATALOG REFRESH
+==================================================
+
+Cubical should load/refresh the Store Catalog:
+
+- when Cubical starts
+- when the user opens Store if the cached catalog is stale
+- through a manual Refresh Store action if useful
+
+Do not spam the server constantly.
+
+Use a reasonable cache duration.
+
+If a fresh catalog cannot be reached:
+
+Use the most recent valid cached catalog if available.
+
+Do not make the entire Store unusable just because the user temporarily has no internet.
+
+==================================================
+13. CATALOG CACHE
+==================================================
+
+Cache the last successfully retrieved Store Catalog locally.
+
+On successful fetch:
+
+validate it
+↓
+save it locally
+↓
+render it
+
+On failed fetch:
+
+use cached catalog if available.
+
+If neither remote nor cached catalog exists:
+
+fall back gracefully to currently bundled/default products if practical.
+
+==================================================
+14. REMOTE CATALOG VALIDATION
+==================================================
+
+Do not blindly trust malformed catalog responses.
+
+Validate expected structure before replacing the cached catalog.
+
+If one product entry is malformed:
+
+prefer ignoring/reporting that entry rather than crashing the entire Store.
+
+Do not execute code from catalog fields.
+
+Treat the catalog as DATA.
+
+==================================================
+15. MOST IMPORTANT LIVE-STORE BEHAVIOR
+==================================================
+
+The desired behavior is:
+
+I publish a new product to the remote Cubical Store Catalog.
+
+Example:
+
+Unit Converter
+type: tool
+
+An already-installed copy of Cubical should NOT require a complete application reinstall merely to KNOW that Unit Converter exists.
+
+The client refreshes its Store Catalog.
+
+Then:
+
+Unit Converter appears in Store.
+
+The same applies to:
+
+NEW TOOLS
+NEW SKINS
+NEW GAMES
+
+This is a core requirement.
+
+==================================================
+16. INSTALLED/OWNED STATE IS SEPARATE FROM CATALOG STATE
+==================================================
+
+Do not confuse:
+
+AVAILABLE IN STORE
+
+with:
+
+OWNED / INSTALLED BY USER
+
+The remote catalog says:
+
+"These products currently exist."
+
+Local user state says:
+
+"These products belong to / are installed by this user."
+
+Keep those concepts separate.
+
+Example:
+
+Catalog contains:
+File Finder
+PDF Toolkit
+Sakura
+Game A
+
+User may currently own/install:
+File Finder
+Sakura
+
+Do not overwrite local ownership/install state whenever a catalog refresh occurs.
+
+==================================================
+17. EXISTING BUNDLED PRODUCTS
+==================================================
+
+Preserve current tools/skins/games already in Cubical.
+
+Migrate them into the shared catalog/product model where practical.
+
+For development/offline fallback, it is acceptable to maintain a bundled default catalog that uses the same schema.
+
+Do not break existing Store or Library behavior while making this change.
+
+==================================================
+18. PRODUCT COMPATIBILITY
+==================================================
+
+Add support for a product to declare a minimum Cubical client version.
+
+Example:
+
+minimumCubicalVersion: 0.3.0
+
+If installed Cubical is:
+
+0.2.0
+
+and the product requires:
+
+0.3.0
+
+Store should still be able to display the product, but clearly indicate something like:
+
+Requires Cubical 0.3.0
+
+[ Update Cubical ]
+
+Do not attempt to run incompatible product code.
+
+==================================================
+19. DELIVERY TYPES
+==================================================
+
+Prepare the product model to distinguish different delivery requirements.
+
+Conceptual examples:
+
+bundled
+asset-package
+client-update-required
+
+BUNDLED:
+
+The functionality already exists inside this Cubical build.
+
+ASSET-PACKAGE:
+
+May eventually represent downloadable non-executable content such as:
+
+- skins
+- images
+- theme assets
+- sound assets
+
+CLIENT-UPDATE-REQUIRED:
+
+The Store listing can appear remotely, but the actual executable/tool functionality requires a newer Cubical client.
+
+Do not implement arbitrary remote-code execution.
+
+==================================================
+20. TOOLS: SAFE MVP DELIVERY RULE
+==================================================
+
+For this version, do NOT create a system that downloads arbitrary JavaScript from the internet and executes it inside Electron.
+
+That introduces a significant security boundary.
+
+Instead:
+
+A newly published Tool may immediately appear in the live Store Catalog.
+
+If its functional code does not already exist in the installed client:
+
+mark it as:
+
+Requires Cubical Update
+
+or equivalent.
+
+The next Cubical client release can contain the new tool implementation.
+
+This still achieves:
+
+NEW TOOL APPEARS IN STORE IMMEDIATELY
+
+without unsafe remote-code execution.
+
+==================================================
+21. SKINS
+==================================================
+
+Prepare Skins to eventually work well as remotely delivered asset packages.
+
+Skin catalog entries may describe:
+
+- name
+- version
+- environment image(s)
+- theme variables
+- decorative images
+- metadata
+
+Do not overbuild a complete remote skin downloader unless the current architecture makes it straightforward and safe.
+
+The important part now is:
+
+a new Skin listing can appear remotely in Store without rebuilding the desktop client.
+
+If installed client cannot yet download that skin safely:
+
+show the listing and appropriate availability state.
+
+==================================================
+22. GAMES
+==================================================
+
+Games should use the same Store catalog.
+
+A new Game listing should be able to appear remotely.
+
+Do not execute arbitrary remotely downloaded game code during this architecture pass.
+
+If game code requires a newer Cubical client:
+
+mark it as requiring that client version.
+
+Later we can create a safe package/module system specifically for Cubical games.
+
+==================================================
+23. STORE CATEGORIES
+==================================================
+
+Use the common product type/category data to allow Store filtering such as:
+
+All
+Tools
+Skins
+Games
+
+Preserve any existing Store presentation that already handles these categories well.
+
+Do not redesign Store unnecessarily.
+
+==================================================
+24. NEW / UPDATED PRODUCTS
+==================================================
+
+Prepare catalog metadata for things such as:
+
+New
+Updated
+Featured
+
+For example:
+
+new: true
+
+or a release date that allows Cubical to determine recency.
+
+Do not overengineer recommendation algorithms in this task.
+
+==================================================
+25. PRODUCT VERSIONING
+==================================================
+
+Each product should be capable of having its own version separate from Cubical's client version.
+
+Example:
+
+Cubical:
+0.4.0
+
+File Finder:
+1.2.0
+
+Sakura:
+1.1.0
+
+This prepares Cubical for future independent product updates.
+
+Do not assume every product version equals Cubical's version.
+
+==================================================
+26. PRODUCT UPDATE STATE
+==================================================
+
+Prepare local product records to understand:
+
+installedVersion
+availableVersion
+
+If:
+
+availableVersion > installedVersion
+
+the Library/Store can eventually indicate:
+
+Update available
+
+Do not build a complicated product updater yet if delivery is not ready.
+
+Just structure state cleanly.
+
+==================================================
+27. CATALOG ENDPOINT CONFIGURATION
+==================================================
+
+Do not invent a production endpoint if none currently exists.
+
+Centralize configuration.
+
+Examples:
+
+CUBICAL_CATALOG_URL
+CUBICAL_UPDATE_URL
+
+or equivalent environment/build config.
+
+Development should have a documented local/mock fallback.
+
+Production should be able to point to deployed HTTPS endpoints without changing Store component code.
+
+==================================================
+28. CREATE A SAMPLE DEVELOPMENT CATALOG
+==================================================
+
+Create a development/sample catalog using EXISTING Cubical products.
+
+Do not invent a huge number of fake products.
+
+Use representative current entries such as:
+
+existing tools
+Sakura
+existing games if present
+
+This should allow the remote-catalog code path to be tested before a public server exists.
+
+==================================================
+29. PROVIDE CATALOG DOCUMENTATION
+==================================================
+
+Add a concise developer-facing document in the project explaining:
+
+How to add a product to the Cubical Store Catalog.
+
+Include an example entry for:
+
+- Tool
+- Skin
+- Game
+
+Explain:
+
+id
+type
+name
+version
+minimumCubicalVersion
+deliveryType
+price/free state
+
+This documentation is for project maintenance, not visible application UI.
+
+==================================================
+30. PREPARE FOR A DEPLOYED CATALOG
+==================================================
+
+The architecture should allow the catalog endpoint to later be served by:
+
+- a Replit deployment/API
+- static/object storage
+- another HTTPS service
+
+The Cubical client should only care about the configured catalog URL and valid JSON response.
+
+Do not tightly couple Store rendering to Replit-specific APIs.
+
+==================================================
+31. AUTO-UPDATE RELEASE ARTIFACTS
+==================================================
+
+Ensure electron-builder is configured so a production Windows NSIS build can produce the files required by electron-updater.
+
+Do not remove the existing NSIS installer output.
+
+A production release build should generate appropriate update metadata/artifacts alongside the installer.
+
+Document where these files appear.
+
+==================================================
+32. DEVELOPMENT VS PRODUCTION
+==================================================
+
+Do not make update checks annoying during development.
+
+Development/browser/Replit mode:
+
+- auto-update should remain disabled or development-safe
+- Store catalog may use local/mock fallback
+- clear developer logging is acceptable
+
+Packaged production Electron build:
+
+- remote catalog enabled
+- app update checking enabled when configured
+
+==================================================
+33. UPDATE ERRORS MUST NOT BREAK CUBICAL
+==================================================
+
+If update server is unavailable:
+
+Cubical still opens.
+
+If Store catalog is unavailable:
+
+Cubical still opens.
+
+If update metadata is malformed:
+
+Cubical still opens.
+
+If catalog JSON is malformed:
+
+Cubical still opens.
+
+These network features must fail gracefully.
+
+==================================================
+34. SECURITY
+==================================================
+
+Use HTTPS production URLs.
+
+Do not execute arbitrary code provided by catalog JSON.
+
+Do not expose Node APIs directly to renderer.
+
+Do not turn off Electron security features merely to make updates/catalog loading easier.
+
+Do not store update credentials in renderer code.
+
+==================================================
+35. DO NOT ADD PAYMENTS YET
+==================================================
+
+Catalog entries may contain:
+
+price
+isFree
+
+for UI/testing purposes.
+
+Do NOT build:
+
+- Stripe
+- card storage
+- checkout
+- subscriptions
+- real purchase verification
+
+during this task.
+
+Ownership can remain prototype/local for now.
+
+==================================================
+36. VERIFY CLIENT VERSIONING
+==================================================
+
+Verify:
+
+1. Cubical has an appropriate 0.x alpha version.
+2. Version is centrally sourced.
+3. Settings/About can display it correctly.
+4. Building does not require manually changing version text across several components.
+
+==================================================
+37. VERIFY UPDATE ARCHITECTURE
+==================================================
+
+Verify in development-safe form:
+
+5. Update system initializes only where appropriate.
+6. Missing update URL does not crash Cubical.
+7. Update events can be surfaced to renderer safely.
+8. Check for Updates control works or provides a development-safe explanation.
+9. NSIS build configuration remains valid.
+10. Required electron-updater metadata can be produced by release builds.
+
+==================================================
+38. VERIFY LIVE STORE CATALOG
+==================================================
+
+11. Start with sample catalog containing current products.
+12. Open Store.
+13. Verify catalog products render.
+
+14. Add a temporary TEST product entry to the catalog.
+
+Example:
+Test Unit Converter
+
+15. Refresh/reload the catalog.
+16. Verify the new product appears WITHOUT modifying Store component code.
+
+17. Remove the test product.
+18. Refresh catalog.
+19. Verify catalog updates correctly.
+
+==================================================
+39. VERIFY OFFLINE FALLBACK
+==================================================
+
+20. Load a valid catalog once.
+
+21. Simulate catalog server failure.
+
+22. Verify cached Store catalog continues displaying.
+
+23. Verify Cubical itself remains usable.
+
+==================================================
+40. VERIFY LOCAL OWNERSHIP SEPARATION
+==================================================
+
+24. Mark/install/own a test product locally.
+
+25. Refresh Store catalog.
+
+26. Verify local ownership is not erased by catalog refresh.
+
+27. Verify removing a product from active catalog does not corrupt unrelated local records.
+
+==================================================
+41. VERIFY PRODUCT TYPES
+==================================================
+
+28. Verify shared product model supports:
+
+tool
+skin
+game
+
+29. Verify Store can distinguish/filter the types.
+
+30. Verify Sakura continues functioning normally.
+
+31. Verify existing tools continue functioning.
+
+==================================================
+42. FINAL RESULT
+==================================================
+
+After this task, Cubical should conceptually have TWO independent update paths:
+
+A) CUBICAL CLIENT UPDATE
+
+Used when the actual Electron application/code changes.
+
+Flow:
+
+New Cubical version published
+↓
+Installed Cubical detects newer version
+↓
+Downloads update
+↓
+User chooses Restart & Update
+↓
+New Cubical client starts
+↓
+User data remains intact
+
+B) STORE CATALOG UPDATE
+
+Used when the products AVAILABLE in Store change.
+
+Flow:
+
+New Tool / Skin / Game is added to remote catalog
+↓
+Already-installed Cubical refreshes catalog
+↓
+New Store listing appears
+↓
+NO application reinstall is required merely to display the new product
+
+If that product requires new executable functionality:
+
+Store can indicate:
+
+Requires Cubical Update
+
+until the matching client update is installed.
+
+Do not make unrelated changes.

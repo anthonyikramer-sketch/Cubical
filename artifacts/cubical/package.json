@@ -1,6 +1,6 @@
 {
   "name": "@workspace/cubical",
-  "version": "1.0.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "main": "electron/main.cjs",
@@ -47,6 +47,10 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Cubical"
+    },
+    "publish": {
+      "provider": "generic",
+      "url": "${CUBICAL_UPDATE_URL}"
     }
   },
   "devDependencies": {
@@ -115,6 +119,7 @@
     "zod": "catalog:"
   },
   "dependencies": {
+    "electron-updater": "^6.3.9",
     "@tiptap/core": "^3.29.2",
     "@tiptap/extension-link": "^3.29.2",
     "@tiptap/extension-placeholder": "^3.29.2",

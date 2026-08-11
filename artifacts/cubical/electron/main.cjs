@@ -12,10 +12,91 @@ const os    = require('os');
 
 const isDev = process.env.ELECTRON_DEV === 'true';
 
+// ─── Auto-updater setup ──────────────────────────────────────────────────────
+// Only load electron-updater in packaged production builds.
+// In development the module may not be present and the update URL is not configured.
+
+let autoUpdater = null;
+if (app.isPackaged) {
+  try {
+    ({ autoUpdater } = require('electron-updater'));
+  } catch (e) {
+    console.warn('[updater] electron-updater unavailable:', e.message);
+  }
+}
+
+let mainWindow = null;
+
+function sendUpdateEvent(type, extra = {}) {
+  if (mainWindow && !mainWindow.webContents.isDestroyed()) {
+    mainWindow.webContents.send('updater:status', { type, ...extra });
+  }
+}
+
+function setupAutoUpdater() {
+  if (!autoUpdater || !app.isPackaged) return;
+
+  const updateUrl = process.env.CUBICAL_UPDATE_URL;
+  if (!updateUrl || updateUrl === '${CUBICAL_UPDATE_URL}') {
+    console.log('[updater] CUBICAL_UPDATE_URL not configured — update checking disabled.');
+    return;
+  }
+
+  try {
+    autoUpdater.setFeedURL({ provider: 'generic', url: updateUrl });
+    autoUpdater.autoDownload = false; // let user initiate download
+
+    autoUpdater.on('checking-for-update',  ()     => sendUpdateEvent('checking'));
+    autoUpdater.on('update-available',     (info) => sendUpdateEvent('available',   { version: info.version }));
+    autoUpdater.on('update-not-available', ()     => sendUpdateEvent('up-to-date'));
+    autoUpdater.on('download-progress',    (prog) => sendUpdateEvent('downloading', { percent: Math.round(prog.percent) }));
+    autoUpdater.on('update-downloaded',    (info) => sendUpdateEvent('ready',       { version: info.version }));
+    autoUpdater.on('error', (err) => {
+      console.error('[updater] error:', err.message);
+      sendUpdateEvent('error', { message: err.message });
+    });
+
+    // Silent background check 12 s after startup
+    setTimeout(() => {
+      autoUpdater.checkForUpdates().catch((e) =>
+        console.warn('[updater] background check failed:', e.message),
+      );
+    }, 12000);
+
+    console.log('[updater] Auto-updater configured for:', updateUrl);
+  } catch (e) {
+    console.error('[updater] setup failed:', e.message);
+  }
+}
+
+// ─── IPC — updater ────────────────────────────────────────────────────────────
+
+ipcMain.handle('updater:check', async () => {
+  if (!autoUpdater || !app.isPackaged) {
+    return { devMode: true, message: 'Auto-updates are only available in packaged Cubical desktop builds.' };
+  }
+  const updateUrl = process.env.CUBICAL_UPDATE_URL;
+  if (!updateUrl || updateUrl === '${CUBICAL_UPDATE_URL}') {
+    return { devMode: true, message: 'CUBICAL_UPDATE_URL environment variable is not configured.' };
+  }
+  await autoUpdater.checkForUpdates();
+  return {};
+});
+
+ipcMain.on('updater:install', () => {
+  if (autoUpdater) autoUpdater.quitAndInstall();
+});
+
+ipcMain.on('updater:download', () => {
+  if (autoUpdater) autoUpdater.downloadUpdate().catch((e) =>
+    console.error('[updater] download error:', e.message),
+  );
+});
+
 // ─── Window ──────────────────────────────────────────────────────────────────
 
 function createWindow() {
-  const win = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 1280,
     height: 820,
     minWidth: 900,
@@ -32,18 +113,20 @@ function createWindow() {
   });
 
   if (isDev) {
-    win.loadURL('http://localhost:5173');
-    win.webContents.openDevTools();
+    mainWindow.loadURL('http://localhost:5173');
+    mainWindow.webContents.openDevTools();
   } else {
-    win.loadFile(path.join(__dirname, '..', 'dist', 'public', 'index.html'));
+    mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'public', 'index.html'));
   }
 
-  win.webContents.setWindowOpenHandler(({ url }) => {
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('http://') || url.startsWith('https://')) shell.openExternal(url);
     return { action: 'deny' };
   });
 
-  return win;
+  mainWindow.on('closed', () => { mainWindow = null; });
+
+  return mainWindow;
 }
 
 // ─── File Finder — search helpers ────────────────────────────────────────────
@@ -128,7 +211,7 @@ async function walkDir(dir, query, searchId, results, sendProgress, depth) {
   }
 }
 
-// ─── IPC handlers ─────────────────────────────────────────────────────────────
+// ─── IPC — File Finder ────────────────────────────────────────────────────────
 
 ipcMain.on('file-finder:start', async (event, { query, folders }) => {
   const searchId = ++activeSearchId;
@@ -177,6 +260,7 @@ ipcMain.handle('file-finder:choose-folder', async (event) => {
 
 app.whenReady().then(() => {
   createWindow();
+  setupAutoUpdater();
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
 

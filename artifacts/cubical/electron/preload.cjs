@@ -72,4 +72,35 @@ contextBridge.exposeInMainWorld('cubicalDesktop', {
       return () => ipcRenderer.removeListener('file-finder:complete', handler);
     },
   },
+
+  /**
+   * Auto-updater — secure IPC bridge.
+   * Only functional in packaged desktop builds with CUBICAL_UPDATE_URL configured.
+   * In browser/dev mode, checkForUpdates returns a { devMode: true, message } object.
+   */
+  updater: {
+    /**
+     * Manually trigger an update check.
+     * @returns {Promise<{ devMode?: boolean; message?: string }>}
+     */
+    checkForUpdates: () => ipcRenderer.invoke('updater:check'),
+
+    /** Begin downloading the available update (if one was found). */
+    downloadUpdate: () => ipcRenderer.send('updater:download'),
+
+    /** Quit the app and install the downloaded update. */
+    installUpdate: () => ipcRenderer.send('updater:install'),
+
+    /**
+     * Subscribe to update status events.
+     * @param {function} cb — called with { type: string, percent?, version?, message? }
+     *   type values: 'checking' | 'available' | 'up-to-date' | 'downloading' | 'ready' | 'error'
+     * @returns {function} Unsubscribe function.
+     */
+    onStatus: (cb) => {
+      const handler = (_event, data) => cb(data);
+      ipcRenderer.on('updater:status', handler);
+      return () => ipcRenderer.removeListener('updater:status', handler);
+    },
+  },
 });
