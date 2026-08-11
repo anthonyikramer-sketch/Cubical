@@ -6934,33 +6934,103 @@ function FileInspector() {
             {entry.exif && (
               <div className="inspector-exif-section">
                 <div className="inspector-exif-heading">Camera &amp; EXIF</div>
-                <div className="toolbox-info-grid">
-                  {(entry.exif.make || entry.exif.model) && (
-                    <><span className="toolbox-info-label">Camera</span>
-                    <span className="toolbox-info-value">
-                      {[entry.exif.make, entry.exif.model].filter(Boolean).join(' ')}
-                    </span></>
+                <div className="inspector-exif-grid">
+                  {(entry.exif.make || entry.exif.model) && (() => {
+                    const val = [entry.exif.make, entry.exif.model].filter(Boolean).join(' ');
+                    return (
+                      <div className="inspector-exif-row">
+                        <span className="toolbox-info-label">Camera</span>
+                        <span className="toolbox-info-value">{val}</span>
+                        <button type="button" className={`exif-copy-btn${copied === 'exif-camera' ? ' is-copied' : ''}`} title="Copy value" onClick={() => copyText(val, 'exif-camera')}>
+                          {copied === 'exif-camera' ? <Check className="w-3 h-3" /> : <ClipboardCopy className="w-3 h-3" />}
+                        </button>
+                      </div>
+                    );
+                  })()}
+                  {entry.exif.dateTaken && (
+                    <div className="inspector-exif-row">
+                      <span className="toolbox-info-label">Date taken</span>
+                      <span className="toolbox-info-value">{entry.exif.dateTaken}</span>
+                      <button type="button" className={`exif-copy-btn${copied === 'exif-date' ? ' is-copied' : ''}`} title="Copy value" onClick={() => copyText(entry.exif!.dateTaken!, 'exif-date')}>
+                        {copied === 'exif-date' ? <Check className="w-3 h-3" /> : <ClipboardCopy className="w-3 h-3" />}
+                      </button>
+                    </div>
                   )}
-                  {entry.exif.dateTaken && (<><span className="toolbox-info-label">Date taken</span><span className="toolbox-info-value">{entry.exif.dateTaken}</span></>)}
-                  {entry.exif.iso && (<><span className="toolbox-info-label">ISO</span><span className="toolbox-info-value">{entry.exif.iso}</span></>)}
-                  {entry.exif.shutterSpeed && (<><span className="toolbox-info-label">Shutter speed</span><span className="toolbox-info-value">{entry.exif.shutterSpeed}</span></>)}
-                  {entry.exif.aperture && (<><span className="toolbox-info-label">Aperture</span><span className="toolbox-info-value">{entry.exif.aperture}</span></>)}
-                  {entry.exif.focalLength && (<><span className="toolbox-info-label">Focal length</span><span className="toolbox-info-value">{entry.exif.focalLength}</span></>)}
-                  {entry.exif.flash && (<><span className="toolbox-info-label">Flash</span><span className="toolbox-info-value">{entry.exif.flash}</span></>)}
-                  {entry.exif.orientation && (<><span className="toolbox-info-label">Orientation</span><span className="toolbox-info-value">{entry.exif.orientation}</span></>)}
-                  {(entry.exif.gpsLat && entry.exif.gpsLon) && (
-                    <><span className="toolbox-info-label">GPS</span>
-                    <span className="toolbox-info-value">
-                      <a
-                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${entry.exif.gpsLat},${entry.exif.gpsLon}`)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inspector-gps-link"
-                      >
-                        {entry.exif.gpsLat}, {entry.exif.gpsLon} ↗
-                      </a>
-                    </span></>
+                  {entry.exif.iso && (
+                    <div className="inspector-exif-row">
+                      <span className="toolbox-info-label">ISO</span>
+                      <span className="toolbox-info-value">{entry.exif.iso}</span>
+                      <button type="button" className={`exif-copy-btn${copied === 'exif-iso' ? ' is-copied' : ''}`} title="Copy value" onClick={() => copyText(String(entry.exif!.iso!), 'exif-iso')}>
+                        {copied === 'exif-iso' ? <Check className="w-3 h-3" /> : <ClipboardCopy className="w-3 h-3" />}
+                      </button>
+                    </div>
                   )}
+                  {entry.exif.shutterSpeed && (
+                    <div className="inspector-exif-row">
+                      <span className="toolbox-info-label">Shutter speed</span>
+                      <span className="toolbox-info-value">{entry.exif.shutterSpeed}</span>
+                      <button type="button" className={`exif-copy-btn${copied === 'exif-shutter' ? ' is-copied' : ''}`} title="Copy value" onClick={() => copyText(entry.exif!.shutterSpeed!, 'exif-shutter')}>
+                        {copied === 'exif-shutter' ? <Check className="w-3 h-3" /> : <ClipboardCopy className="w-3 h-3" />}
+                      </button>
+                    </div>
+                  )}
+                  {entry.exif.aperture && (
+                    <div className="inspector-exif-row">
+                      <span className="toolbox-info-label">Aperture</span>
+                      <span className="toolbox-info-value">{entry.exif.aperture}</span>
+                      <button type="button" className={`exif-copy-btn${copied === 'exif-aperture' ? ' is-copied' : ''}`} title="Copy value" onClick={() => copyText(entry.exif!.aperture!, 'exif-aperture')}>
+                        {copied === 'exif-aperture' ? <Check className="w-3 h-3" /> : <ClipboardCopy className="w-3 h-3" />}
+                      </button>
+                    </div>
+                  )}
+                  {entry.exif.focalLength && (
+                    <div className="inspector-exif-row">
+                      <span className="toolbox-info-label">Focal length</span>
+                      <span className="toolbox-info-value">{entry.exif.focalLength}</span>
+                      <button type="button" className={`exif-copy-btn${copied === 'exif-focal' ? ' is-copied' : ''}`} title="Copy value" onClick={() => copyText(entry.exif!.focalLength!, 'exif-focal')}>
+                        {copied === 'exif-focal' ? <Check className="w-3 h-3" /> : <ClipboardCopy className="w-3 h-3" />}
+                      </button>
+                    </div>
+                  )}
+                  {entry.exif.flash && (
+                    <div className="inspector-exif-row">
+                      <span className="toolbox-info-label">Flash</span>
+                      <span className="toolbox-info-value">{entry.exif.flash}</span>
+                      <button type="button" className={`exif-copy-btn${copied === 'exif-flash' ? ' is-copied' : ''}`} title="Copy value" onClick={() => copyText(entry.exif!.flash!, 'exif-flash')}>
+                        {copied === 'exif-flash' ? <Check className="w-3 h-3" /> : <ClipboardCopy className="w-3 h-3" />}
+                      </button>
+                    </div>
+                  )}
+                  {entry.exif.orientation && (
+                    <div className="inspector-exif-row">
+                      <span className="toolbox-info-label">Orientation</span>
+                      <span className="toolbox-info-value">{entry.exif.orientation}</span>
+                      <button type="button" className={`exif-copy-btn${copied === 'exif-orient' ? ' is-copied' : ''}`} title="Copy value" onClick={() => copyText(entry.exif!.orientation!, 'exif-orient')}>
+                        {copied === 'exif-orient' ? <Check className="w-3 h-3" /> : <ClipboardCopy className="w-3 h-3" />}
+                      </button>
+                    </div>
+                  )}
+                  {(entry.exif.gpsLat && entry.exif.gpsLon) && (() => {
+                    const val = `${entry.exif.gpsLat}, ${entry.exif.gpsLon}`;
+                    return (
+                      <div className="inspector-exif-row">
+                        <span className="toolbox-info-label">GPS</span>
+                        <span className="toolbox-info-value">
+                          <a
+                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(val)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inspector-gps-link"
+                          >
+                            {val} ↗
+                          </a>
+                        </span>
+                        <button type="button" className={`exif-copy-btn${copied === 'exif-gps' ? ' is-copied' : ''}`} title="Copy coordinates" onClick={() => copyText(val, 'exif-gps')}>
+                          {copied === 'exif-gps' ? <Check className="w-3 h-3" /> : <ClipboardCopy className="w-3 h-3" />}
+                        </button>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             )}

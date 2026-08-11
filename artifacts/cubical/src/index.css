@@ -3704,6 +3704,61 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
   margin-bottom: 10px;
 }
 
+/* EXIF copy-per-row grid */
+.inspector-exif-grid {
+  border: 1px solid hsl(var(--border));
+  border-radius: 14px;
+  overflow: hidden;
+  margin-bottom: 14px;
+  background: hsl(var(--border));
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.inspector-exif-row {
+  display: grid;
+  grid-template-columns: 110px 1fr auto;
+  align-items: stretch;
+  gap: 1px;
+}
+
+.inspector-exif-row .toolbox-info-label {
+  border-radius: 0;
+}
+
+.inspector-exif-row .toolbox-info-value {
+  border-radius: 0;
+}
+
+.exif-copy-btn {
+  background: hsl(var(--card));
+  border: none;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: hsl(var(--muted-foreground));
+  opacity: 0;
+  transition: opacity .15s ease, color .15s ease, background .15s ease;
+  flex-shrink: 0;
+}
+
+.inspector-exif-row:hover .exif-copy-btn {
+  opacity: 1;
+}
+
+.exif-copy-btn:hover {
+  background: hsl(var(--primary) / .07);
+  color: hsl(var(--primary));
+}
+
+.exif-copy-btn.is-copied {
+  opacity: 1;
+  color: hsl(142 52% 40%);
+}
+
 .inspector-gps-link {
   color: hsl(var(--primary));
   text-decoration: none;
