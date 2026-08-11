@@ -7660,9 +7660,11 @@ function PdfFormFiller() {
   // ── Canvas click: place field or stamp at exact page-relative position ──
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!canvasRef.current) return;
-    const r    = canvasRef.current.getBoundingClientRect();
-    const xPct = (e.clientX - r.left) / r.width;
-    const yPct = (e.clientY - r.top)  / r.height;
+    const canvas = canvasRef.current;
+    // offsetX/Y is always relative to the canvas element's top-left corner,
+    // regardless of scroll position, zoom level, or parent container layout.
+    const xPct = e.nativeEvent.offsetX / canvas.offsetWidth;
+    const yPct = e.nativeEvent.offsetY / canvas.offsetHeight;
 
     if (stampMode !== null) {
       // Place stamp as a normal text field pre-filled with the stamp text

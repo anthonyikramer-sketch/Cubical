@@ -1,0 +1,209 @@
+Fix the click-placement coordinate bug in the existing PDF Form Filler Tool.
+
+DO NOT redesign the PDF Form Filler or change unrelated functionality.
+
+CURRENT BUG:
+
+When using either:
+
+* Add Field
+* Stamp placement
+
+the text field does NOT appear where I click on the PDF.
+
+For example:
+
+I selected the stamp "Cheeseburger" and clicked on the blank line beside "Project Name."
+
+Instead of appearing beside "Project Name," the Cheeseburger field appeared much higher on the page near the document header.
+
+The horizontal position appears relatively close, but the vertical/Y position is significantly incorrect.
+
+This needs to be fixed at the underlying coordinate-conversion level.
+
+---
+
+## EXPECTED BEHAVIOR
+
+When I click somewhere on the visible PDF:
+
+THE FIELD SHOULD APPEAR EXACTLY WHERE I CLICK.
+
+If I click beside:
+
+Project Name: __________
+
+the field should appear directly on/near that line at the exact location I clicked.
+
+This needs to work for BOTH:
+
+* Add Field
+* Stamp placement
+
+Both systems should use the SAME accurate placement-coordinate function.
+
+---
+
+## IMPORTANT: ACCOUNT FOR THE PDF VIEWER
+
+Do not use raw browser mouse coordinates directly as PDF coordinates.
+
+Correctly calculate the clicked position relative to the actual rendered PDF page.
+
+The calculation must account for:
+
+* PDF page bounding rectangle
+* Current zoom level
+* Viewer scrolling
+* Page scrolling
+* Page offset inside the viewer
+* Toolbar/header height
+* Container padding
+* Any margins surrounding the PDF
+* CSS transforms/scaling
+* Device pixel ratio if relevant
+
+Use something equivalent to:
+
+1. Get the rendered PDF page element's bounding rectangle.
+2. Get the pointer's clientX/clientY.
+3. Subtract the PAGE bounding rectangle's left/top.
+4. Convert the resulting rendered-page coordinates into the application's normalized/PDF-page coordinate system.
+5. Store those normalized coordinates.
+6. Render fields using that exact same coordinate system.
+
+Do NOT calculate placement relative to:
+
+* The browser window
+* The overall PDF viewer container
+* The Cubical Tool page
+* The toolbar
+* The scroll container
+
+Placement must be relative to the ACTUAL PDF PAGE.
+
+---
+
+## ZOOM MUST NOT BREAK PLACEMENT
+
+The PDF is currently being viewed at values such as 140%.
+
+Placement must remain accurate regardless of zoom.
+
+Test at:
+
+100%
+140%
+200%
+
+Click the same visual location on the PDF at each zoom level.
+
+The field should appear underneath the cursor every time.
+
+Do not add a hardcoded Y offset to compensate for the current bug.
+
+For example, DO NOT solve this with something like:
+
+y = y + 80
+
+or another magic number.
+
+That might make one zoom level look correct while breaking everything else.
+
+Fix the coordinate transformation itself.
+
+---
+
+## SCROLLING MUST NOT BREAK PLACEMENT
+
+Test placement after scrolling vertically through the PDF.
+
+A click near the bottom of a page should still place the field exactly where clicked.
+
+Scrolling the Cubical PDF viewer should not introduce an offset.
+
+---
+
+## FIELD DRAGGING SHOULD USE THE SAME SYSTEM
+
+Also inspect field dragging/movement.
+
+Manual placement, Stamp placement, and dragging should ultimately use the same page-relative coordinate model.
+
+There should be ONE authoritative coordinate system for fields.
+
+Prefer storing coordinates normalized to the original PDF page dimensions or another stable page-relative coordinate system.
+
+Do not maintain separate screen coordinates and PDF coordinates unless absolutely necessary.
+
+---
+
+## STAMP PLACEMENT
+
+This is especially important for Stamp mode.
+
+Example test:
+
+1. Open the test PDF
+2. Set zoom to 140%
+3. Select Stamp: Cheeseburger
+4. Click directly on the blank line beside "Project Name"
+
+EXPECTED:
+
+"Cheeseburger" appears directly where the cursor clicked.
+
+CURRENT INCORRECT RESULT:
+
+"Cheeseburger" appears much higher on the PDF near the header.
+
+Fix this.
+
+After fixing it, leave Stamp mode behavior otherwise unchanged.
+
+---
+
+## ADD FIELD PLACEMENT
+
+Perform the same test using Add Field.
+
+1. Select Add Field
+2. Click beside Project Address
+3. Confirm the newly created field appears exactly where clicked
+
+Stamp and Add Field should call the same shared page-coordinate conversion logic wherever practical.
+
+---
+
+## DO NOT CHANGE
+
+Preserve:
+
+* Existing PDF rendering
+* Stamp functionality
+* Stamp popout
+* Saved stamps
+* Field colors
+* Field properties
+* Field resizing
+* Field text editing
+* Delete key behavior
+* Detect Fields
+* Templates
+* Export PDF
+* Zoom controls
+* Existing Cubical styling
+
+This task is specifically about fixing inaccurate field placement.
+
+---
+
+## SUCCESS CRITERIA
+
+The fix is successful when:
+
+At 100%, 140%, and 200% zoom, I can click any visible point on the PDF using Add Field or Stamp and the resulting text box appears at that exact location without a noticeable X or Y offset.
+
+Scrolling the PDF does not affect accuracy.
+
+The solution should be based on proper page-relative coordinate conversion, not hardcoded visual offsets.

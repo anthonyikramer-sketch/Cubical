@@ -4138,8 +4138,8 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
   background: hsl(220 20% 20%);
   min-height: 500px;
   max-height: 78vh;
-  display: flex;
-  justify-content: center;
+  /* text-align centers the inline-block canvas-wrap without flex stretching it */
+  text-align: center;
   padding: 16px;
 }
 .pff-canvas-wrap {
