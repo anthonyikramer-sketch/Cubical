@@ -349,18 +349,18 @@ export function PdfFormFiller() {
         if (!pg) continue;
         const { width, height } = pg.getSize();
         if (field.type === 'checkbox') {
-          if (field.value !== 'checked') continue;
+          // Create a real AcroForm checkbox instead of drawing lines
+          const form = doc.getForm();
           const bx = field.xPct * width;
           const by = height - (field.yPct + field.hPct) * height;
           const fw = field.wPct * width;
           const fh = field.hPct * height;
-          const p1 = { x: bx + fw * 0.15, y: by + fh * 0.50 };
-          const p2 = { x: bx + fw * 0.40, y: by + fh * 0.20 };
-          const p3 = { x: bx + fw * 0.85, y: by + fh * 0.78 };
-          const thickness = Math.max(1, Math.min(fw, fh) * 0.1);
+          // Use a unique name per field so multiple checkboxes don't share state
+          const cbName = `cb_${field.pageIndex}_${field.id ?? Math.random().toString(36).slice(2)}`;
           try {
-            pg.drawLine({ start: p1, end: p2, thickness, color: rgb(0, 0, 0) });
-            pg.drawLine({ start: p2, end: p3, thickness, color: rgb(0, 0, 0) });
+            const cb = form.createCheckBox(cbName);
+            cb.addToPage(pg, { x: bx, y: by, width: fw, height: fh });
+            if (field.value === 'checked') cb.check();
           } catch { /* skip */ }
         } else {
           if (!field.value.trim()) continue;
