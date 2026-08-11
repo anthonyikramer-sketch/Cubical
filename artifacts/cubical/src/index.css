@@ -4163,8 +4163,6 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
 }
 .pff-field:hover                  { border-color: hsl(var(--primary) / .8); background: hsl(var(--primary) / .09); }
 .pff-field.is-selected            { border-color: hsl(var(--primary)); border-width: 2px; background: hsl(var(--primary) / .08); }
-.pff-field.is-detected            { border-color: hsl(38 90% 50% / .7); background: hsl(38 90% 50% / .06); }
-.pff-field.is-detected.is-selected{ border-color: hsl(38 90% 50%); }
 /* Checkbox variant — square field with centred tick button */
 .pff-field--checkbox { border-radius: 4px; display: flex; align-items: center; justify-content: center; }
 .pff-checkbox-btn {
@@ -4223,8 +4221,28 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
 .pff-side-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
 .pff-delete-btn  { color: hsl(0 65% 45%) !important; }
 .pff-delete-btn:hover { background: hsl(0 65% 45% / .08) !important; }
-.pff-detected-note { font-size: 11px; color: hsl(38 75% 42%); display: flex; align-items: center; gap: 4px; margin-top: 6px; }
-.dark .pff-detected-note { color: hsl(38 85% 62%); }
+/* Stamp Box + Checkbox grouped split control */
+.pff-sg-group {
+  display: flex;
+  align-items: stretch;
+  border: 1.5px solid hsl(var(--border));
+  border-radius: 8px;
+  overflow: visible;
+  position: relative;
+  flex-shrink: 0;
+}
+.pff-sg-group .pff-stamp-wrap { display: flex; align-items: stretch; }
+.pff-sg-left {
+  border-radius: 6px 0 0 6px !important;
+  border-top-right-radius: 0 !important;
+  border-bottom-right-radius: 0 !important;
+  border-right: 1px solid hsl(var(--border)) !important;
+}
+.pff-sg-right {
+  border-radius: 0 6px 6px 0 !important;
+  border-top-left-radius: 0 !important;
+  border-bottom-left-radius: 0 !important;
+}
 
 /* Template panel */
 .pff-tpl-panel {

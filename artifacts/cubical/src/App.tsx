@@ -7320,7 +7320,6 @@ interface PffField {
   color:      string;   // hex, default '#000000'
   label:      string;   // internal name (not printed on export)
   type:       PffFieldType;
-  isDetected: boolean;  // came from auto-detection → amber border
 }
 
 interface PffTemplate {
@@ -7383,13 +7382,6 @@ function pffMatchDetail(label: string, details: PersonalDetail[]): PersonalDetai
     return lnorm.includes(knorm) || knorm.includes(lnorm);
   });
 }
-const PFF_LABEL_KEYWORDS = [
-  'name','date','address','phone','email','project','signature','initials',
-  'notes','total','city','state','zip','company','title','department',
-  'description','amount','qty','price','foreman','location','contact',
-  'fax','website','number','ref','reference','id','po','invoice',
-  'crew','hours','size','supervisor','manager','owner','client',
-];
 const PFF_COLORS = [
   { hex: '#000000', label: 'Black'     },
   { hex: '#cc2222', label: 'Red'       },
@@ -7439,7 +7431,6 @@ function PdfFormFiller() {
   const [fields,       setFields]       = useState<PffField[]>([]);
   const [selectedId,   setSelectedId]   = useState<string | null>(null);
   const [mode,         setMode]         = useState<PffMode>('select');
-  const [detecting,    setDetecting]    = useState(false);
   const [exporting,    setExporting]    = useState(false);
   const [error,        setError]        = useState<string | null>(null);
   const [pdfFileName,  setPdfFileName]  = useState('');
@@ -7671,138 +7662,6 @@ function PdfFormFiller() {
     }
   };
 
-  // ── Improved smart field detection ──
-  const detectFields = async () => {
-    if (!pdfProxy) return;
-    setDetecting(true);
-    const detected: PffField[] = [];
-
-    for (let pNum = 1; pNum <= pageCount; pNum++) {
-      const page  = await pdfProxy.getPage(pNum);
-      const vp    = page.getViewport({ scale: 1 });
-      const pageW = vp.width;
-      const pageH = vp.height;
-
-      // 1. AcroForm Widget annotations — highest confidence; if found, skip text heuristics on this page
-      let foundAcro = false;
-      try {
-        const annotations = await page.getAnnotations();
-        for (const ann of annotations) {
-          if (ann.subtype !== 'Widget') continue;
-          if (!ann.rect) continue;
-          const [x1, y1, x2, y2] = ann.rect as number[];
-          const wPct = (x2 - x1) / pageW;
-          const hPct = (y2 - y1) / pageH;
-          if (wPct < 0.01 || hPct < 0.003) continue;
-          const xPct = x1 / pageW;
-          const yPct = (pageH - y2) / pageH;
-          detected.push({
-            id: pffId(), pageIndex: pNum - 1,
-            xPct: Math.max(0, Math.min(0.97, xPct)),
-            yPct: Math.max(0, Math.min(0.97, yPct)),
-            wPct: Math.min(wPct, 0.92),
-            hPct: Math.max(hPct, 0.02),
-            value: '', fontSize: 10, align: 'left', color: '#000000',
-            label: (ann.fieldName || ann.alternativeText || '').replace(/\[\d+\]$/, '').trim(),
-            type: 'text', isDetected: true,
-          });
-          foundAcro = true;
-        }
-      } catch { /* not all PDFs support getAnnotations */ }
-      if (foundAcro) continue;  // trust AcroForm, skip text heuristics for this page
-
-      // 2. Text-content heuristics for non-interactive PDFs
-      const tc    = await page.getTextContent();
-      const items = (tc.items as any[]).filter((i: any) => (i.str ?? '').trim());
-
-      for (const item of items) {
-        const str   = (item.str ?? '').trim();
-        const tx    = item.transform as number[];
-        const itmX  = tx[4];
-        const itmY  = pageH - tx[5] - (item.height || 12);
-        const itmW  = item.width  || 60;
-        const itmH  = Math.max(item.height || 12, 14);
-        // Estimated font size (absolute value of vertical scale factor)
-        const fontSize = Math.abs(tx[3]) || item.height || 12;
-
-        // ── Blank fill line (underscores / dashes / ruled chars) ──
-        if (/^[_\-─═]{3,}$/.test(str)) {
-          const widthRatio = itmW / pageW;
-          // Skip decorative rules (> 60% of page) and tiny dashes (< 4% of page)
-          if (widthRatio < 0.04 || widthRatio > 0.60) continue;
-          // Skip if near top of page (header area)
-          if (itmY / pageH < 0.09) continue;
-          // Dedup: don't add if a field already sits within 2% Y of this line
-          const tooClose = detected.some((d) => d.pageIndex === pNum - 1 && Math.abs(d.yPct - itmY / pageH) < 0.02 && Math.abs(d.xPct - itmX / pageW) < 0.10);
-          if (tooClose) continue;
-          detected.push({
-            id: pffId(), pageIndex: pNum - 1,
-            xPct: Math.max(0, itmX / pageW),
-            yPct: Math.max(0, (itmY - 2) / pageH),
-            wPct: Math.min(widthRatio, 0.55),
-            hPct: Math.max(itmH / pageH, 0.025),
-            value: '', fontSize: 10, align: 'left', color: '#000000',
-            label: '', type: 'text', isDetected: true,
-          });
-          continue;
-        }
-
-        // ── Label keyword detection ──
-        // Skip if text is too long to be a label
-        if (str.length > 35) continue;
-        // Skip if font size is large — likely a heading
-        if (fontSize > 13) continue;
-        // Skip if in top 9% of page (title / header area)
-        if (itmY / pageH < 0.09) continue;
-
-        const strL = str.toLowerCase().replace(/:$/, '').trim();
-
-        // Must match a keyword exactly or as "keyword:" or short "keyword word:"
-        const isLabel = PFF_LABEL_KEYWORDS.some((kw) => {
-          if (strL === kw || strL === `${kw}:`) return true;
-          // "Crew Size:" or "Project Name:" — keyword at the start, up to 2 extra words
-          if ((strL.startsWith(`${kw} `) || strL.startsWith(`${kw}:`)) && str.length <= kw.length + 14) return true;
-          return false;
-        });
-        if (!isLabel) continue;
-
-        // The field goes to the RIGHT of the label text
-        const fx = itmX + itmW + 6;
-        // Skip if there's no room to the right
-        if (fx / pageW > 0.86) continue;
-        const availW = Math.max((pageW - fx) * 0.45, 55);
-
-        // Dedup: skip if a field already exists very near this position
-        const tooClose = detected.some((d) =>
-          d.pageIndex === pNum - 1 &&
-          Math.abs(d.yPct - itmY / pageH) < 0.025 &&
-          Math.abs(d.xPct - fx / pageW) < 0.12,
-        );
-        if (tooClose) continue;
-
-        const fType: PffFieldType =
-          strL.includes('date') ? 'date'
-          : (strL.includes('phone') || strL.includes('fax') || strL.includes('qty') ||
-             strL.includes('amount') || strL.includes('total') || strL.includes('number') ||
-             strL.includes('zip') || strL.includes('size') || strL.includes('hours')) ? 'number'
-          : 'text';
-
-        detected.push({
-          id: pffId(), pageIndex: pNum - 1,
-          xPct: Math.min(fx / pageW, 0.90),
-          yPct: Math.max(0, (itmY - 1) / pageH),
-          wPct: Math.min(availW / pageW, 0.5),
-          hPct: Math.max(itmH / pageH, 0.025),
-          value: '', fontSize: 10, align: 'left', color: '#000000',
-          label: str.replace(/:$/, '').trim(),
-          type: fType, isDetected: true,
-        });
-      }
-    }
-
-    setFields((prev) => [...prev.filter((f) => !f.isDetected), ...detected]);
-    setDetecting(false);
-  };
 
   // ── Export PDF ──
   const exportPdf = async () => {
@@ -7915,7 +7774,7 @@ function PdfFormFiller() {
     xPct: Math.max(0, Math.min(0.94, xPct)),
     yPct: Math.max(0, Math.min(0.94, yPct)),
     wPct: 0.18, hPct: 0.028,
-    value, fontSize, align: 'left', color, label, type: 'text', isDetected: false,
+    value, fontSize, align: 'left', color, label, type: 'text',
   });
 
   // ── Canvas click: place field or stamp at exact page-relative position ──
@@ -7942,15 +7801,15 @@ function PdfFormFiller() {
       setMode('select');
     }
     if (mode === 'add-checkbox') {
+      // Repeating mode: stays in add-checkbox after each placement (like stamp)
       const f: PffField = {
         id: pffId(), pageIndex: currentPage - 1,
         xPct: Math.max(0, xPct - 0.02), yPct: Math.max(0, yPct - 0.02),
         wPct: 0.04, hPct: 0.04,
-        value: 'checked', fontSize: 11, align: 'left', color: '#000000', label: '', type: 'checkbox', isDetected: false,
+        value: 'checked', fontSize: 11, align: 'left', color: '#000000', label: '', type: 'checkbox',
       };
       setFields((prev) => [...prev, f]);
-      setSelectedId(f.id);
-      setMode('select');
+      // Don't switch mode — let user keep placing checkboxes
     }
   };
 
@@ -8054,7 +7913,7 @@ function PdfFormFiller() {
 
           {/* Mode: Select */}
           <button
-            className={`pff-toolbar-btn${!isAddMode && !isPlacingStamp ? ' active' : ''}`}
+            className={`pff-toolbar-btn${!isAddMode && !isAddCheckboxMode && !isPlacingStamp ? ' active' : ''}`}
             onClick={() => { setMode('select'); setStampMode(null); }}
             title="Select / move fields">
             <MousePointer2 className="w-4 h-4" /><span>Select</span>
@@ -8068,27 +7927,20 @@ function PdfFormFiller() {
             <Plus className="w-4 h-4" /><span>Add Field</span>
           </button>
 
-          {/* Mode: Add Checkbox */}
-          <button
-            className={`pff-toolbar-btn${isAddCheckboxMode ? ' active' : ''}`}
-            onClick={() => { setMode('add-checkbox'); setStampMode(null); setShowStampPopout(false); }}
-            title="Click on the PDF to place a checkbox">
-            <ListChecks className="w-4 h-4" /><span>Add Checkbox</span>
-          </button>
-
-          {/* Stamp button + popout */}
-          <div className="pff-stamp-wrap">
-            <button
-              ref={stampBtnRef}
-              className={`pff-toolbar-btn${isPlacingStamp ? ' active' : ''}`}
-              onClick={() => { setShowStampPopout((v) => !v); }}
-              title="Stamp — place reusable text onto the PDF">
-              <Stamp className="w-4 h-4" />
-              <span>{isPlacingStamp ? `Stamp: ${stampMode!.text}` : 'Stamp'}</span>
-            </button>
+          {/* Stamp Box + Checkbox — grouped split control */}
+          <div className="pff-sg-group">
+            <div className="pff-stamp-wrap">
+              <button
+                ref={stampBtnRef}
+                className={`pff-toolbar-btn pff-sg-left${isPlacingStamp ? ' active' : ''}`}
+                onClick={() => { setShowStampPopout((v) => !v); }}
+                title="Stamp Box — place reusable text onto the PDF">
+                <Stamp className="w-4 h-4" />
+                <span>{isPlacingStamp ? `Stamp: ${stampMode!.text}` : 'Stamp Box'}</span>
+              </button>
             {showStampPopout && (
               <div id="pff-stamp-popout" className="pff-stamp-popout">
-                <div className="pff-stamp-popout-header">Stamps</div>
+                <div className="pff-stamp-popout-header">Stamp Box</div>
 
                 {/* ── Stamp creation controls ── */}
                 <div className="pff-stamp-new">
@@ -8151,22 +8003,15 @@ function PdfFormFiller() {
                 )}
               </div>
             )}
+            </div>
+            {/* Right side: Checkbox placement */}
+            <button
+              className={`pff-toolbar-btn pff-sg-right${isAddCheckboxMode ? ' active' : ''}`}
+              onClick={() => { setMode('add-checkbox'); setStampMode(null); setShowStampPopout(false); }}
+              title="Checkbox — click the PDF to place checkboxes (stays active until you switch)">
+              <ListChecks className="w-4 h-4" /><span>Checkbox</span>
+            </button>
           </div>
-
-          <div className="pff-toolbar-sep" />
-
-          {/* Detection */}
-          <button className="pff-toolbar-btn" onClick={() => void detectFields()} disabled={detecting} title="Auto-detect fillable areas across all pages">
-            <Sparkles className="w-4 h-4" /><span>{detecting ? 'Detecting…' : 'Detect Fields'}</span>
-          </button>
-          {fields.some((f) => f.isDetected) && (<>
-            <button className="pff-toolbar-btn" title="Accept all detected fields" onClick={() => setFields((prev) => prev.map((f) => ({ ...f, isDetected: false })))}>
-              <Check className="w-4 h-4" /><span>Accept All</span>
-            </button>
-            <button className="pff-toolbar-btn pff-toolbar-btn--danger" title="Remove all detected fields" onClick={() => setFields((prev) => prev.filter((f) => !f.isDetected))}>
-              <Trash2 className="w-4 h-4" /><span>Clear Detected</span>
-            </button>
-          </>)}
 
           <div className="pff-toolbar-sep" />
 
@@ -8298,7 +8143,7 @@ function PdfFormFiller() {
                 return (
                   <div
                     key={field.id}
-                    className={`pff-field${field.type === 'checkbox' ? ' pff-field--checkbox' : ''}${isSelected ? ' is-selected' : ''}${field.isDetected ? ' is-detected' : ''}`}
+                    className={`pff-field${field.type === 'checkbox' ? ' pff-field--checkbox' : ''}${isSelected ? ' is-selected' : ''}`}
                     style={{ left: `${field.xPct * 100}%`, top: `${field.yPct * 100}%`, width: `${field.wPct * 100}%`, height: `${field.hPct * 100}%` }}
                     onPointerDown={(e) => handleFieldPtrDown(e, field)}
                   >
@@ -8423,11 +8268,6 @@ function PdfFormFiller() {
                 </button>
               </div>
 
-              {selectedField.isDetected && (
-                <div className="pff-detected-note">
-                  <Sparkles className="w-3 h-3" /> Auto-detected — drag to adjust
-                </div>
-              )}
             </div>
           )}
         </div>
