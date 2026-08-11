@@ -18,6 +18,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
   CircleUserRound,
   ClipboardCopy,
   Clock,
@@ -7337,6 +7338,14 @@ interface PffStamp {
   color:    string;
 }
 
+interface PffFindMatch {
+  pageIndex: number;  // 0-based
+  xPct: number;
+  yPct: number;
+  wPct: number;
+  hPct: number;
+}
+
 const PFF_TEMPLATES_KEY    = 'cubical-pff-templates-v1';
 const PFF_STAMPS_KEY       = 'cubical-pff-stamps-v1';
 const PFF_MY_DETAILS_KEY   = 'cubical-pff-my-details-v1';
@@ -7451,12 +7460,20 @@ function PdfFormFiller() {
   const [offerTemplate, setOfferTemplate] = useState<PffTemplate | null>(null);
   // ── My Details ──
   const [myDetails, setMyDetails] = useState<PersonalDetail[]>(pffGetMyDetails);
+  // ── Find ──
+  const [showFind,    setShowFind]    = useState(false);
+  const [findQuery,   setFindQuery]   = useState('');
+  const [findMatches, setFindMatches] = useState<PffFindMatch[]>([]);
+  const [findIndex,   setFindIndex]   = useState(0);
   // ── Refs ──
-  const canvasRef     = useRef<HTMLCanvasElement>(null);
-  const containerRef  = useRef<HTMLDivElement>(null);
-  const renderTaskRef = useRef<any>(null);
-  const dragRef       = useRef<{ id: string; startX: number; startY: number; ox: number; oy: number } | null>(null);
-  const resizeRef     = useRef<{ id: string; startX: number; startY: number; ow: number; oh: number } | null>(null);
+  const canvasRef      = useRef<HTMLCanvasElement>(null);
+  const containerRef   = useRef<HTMLDivElement>(null);
+  const canvasScrollRef = useRef<HTMLDivElement>(null);
+  const findInputRef   = useRef<HTMLInputElement>(null);
+  const findCacheRef   = useRef<Map<number, { items: any[]; pageW: number; pageH: number }>>(new Map());
+  const renderTaskRef  = useRef<any>(null);
+  const dragRef        = useRef<{ id: string; startX: number; startY: number; ox: number; oy: number } | null>(null);
+  const resizeRef      = useRef<{ id: string; startX: number; startY: number; ow: number; oh: number } | null>(null);
 
   // ── Load pdfjs-dist dynamically (keeps initial bundle lean) ──
   useEffect(() => {
@@ -7475,9 +7492,20 @@ function PdfFormFiller() {
     void renderPage(pdfProxy, currentPage, scale);
   }, [pdfProxy, currentPage, scale]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Keyboard handler: Delete/Backspace removes selected field ──
+  // ── Keyboard handler ──
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // Ctrl+F / Cmd+F → open Find
+      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+        e.preventDefault();
+        openFind();
+        return;
+      }
+      if (e.key === 'Escape') {
+        setStampMode(null); setMode('select'); setShowStampPopout(false);
+        closeFind();
+        return;
+      }
       if (e.key !== 'Delete' && e.key !== 'Backspace') return;
       const tag = (document.activeElement?.tagName ?? '').toLowerCase();
       if (tag === 'input' || tag === 'textarea') return;   // user is typing — don't interfere
@@ -7485,13 +7513,9 @@ function PdfFormFiller() {
       setFields((prev) => prev.filter((f) => f.id !== selectedId));
       setSelectedId(null);
     };
-    const onEsc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { setStampMode(null); setMode('select'); setShowStampPopout(false); }
-    };
     window.addEventListener('keydown', onKey);
-    window.addEventListener('keydown', onEsc);
-    return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('keydown', onEsc); };
-  }, [selectedId]);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selectedId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Close stamp popout on outside click ──
   useEffect(() => {
@@ -7505,6 +7529,103 @@ function PdfFormFiller() {
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [showStampPopout]);
+
+  // ── Find: build text cache from all pages ──
+  const buildFindCache = async () => {
+    if (!pdfProxy) return;
+    findCacheRef.current.clear();
+    for (let pNum = 1; pNum <= pageCount; pNum++) {
+      const page = await pdfProxy.getPage(pNum);
+      const vp   = page.getViewport({ scale: 1 });
+      const tc   = await page.getTextContent();
+      findCacheRef.current.set(pNum - 1, { items: tc.items, pageW: vp.width, pageH: vp.height });
+    }
+  };
+
+  const runFind = (query: string) => {
+    const q = query.toLowerCase().trim();
+    if (!q || findCacheRef.current.size === 0) { setFindMatches([]); setFindIndex(0); return; }
+    const matches: PffFindMatch[] = [];
+    const pages = Array.from(findCacheRef.current.entries()).sort((a, b) => a[0] - b[0]);
+    for (const [pageIndex, { items, pageW, pageH }] of pages) {
+      // Concatenate all items into one string, keeping per-item bounding boxes
+      let text = '';
+      const ranges: { start: number; end: number; xPct: number; yPct: number; wPct: number; hPct: number }[] = [];
+      for (const item of items as any[]) {
+        if (!item.str) continue;
+        const start = text.length;
+        text += item.str;
+        const end = text.length;
+        const tx   = item.transform as number[];
+        const itmY = pageH - tx[5] - (item.height || 12);
+        ranges.push({
+          start, end,
+          xPct: tx[4] / pageW,
+          yPct: Math.max(0, itmY / pageH),
+          wPct: (item.width || 0) / pageW,
+          hPct: Math.max((item.height || 12), 14) / pageH,
+        });
+        text += ' ';
+      }
+      const t = text.toLowerCase();
+      let pos = 0;
+      while ((pos = t.indexOf(q, pos)) !== -1) {
+        const matchEnd = pos + q.length;
+        const hits = ranges.filter((r) => r.end > pos && r.start < matchEnd && r.wPct > 0);
+        if (hits.length > 0) {
+          const xPct = Math.min(...hits.map((r) => r.xPct));
+          const yPct = Math.min(...hits.map((r) => r.yPct));
+          const rPct = Math.max(...hits.map((r) => r.xPct + r.wPct));
+          const bPct = Math.max(...hits.map((r) => r.yPct + r.hPct));
+          matches.push({ pageIndex, xPct, yPct, wPct: Math.max(rPct - xPct, 0.01), hPct: Math.max(bPct - yPct, 0.015) });
+        }
+        pos += 1;
+      }
+    }
+    setFindMatches(matches);
+    setFindIndex(0);
+    if (matches.length > 0) navigateToMatchImmediate(0, matches);
+  };
+
+  // Immediate version that doesn't rely on stale state closure
+  const navigateToMatchImmediate = (idx: number, matches: PffFindMatch[]) => {
+    if (matches.length === 0) return;
+    const match = matches[idx];
+    const needsPageChange = match.pageIndex !== currentPage - 1;
+    if (needsPageChange) setCurrentPage(match.pageIndex + 1);
+    setTimeout(() => {
+      const scrollEl = canvasScrollRef.current;
+      const canvas   = canvasRef.current;
+      if (!scrollEl || !canvas) return;
+      const targetY = match.yPct * canvas.offsetHeight - scrollEl.clientHeight / 2;
+      scrollEl.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' });
+    }, needsPageChange ? 160 : 0);
+  };
+
+  const navigateToMatch = (idx: number) => navigateToMatchImmediate(idx, findMatches);
+
+  const openFind = async () => {
+    if (findCacheRef.current.size === 0 && pdfProxy) await buildFindCache();
+    setShowFind(true);
+    setTimeout(() => findInputRef.current?.focus(), 40);
+  };
+  const closeFind = () => { setShowFind(false); setFindQuery(''); setFindMatches([]); setFindIndex(0); };
+
+  const nextMatch = () => {
+    if (findMatches.length === 0) return;
+    const idx = (findIndex + 1) % findMatches.length;
+    setFindIndex(idx); navigateToMatch(idx);
+  };
+  const prevMatch = () => {
+    if (findMatches.length === 0) return;
+    const idx = (findIndex - 1 + findMatches.length) % findMatches.length;
+    setFindIndex(idx); navigateToMatch(idx);
+  };
+
+  // Re-run search whenever the query changes
+  useEffect(() => {
+    runFind(findQuery);
+  }, [findQuery]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const renderPage = async (doc: any, pageNum: number, sc: number) => {
     if (renderTaskRef.current) { try { renderTaskRef.current.cancel(); } catch {} }
@@ -7528,6 +7649,8 @@ function PdfFormFiller() {
     setSelectedId(null);
     setOfferTemplate(null);
     setStampMode(null);
+    setShowFind(false); setFindQuery(''); setFindMatches([]); setFindIndex(0);
+    findCacheRef.current.clear();
     setPdfFileName(file.name);
     setPdfFileSize(file.size);
     const pdfKey = `${file.name}::${file.size}`;
@@ -8070,6 +8193,14 @@ function PdfFormFiller() {
             ) : null;
           })()}
 
+          {/* Find */}
+          <button
+            className={`pff-toolbar-btn${showFind ? ' active' : ''}`}
+            onClick={() => showFind ? closeFind() : void openFind()}
+            title="Find text in PDF (Ctrl+F)">
+            <Search className="w-4 h-4" /><span>Find</span>
+          </button>
+
           {/* Templates & Export */}
           <button className="pff-toolbar-btn" onClick={() => setShowTplPanel((v) => !v)} title="Templates">
             <BookOpen className="w-4 h-4" /><span>Templates</span>
@@ -8081,6 +8212,39 @@ function PdfFormFiller() {
       </div>
 
       {error && <div className="pff-error"><AlertCircle className="w-4 h-4 shrink-0" />{error}<button onClick={() => setError(null)}><X className="w-3 h-3" /></button></div>}
+
+      {/* Find bar */}
+      {showFind && pdfProxy && (
+        <div className="pff-find-bar">
+          <Search className="w-3.5 h-3.5 shrink-0" style={{ color: 'hsl(var(--muted-foreground))' }} />
+          <input
+            ref={findInputRef}
+            className="pff-find-input"
+            type="text"
+            placeholder="Find in PDF…"
+            value={findQuery}
+            onChange={(e) => setFindQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') { e.shiftKey ? prevMatch() : nextMatch(); }
+              if (e.key === 'Escape') closeFind();
+            }}
+          />
+          <span className="pff-find-count">
+            {findMatches.length === 0
+              ? (findQuery.trim() ? 'No matches' : '')
+              : `${findIndex + 1} / ${findMatches.length}`}
+          </span>
+          <button className="pff-find-nav" onClick={prevMatch} disabled={findMatches.length === 0} title="Previous (Shift+Enter)">
+            <ChevronUp className="w-3.5 h-3.5" />
+          </button>
+          <button className="pff-find-nav" onClick={nextMatch} disabled={findMatches.length === 0} title="Next (Enter)">
+            <ChevronDown className="w-3.5 h-3.5" />
+          </button>
+          <button className="pff-find-close" onClick={closeFind} title="Close (Escape)">
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* Template offer banner */}
       {offerTemplate && (
@@ -8108,11 +8272,24 @@ function PdfFormFiller() {
       ) : (
         <div className="pff-editor-layout">
           {/* Canvas + field overlay */}
-          <div className="pff-canvas-scroll">
+          <div className="pff-canvas-scroll" ref={canvasScrollRef}>
             <div className="pff-canvas-wrap" ref={containerRef}
               onPointerMove={(e) => { handleFieldPtrMove(e); handleResizePtrMove(e); }}
               onPointerUp={() => { handleFieldPtrUp(); handleResizePtrUp(); }}>
               <canvas ref={canvasRef} className={canvasClass} onClick={handleCanvasClick} />
+
+              {/* Find highlight overlays — beneath field overlays */}
+              {showFind && findMatches
+                .map((m, gi) => ({ m, gi }))
+                .filter(({ m }) => m.pageIndex === currentPage - 1)
+                .map(({ m, gi }) => (
+                  <div
+                    key={gi}
+                    className={`pff-find-hl${gi === findIndex ? ' is-current' : ''}`}
+                    style={{ left: `${m.xPct * 100}%`, top: `${m.yPct * 100}%`, width: `${m.wPct * 100}%`, height: `${m.hPct * 100}%` }}
+                  />
+                ))
+              }
 
               {/* Field overlays — positioned as % of the canvas */}
               {pageFields.map((field) => {

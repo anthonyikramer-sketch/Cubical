@@ -4369,6 +4369,79 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
   flex-shrink: 0;
 }
 
+/* ── PDF Find bar ───────────────────────────────────────────────────────── */
+.pff-find-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1.5px solid hsl(var(--border));
+  border-radius: 12px;
+  background: hsl(var(--card));
+  margin-bottom: 12px;
+}
+.pff-find-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 13px;
+  color: hsl(var(--fg));
+  min-width: 0;
+}
+.pff-find-input::placeholder { color: hsl(var(--muted-foreground)); }
+.pff-find-count {
+  font-size: 12px;
+  font-weight: 600;
+  color: hsl(var(--muted-foreground));
+  white-space: nowrap;
+  min-width: 60px;
+  text-align: center;
+}
+.pff-find-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: 1.5px solid hsl(var(--border));
+  background: transparent;
+  color: hsl(var(--fg));
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background .1s;
+}
+.pff-find-nav:hover:not(:disabled) { background: hsl(var(--muted) / .6); }
+.pff-find-nav:disabled              { opacity: .4; cursor: not-allowed; }
+.pff-find-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background .1s, color .1s;
+}
+.pff-find-close:hover { background: hsl(var(--muted) / .6); color: hsl(var(--fg)); }
+
+/* Find highlight overlays (inside .pff-canvas-wrap) */
+.pff-find-hl {
+  position: absolute;
+  pointer-events: none;
+  background: hsl(48 100% 60% / .30);
+  border-radius: 2px;
+  mix-blend-mode: multiply;
+}
+.dark .pff-find-hl                  { background: hsl(48 100% 60% / .18); mix-blend-mode: screen; }
+.pff-find-hl.is-current             { background: hsl(44 100% 52% / .55); outline: 2px solid hsl(38 90% 42%); }
+.dark .pff-find-hl.is-current       { background: hsl(48 100% 62% / .35); outline-color: hsl(48 100% 72%); }
+
 /* ── PFF — Autofill hint ─────────────────────────────────────────────── */
 
 .pff-autofill-hint {

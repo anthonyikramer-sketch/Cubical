@@ -1,0 +1,442 @@
+Add a FIND feature to the existing Cubical PDF Form Filler Tool.
+
+IMPORTANT:
+This is an existing full Cubical TOOL, not a widget.
+
+Do not redesign the entire tool.
+Do not break the existing PDF viewer, field placement, stamps, templates, export, checkboxes, Detect Fields, or field properties.
+
+The new feature should make it easy to search for text inside the currently opened PDF and jump between every matching occurrence.
+
+---
+
+1. ADD A FIND BUTTON
+
+---
+
+Add a new toolbar button:
+
+Find
+
+Place it in the existing PDF Form Filler toolbar where it fits naturally.
+
+Clicking Find should open a compact search control.
+
+A keyboard shortcut should also open it if practical:
+
+Ctrl + F
+
+---
+
+2. FIND SEARCH BOX
+
+---
+
+When Find is opened, show a compact search box.
+
+Example:
+
+Find: [ project                 ]   2 / 7   ↑   ↓   ×
+
+The Find UI should include:
+
+* Search text input
+* Current result number
+* Total matching results
+* Previous result button
+* Next result button
+* Close button
+
+Example:
+
+2 / 7
+
+means the second of seven matches is currently selected.
+
+Search should be:
+
+* Case-insensitive by default
+* Updated as the user types
+* Based on actual text extracted from the PDF
+* Able to search all pages of the currently opened PDF
+
+Do not search text that exists only inside Cubical's added text fields unless this is easy to support cleanly.
+The primary purpose is finding ORIGINAL text in the PDF.
+
+---
+
+3. HIGHLIGHT MATCHES
+
+---
+
+Every occurrence of the searched word or phrase should be visually highlighted on the PDF.
+
+The currently selected match should use a stronger highlight than the other matches.
+
+Example:
+
+All matches:
+Subtle yellow or Cubical-compatible highlight
+
+Current match:
+Stronger highlight / outline
+
+Do not permanently modify the PDF.
+
+These are only temporary editor highlights.
+
+Closing Find should remove the highlights.
+
+---
+
+4. NEXT / PREVIOUS NAVIGATION
+
+---
+
+Allow the user to move through matches using:
+
+* Next arrow/button
+* Previous arrow/button
+
+Also support keyboard navigation if practical:
+
+Enter = next result
+Shift + Enter = previous result
+
+Tab navigation may also be supported if it does not interfere with normal form-field navigation.
+
+Navigation should wrap around.
+
+Example:
+
+If there are 7 matches and the user presses Next while on result 7:
+
+Return to result 1.
+
+If the user presses Previous while on result 1:
+
+Go to result 7.
+
+---
+
+5. CENTER THE CURRENT MATCH
+
+---
+
+When navigating to a match:
+
+If the match is on another page or outside the current visible area:
+
+Automatically navigate to that page and scroll the PDF viewer so the matching word is centered, or approximately centered, in the editing viewport.
+
+The user should not have to manually hunt for the highlighted result.
+
+Example:
+
+Search:
+
+Project
+
+The PDF contains matches on pages:
+
+1
+3
+5
+8
+
+When the user moves to the match on page 5:
+
+* Switch/navigate to page 5
+* Scroll so the matching word is centered vertically in the PDF editing area
+* Highlight that occurrence strongly
+
+Do NOT reload the tool or PDF.
+
+---
+
+6. SHORT DOCUMENT BEHAVIOR
+
+---
+
+If the PDF has only one or two pages and the matching result is already visible:
+
+Do not unnecessarily jump or aggressively recenter the page.
+
+Simply highlight the matching word.
+
+If a result is outside the current visible area, scroll enough to bring it clearly into view.
+
+The goal is smooth navigation, not constant screen movement.
+
+---
+
+7. CLICKING SEARCH RESULTS
+
+---
+
+If practical, allow the user to click a result from a small result list.
+
+Example:
+
+Find: project
+
+Results:
+
+Page 1 — Project Name
+Page 1 — Project Address
+Page 3 — Project Status
+Page 5 — Project Notes
+
+Clicking one should:
+
+* Navigate to that page
+* Center or reveal the match
+* Make it the currently selected result
+
+This result list is optional if it makes the UI too cluttered.
+
+The core requirement is Previous/Next navigation.
+
+---
+
+8. SCROLLING BETWEEN MATCHES
+
+---
+
+The user should still be able to manually scroll the PDF while Find is active.
+
+Find highlights should remain anchored to the correct PDF text while:
+
+* Scrolling
+* Zooming
+* Changing pages
+
+If the user manually scrolls away, clicking Next/Previous should bring the selected result back into view.
+
+---
+
+9. ZOOM SUPPORT
+
+---
+
+Find highlighting and match navigation must work correctly at different zoom levels.
+
+Test at:
+
+100%
+140%
+200%
+
+The highlight should stay aligned with the actual PDF word.
+
+Do not use fixed screen coordinates for search highlights.
+
+Use the PDF text layer / page-relative text coordinates.
+
+---
+
+10. MULTI-WORD SEARCH
+
+---
+
+Support phrases where practical.
+
+Examples:
+
+Project Name
+
+Work Performed
+
+Safety Issues
+
+If the exact phrase exists in the PDF, highlight the phrase.
+
+Partial-word search is optional.
+
+At minimum, whole words and exact phrases should work reliably.
+
+---
+
+11. NO RESULTS STATE
+
+---
+
+If there are no matches, show something simple such as:
+
+0 / 0
+
+or:
+
+No matches
+
+Do not throw an error.
+
+---
+
+12. CLOSE FIND
+
+---
+
+The user should be able to close Find using:
+
+* The X button
+* Escape if practical
+
+When Find closes:
+
+* Remove search highlights
+* Keep the PDF on its current page/scroll position
+* Do not clear or alter any form fields
+* Do not affect stamps
+* Do not affect templates
+
+---
+
+13. PRESERVE FORM EDITING
+
+---
+
+Find mode should NOT interfere with:
+
+* Select
+* Add Field
+* Add Checkbox
+* Stamp
+* Detect Fields
+* Field movement
+* Field resizing
+* Text editing
+* Colors
+* Delete key
+* Export PDF
+* Templates
+
+If the user selects Add Field, Stamp, etc. while Find is open, Find may remain visible as long as it does not interfere with placement.
+
+---
+
+14. IMPLEMENTATION GUIDANCE
+
+---
+
+Use the PDF's actual extracted text and text-position data.
+
+Where possible:
+
+1. Extract text items for each PDF page
+2. Store each item's text and page-relative bounding box
+3. Search those strings
+4. Map matches back to their page coordinates
+5. Draw temporary highlight overlays using the same PDF/page coordinate system
+6. Navigate the viewer to the selected match
+
+Do not use OCR unless the PDF has no text layer and OCR support already exists elsewhere.
+
+For normal digitally generated PDFs, use the embedded PDF text layer.
+
+---
+
+15. SUCCESS TESTS
+
+---
+
+TEST 1:
+
+Open a multi-page PDF.
+
+Click Find.
+
+Search:
+
+Project
+
+Confirm all occurrences are found.
+
+---
+
+TEST 2:
+
+Click Next repeatedly.
+
+Confirm each occurrence becomes the active highlight.
+
+Confirm the result counter updates:
+
+1 / 6
+2 / 6
+3 / 6
+etc.
+
+---
+
+TEST 3:
+
+Navigate to a match on another page.
+
+Confirm Cubical automatically opens that page and scrolls so the word is clearly centered or visible.
+
+---
+
+TEST 4:
+
+Use Previous.
+
+Confirm navigation moves backward through matches.
+
+---
+
+TEST 5:
+
+At 140% zoom, search for a word.
+
+Confirm highlights remain precisely aligned with the PDF text.
+
+---
+
+TEST 6:
+
+Search a phrase such as:
+
+Project Name
+
+Confirm the phrase can be found and highlighted.
+
+---
+
+TEST 7:
+
+Search a word that does not exist.
+
+Confirm the UI shows:
+
+No matches
+
+or:
+
+0 / 0
+
+without errors.
+
+---
+
+TEST 8:
+
+Close Find.
+
+Confirm all search highlights disappear and all form editing remains unchanged.
+
+---
+
+16. UX GOAL
+
+---
+
+The intended experience should feel similar to Find in a browser or PDF viewer:
+
+Ctrl + F
+→ type word
+→ matching words highlight
+→ Next / Previous jumps between them
+→ result is brought into view automatically
+
+But it should remain visually consistent with Cubical's cozy design.
