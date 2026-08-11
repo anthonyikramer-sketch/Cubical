@@ -5868,6 +5868,92 @@ function UpdatePanel() {
 
 // ─── Settings page ────────────────────────────────────────────────────────────
 
+function MyDetailsSettingsCard() {
+  const [details, setDetails] = useState<PersonalDetail[]>(pffGetMyDetails);
+  const [newKey,  setNewKey]  = useState('');
+
+  const update = (idx: number, value: string) => {
+    setDetails((prev) => {
+      const next = prev.map((d, i) => i === idx ? { ...d, value } : d);
+      pffSaveMyDetails(next);
+      return next;
+    });
+  };
+
+  const updateKey = (idx: number, key: string) => {
+    setDetails((prev) => {
+      const next = prev.map((d, i) => i === idx ? { ...d, key } : d);
+      pffSaveMyDetails(next);
+      return next;
+    });
+  };
+
+  const addRow = () => {
+    const key = newKey.trim();
+    if (!key) return;
+    setDetails((prev) => {
+      const next = [...prev, { key, value: '' }];
+      pffSaveMyDetails(next);
+      return next;
+    });
+    setNewKey('');
+  };
+
+  const removeRow = (idx: number) => {
+    setDetails((prev) => {
+      const next = prev.filter((_, i) => i !== idx);
+      pffSaveMyDetails(next);
+      return next;
+    });
+  };
+
+  return (
+    <div className="settings-card">
+      <div className="settings-card-header">
+        <h2 className="settings-section-title"><CircleUserRound className="w-4 h-4" /> My Details</h2>
+      </div>
+      <p className="settings-hint">
+        Save your name, address, and other details once. PDF Form Filler will use them to autofill matching fields instantly. Everything stays on this device.
+      </p>
+      <div className="my-details-grid">
+        {details.map((d, idx) => (
+          <div key={idx} className="my-details-row">
+            <input
+              className="pff-side-input my-details-key-input"
+              value={d.key}
+              placeholder="Field name"
+              onChange={(e) => updateKey(idx, e.target.value)}
+              onBlur={(e) => { if (!e.target.value.trim()) removeRow(idx); }}
+            />
+            <input
+              className="pff-side-input my-details-val-input"
+              value={d.value}
+              placeholder={`Your ${d.key.toLowerCase()}…`}
+              onChange={(e) => update(idx, e.target.value)}
+            />
+            <button className="my-details-del-btn" title="Remove" onClick={() => removeRow(idx)}>
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        ))}
+      </div>
+      <div className="my-details-add-row">
+        <input
+          className="pff-side-input"
+          value={newKey}
+          placeholder="New field name…"
+          onChange={(e) => setNewKey(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') addRow(); }}
+          style={{ flex: 1 }}
+        />
+        <button className="button-quiet" onClick={addRow} disabled={!newKey.trim()}>
+          <Plus className="w-3.5 h-3.5" /> Add
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function SettingsPage() {
   const [settings,      setSettings_]    = useState<AppSettings>(readSettings);
   const [clearConfirm,  setClearConfirm]  = useState(false);
@@ -6036,6 +6122,9 @@ function SettingsPage() {
           </button>
         </div>
       </div>
+
+      {/* My Details */}
+      <MyDetailsSettingsCard />
 
       {/* Data */}
       <div className="settings-card">
@@ -7244,7 +7333,40 @@ interface PffTemplate {
 
 const PFF_TEMPLATES_KEY  = 'cubical-pff-templates-v1';
 const PFF_STAMPS_KEY     = 'cubical-pff-stamps-v1';
+const PFF_MY_DETAILS_KEY = 'cubical-pff-my-details-v1';
 const PFF_MAX_STAMPS     = 10;
+
+interface PersonalDetail {
+  key:   string;  // e.g. 'Name', 'Email'
+  value: string;  // user's saved value
+}
+
+const PFF_DEFAULT_DETAIL_KEYS = [
+  'Name', 'Email', 'Phone', 'Address', 'City', 'State', 'ZIP', 'Company', 'Title',
+];
+
+function pffGetMyDetails(): PersonalDetail[] {
+  try {
+    const raw = window.localStorage.getItem(PFF_MY_DETAILS_KEY);
+    if (!raw) return PFF_DEFAULT_DETAIL_KEYS.map((key) => ({ key, value: '' }));
+    return JSON.parse(raw) as PersonalDetail[];
+  } catch { return PFF_DEFAULT_DETAIL_KEYS.map((key) => ({ key, value: '' })); }
+}
+
+function pffSaveMyDetails(details: PersonalDetail[]) {
+  try { window.localStorage.setItem(PFF_MY_DETAILS_KEY, JSON.stringify(details)); } catch {}
+}
+
+/** Returns the first saved detail whose key appears in (or equals) the normalised label. */
+function pffMatchDetail(label: string, details: PersonalDetail[]): PersonalDetail | undefined {
+  if (!label.trim()) return undefined;
+  const lnorm = label.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  return details.find((d) => {
+    if (!d.value.trim()) return false;
+    const knorm = d.key.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    return lnorm.includes(knorm) || knorm.includes(lnorm);
+  });
+}
 const PFF_LABEL_KEYWORDS = [
   'name','date','address','phone','email','project','signature','initials',
   'notes','total','city','state','zip','company','title','department',
@@ -7315,6 +7437,8 @@ function PdfFormFiller() {
   const [showTplPanel,  setShowTplPanel] = useState(false);
   const [tplNameInput,  setTplNameInput] = useState('');
   const [offerTemplate, setOfferTemplate] = useState<PffTemplate | null>(null);
+  // ── My Details ──
+  const [myDetails, setMyDetails] = useState<PersonalDetail[]>(pffGetMyDetails);
   // ── Refs ──
   const canvasRef     = useRef<HTMLCanvasElement>(null);
   const containerRef  = useRef<HTMLDivElement>(null);
@@ -7880,6 +8004,29 @@ function PdfFormFiller() {
 
           <div className="pff-toolbar-sep" />
 
+          {/* Fill All from My Details */}
+          {(() => {
+            const fillableCount = fields.filter(
+              (f) => f.type !== 'checkbox' && pffMatchDetail(f.label, myDetails) && !f.value.trim()
+            ).length;
+            return fillableCount > 0 ? (
+              <button
+                className="pff-toolbar-btn pff-toolbar-btn--autofill"
+                title={`Fill ${fillableCount} field${fillableCount !== 1 ? 's' : ''} from My Details`}
+                onClick={() => {
+                  setFields((prev) => prev.map((f) => {
+                    if (f.type === 'checkbox' || f.value.trim()) return f;
+                    const match = pffMatchDetail(f.label, myDetails);
+                    return match ? { ...f, value: match.value } : f;
+                  }));
+                }}
+              >
+                <CircleUserRound className="w-4 h-4" />
+                <span>Fill All ({fillableCount})</span>
+              </button>
+            ) : null;
+          })()}
+
           {/* Templates & Export */}
           <button className="pff-toolbar-btn" onClick={() => setShowTplPanel((v) => !v)} title="Templates">
             <BookOpen className="w-4 h-4" /><span>Templates</span>
@@ -7975,6 +8122,23 @@ function PdfFormFiller() {
               <label className="pff-side-label">Internal label</label>
               <input className="pff-side-input" type="text" value={selectedField.label} placeholder={selectedField.type === 'checkbox' ? 'e.g. Agree to terms' : 'e.g. Project Name'}
                 onChange={(e) => updateField(selectedField.id, { label: e.target.value })} />
+
+              {/* Autofill hint — appears when label matches a saved detail */}
+              {selectedField.type !== 'checkbox' && (() => {
+                const match = pffMatchDetail(selectedField.label, myDetails);
+                return match ? (
+                  <div className="pff-autofill-hint">
+                    <CircleUserRound className="w-3 h-3" />
+                    <span>Matches <strong>{match.key}</strong> in My Details</span>
+                    <button
+                      className="pff-autofill-btn"
+                      onClick={() => updateField(selectedField.id, { value: match.value })}
+                    >
+                      Autofill
+                    </button>
+                  </div>
+                ) : null;
+              })()}
 
               <label className="pff-side-label">Type</label>
               <div className="settings-mode-group" style={{ marginBottom: 10 }}>

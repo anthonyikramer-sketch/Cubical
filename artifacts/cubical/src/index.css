@@ -4338,6 +4338,92 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
 }
 .pff-stamp-del:hover { color: hsl(0 65% 45%); background: hsl(0 65% 45% / .08); }
 
+/* ── PFF — Autofill hint ─────────────────────────────────────────────── */
+
+.pff-autofill-hint {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 5px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  background: hsl(var(--primary) / .07);
+  border: 1px solid hsl(var(--primary) / .2);
+  font-size: 11.5px;
+  color: hsl(var(--primary));
+}
+.pff-autofill-hint span { flex: 1; min-width: 0; }
+.pff-autofill-btn {
+  flex-shrink: 0;
+  border: 1px solid hsl(var(--primary) / .4);
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: filter .15s;
+}
+.pff-autofill-btn:hover { filter: brightness(1.1); }
+
+/* ── PFF toolbar — Fill All autofill button ──────────────────────────── */
+
+.pff-toolbar-btn--autofill {
+  background: hsl(var(--primary) / .09);
+  border-color: hsl(var(--primary) / .35);
+  color: hsl(var(--primary));
+  font-weight: 700;
+}
+.pff-toolbar-btn--autofill:hover:not(:disabled) {
+  background: hsl(var(--primary) / .16);
+  border-color: hsl(var(--primary) / .55);
+}
+
+/* ── Settings — My Details ───────────────────────────────────────────── */
+
+.my-details-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-bottom: 10px;
+}
+.my-details-row {
+  display: grid;
+  grid-template-columns: 140px 1fr auto;
+  gap: 7px;
+  align-items: center;
+}
+.my-details-key-input { font-weight: 600; }
+.my-details-val-input {}
+.my-details-del-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 7px;
+  background: transparent;
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  padding: 0;
+  transition: color .15s, background .15s, border-color .15s;
+}
+.my-details-del-btn:hover {
+  color: hsl(var(--destructive));
+  background: hsl(var(--destructive) / .08);
+  border-color: hsl(var(--destructive) / .35);
+}
+.my-details-add-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px solid hsl(var(--border));
+}
+
 /* ── File Inspector — text preview ───────────────────────────────────── */
 
 .inspector-text-preview {
