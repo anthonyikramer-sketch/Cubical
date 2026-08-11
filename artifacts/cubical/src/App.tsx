@@ -221,7 +221,7 @@ const FILE_TYPE_EXTS: Record<FileTypeCategory, string[]> = {
   documents:    ['.doc', '.docx', '.txt', '.rtf', '.odt', '.pages', '.md'],
   pdfs:         ['.pdf'],
   spreadsheets: ['.xls', '.xlsx', '.csv', '.ods', '.numbers'],
-  images:       ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.bmp', '.tiff', '.heic'],
+  images:       ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.bmp', '.tiff', '.heic', '.cr2', '.nef', '.arw', '.dng'],
   videos:       ['.mp4', '.mov', '.avi', '.mkv', '.wmv', '.m4v', '.webm'],
   audio:        ['.mp3', '.wav', '.flac', '.aac', '.m4a', '.ogg', '.wma'],
   archives:     ['.zip', '.rar', '.7z', '.tar', '.gz', '.bz2'],
@@ -229,7 +229,7 @@ const FILE_TYPE_EXTS: Record<FileTypeCategory, string[]> = {
 
 function getFileIcon(ext: string): ReactNode {
   const e = ext.toLowerCase();
-  if (['.jpg','.jpeg','.png','.gif','.webp','.svg','.bmp','.tiff','.heic'].includes(e)) return <FileText />;
+  if (['.jpg','.jpeg','.png','.gif','.webp','.svg','.bmp','.tiff','.heic','.cr2','.nef','.arw','.dng'].includes(e)) return <FileText />;
   if (['.mp4','.mov','.avi','.mkv','.wmv','.m4v','.webm'].includes(e)) return <FileText />;
   if (['.mp3','.wav','.flac','.aac','.m4a','.ogg','.wma'].includes(e)) return <Music />;
   if (['.pdf'].includes(e)) return <FileScan />;
@@ -6538,6 +6538,23 @@ function strTag(tags: Record<string, { description?: string; value?: unknown } |
   return v && v !== 'undefined' ? v.trim() || null : null;
 }
 
+/**
+ * RAW and HEIC extensions that support EXIF but may not have an `image/` MIME type in browsers.
+ *
+ * ExifReader parses these via its TIFF code path — CR2 (Canon), NEF (Nikon), ARW (Sony), and DNG
+ * all start with the standard TIFF magic header (`II`/`MM` + 0x002A), so ExifReader's
+ * `isTiffFile()` detector picks them up automatically. HEIC is handled by its own ISO BMFF parser.
+ * If parsing fails for any reason, `extractExif` catches the error and returns null gracefully.
+ */
+const RAW_EXIF_EXTS = new Set(['.cr2', '.nef', '.arw', '.dng', '.heic', '.heif']);
+
+/** Returns true for files that may contain EXIF data — covers standard images and RAW/HEIC formats. */
+function isExifCapableFile(file: File): boolean {
+  if (file.type.startsWith('image/')) return true;
+  const ext = file.name.includes('.') ? '.' + file.name.split('.').pop()!.toLowerCase() : '';
+  return RAW_EXIF_EXTS.has(ext);
+}
+
 async function extractExif(file: File): Promise<ExifData | null> {
   try {
     const buf = await file.arrayBuffer();
@@ -6617,7 +6634,7 @@ async function buildToolboxEntry(file: File): Promise<ToolboxEntry> {
   const mediaCodec = (file.type.startsWith('video/') || file.type.startsWith('audio/'))
     ? await detectMediaCodec(file)
     : null;
-  const exif = file.type.startsWith('image/') ? await extractExif(file) : null;
+  const exif = isExifCapableFile(file) ? await extractExif(file) : null;
   return { file, hash, dims, mediaDuration, videoDims, mediaCodec, exif };
 }
 
