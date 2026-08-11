@@ -3711,6 +3711,39 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
 }
 .inspector-gps-link:hover { text-decoration: underline; }
 
+/* File Inspector — text preview */
+.inspector-text-preview-section {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid hsl(var(--border));
+  width: 100%;
+}
+
+.inspector-text-preview {
+  font-family: var(--app-font-mono, ui-monospace, 'Cascadia Code', 'Fira Mono', monospace);
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: hsl(var(--foreground));
+  background: hsl(var(--muted) / .5);
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin: 0;
+  max-height: 22em;
+  overflow-y: auto;
+  white-space: pre;
+  overflow-x: auto;
+  tab-size: 2;
+  word-break: normal;
+}
+
+.inspector-text-trunc-note {
+  font-size: 11px;
+  color: hsl(var(--muted-foreground));
+  margin: 6px 0 0;
+  font-style: italic;
+}
+
 /* ── Startup Manager ──────────────────────────────────────────────────── */
 
 .startup-list { display: flex; flex-direction: column; gap: 6px; }
