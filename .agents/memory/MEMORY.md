@@ -2,3 +2,4 @@
 - [Sakura skin system](sakura-skin-system.md) — data-skin on html drives all visual overrides; applySkin() + CSS selectors; image at public/sakura-env.png.
 - [Widget portability system](widget-portability-system.md) — always-on drag (6px threshold), registry-based portability default, DisplacedWidgetBand layout rules, section routing, Calendar mode thresholds.
 - [Catalog & distribution system](catalog-system.md) — stable IDs (tool./skin./game.), useCatalog() hook, LEGACY_ID_MAP, auto-updater, UpdatePanel, StorePage props.
+- [PDF Form Filler architecture](pdf-form-filler.md) — pdfjs-dist (dynamic import), pdf-lib (dynamic export), fields as % coords, templates in localStorage.

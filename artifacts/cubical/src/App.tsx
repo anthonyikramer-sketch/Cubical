@@ -30,6 +30,7 @@ import {
   File,
   FilePlus2,
   FileArchive,
+  FormInput,
   FileScan,
   FileSpreadsheet,
   FileText,
@@ -56,7 +57,9 @@ import {
   ListOrdered,
   Lock,
   Monitor,
+  Minus,
   Moon,
+  MousePointer2,
   Music,
   PackageOpen,
   Palette,
@@ -302,7 +305,7 @@ type Product = CatalogProduct;
 
 const ICON_REGISTRY: Record<string, typeof Files> = {
   File, FileArchive, FileScan, FileSpreadsheet, FileText, Files,
-  FolderCog, FolderOpen, FolderSearch,
+  FolderCog, FolderOpen, FolderSearch, FormInput,
   Gamepad2, Globe, HardDrive, Hash, ImagePlus, Monitor,
   PackageOpen, Palette, Sparkles, TableProperties, Zap,
 };
@@ -326,6 +329,7 @@ const DEFAULT_CATALOG_PRODUCTS: CatalogProduct[] = [
   { id: 'tool.startup-manager',     type: 'tool', name: 'Startup Manager',     description: 'See and manage what launches with Windows.',                             version: '1.0.0', price: 'FREE', isFree: true, iconName: 'PackageOpen',     iconColor: 'hsl(262 48% 50%)', iconBg: 'hsl(262 48% 50% / .11)', deliveryType: 'bundled', status: 'active' },
   { id: 'tool.file-inspector',      type: 'tool', name: 'File Inspector',      description: "Drop in a file and see what's inside.",                                  version: '1.0.0', price: 'FREE', isFree: true, iconName: 'FileText',        iconColor: 'hsl(350 58% 46%)', iconBg: 'hsl(350 58% 46% / .11)', deliveryType: 'bundled', status: 'active' },
   { id: 'tool.system-info',         type: 'tool', name: 'System Info',         description: 'A clean overview of your PC and hardware.',                              version: '1.0.0', price: 'FREE', isFree: true, iconName: 'Monitor',         iconColor: 'hsl(45 68% 40%)',  iconBg: 'hsl(45 68% 40% / .12)',  deliveryType: 'bundled', status: 'active' },
+  { id: 'tool.pdf-form-filler',     type: 'tool', name: 'PDF Form Filler',     description: 'Automatically detect fillable areas in PDFs, add text fields, save templates, and complete forms faster.', version: '1.0.0', price: 'FREE', isFree: true, iconName: 'FormInput',       iconColor: 'hsl(210 60% 42%)', iconBg: 'hsl(210 60% 42% / .11)', deliveryType: 'bundled', status: 'active' },
   { id: 'skin.sakura',              type: 'skin', name: 'Sakura',              description: 'Cherry blossoms and soft pinks. A peaceful seasonal look.',               version: '1.0.0', price: 'FREE', isFree: true, iconName: 'Sparkles',        iconColor: 'hsl(340 55% 55%)', iconBg: 'hsl(340 55% 55% / .12)', deliveryType: 'bundled', status: 'active', featured: true },
   { id: 'game.memory-match',        type: 'game', name: 'Memory Match',        description: 'A clean card-flipping memory game. Find all the pairs as fast as you can.', version: '1.0.0', price: 'FREE', isFree: true, iconName: 'Gamepad2',     iconColor: 'hsl(262 50% 52%)', iconBg: 'hsl(262 50% 52% / .12)', deliveryType: 'bundled', status: 'active' },
 ];
@@ -345,6 +349,7 @@ const TOOL_ROUTES: Record<string, string> = {
   'tool.startup-manager':     '/tool/startup-manager',
   'tool.file-inspector':      '/tool/file-inspector',
   'tool.system-info':         '/tool/system-info',
+  'tool.pdf-form-filler':     '/tool/pdf-form-filler',
 };
 
 function getToolRoute(product: CatalogProduct): string | undefined {
@@ -418,6 +423,7 @@ const LEGACY_ID_MAP: Record<string, string> = {
   'startup-manager':     'tool.startup-manager',
   'file-inspector':      'tool.file-inspector',
   'system-info':         'tool.system-info',
+  'pdf-form-filler':     'tool.pdf-form-filler',
 };
 
 function getStoredLibrary(): string[] {
@@ -7105,6 +7111,557 @@ function FileInspector() {
   );
 }
 
+// ─── PDF Form Filler ─────────────────────────────────────────────────────────
+
+type PffFieldType = 'text' | 'number' | 'date';
+type PffAlign    = 'left' | 'center' | 'right';
+type PffMode     = 'select' | 'add';
+
+interface PffField {
+  id:         string;
+  pageIndex:  number;   // 0-indexed
+  xPct:       number;   // 0–1 from left of page
+  yPct:       number;   // 0–1 from top of page
+  wPct:       number;   // width as fraction of page width
+  hPct:       number;   // height as fraction of page height
+  value:      string;
+  fontSize:   number;   // pt
+  align:      PffAlign;
+  label:      string;   // internal name (not printed on export)
+  type:       PffFieldType;
+  isDetected: boolean;  // came from auto-detection → amber border
+}
+
+interface PffTemplate {
+  id:        string;
+  name:      string;
+  pdfKey:    string;    // `${fileName}::${fileSize}` — used to recognise the same form
+  createdAt: number;
+  fields:    Omit<PffField, 'value'>[];
+}
+
+const PFF_TEMPLATES_KEY    = 'cubical-pff-templates-v1';
+const PFF_LABEL_KEYWORDS   = [
+  'name','date','address','phone','email','project','signature','initials',
+  'notes','total','city','state','zip','company','title','department',
+  'description','amount','qty','price','foreman','location','contact',
+  'fax','website','number','ref','reference','id','po','invoice',
+];
+
+function pffId()  { return `pf-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`; }
+
+function pffGetTemplates(): PffTemplate[] {
+  try { return JSON.parse(window.localStorage.getItem(PFF_TEMPLATES_KEY) ?? '[]') as PffTemplate[]; }
+  catch { return []; }
+}
+function pffSaveTemplates(ts: PffTemplate[]) {
+  try { window.localStorage.setItem(PFF_TEMPLATES_KEY, JSON.stringify(ts)); } catch {}
+}
+
+function PdfFormFiller() {
+  // ── PDF state ──
+  const [pdfBytes,     setPdfBytes]     = useState<Uint8Array | null>(null);
+  const [pdfProxy,     setPdfProxy]     = useState<any>(null);
+  const [pageCount,    setPageCount]    = useState(0);
+  const [currentPage,  setCurrentPage]  = useState(1);
+  const [scale,        setScale]        = useState(1.4);
+  const [fields,       setFields]       = useState<PffField[]>([]);
+  const [selectedId,   setSelectedId]   = useState<string | null>(null);
+  const [mode,         setMode]         = useState<PffMode>('select');
+  const [detecting,    setDetecting]    = useState(false);
+  const [exporting,    setExporting]    = useState(false);
+  const [error,        setError]        = useState<string | null>(null);
+  const [pdfFileName,  setPdfFileName]  = useState('');
+  const [pdfFileSize,  setPdfFileSize]  = useState(0);
+  const [pdfjsLib,     setPdfjsLib]     = useState<any>(null);
+  // ── Template UI ──
+  const [templates,     setTemplates]    = useState<PffTemplate[]>(pffGetTemplates);
+  const [showTplPanel,  setShowTplPanel] = useState(false);
+  const [tplNameInput,  setTplNameInput] = useState('');
+  const [offerTemplate, setOfferTemplate] = useState<PffTemplate | null>(null);
+  // ── Refs ──
+  const canvasRef     = useRef<HTMLCanvasElement>(null);
+  const containerRef  = useRef<HTMLDivElement>(null);
+  const renderTaskRef = useRef<any>(null);
+  const dragRef       = useRef<{ id: string; startX: number; startY: number; ox: number; oy: number } | null>(null);
+  const resizeRef     = useRef<{ id: string; startX: number; startY: number; ow: number; oh: number } | null>(null);
+
+  // ── Load pdfjs-dist dynamically (keeps initial bundle lean) ──
+  useEffect(() => {
+    import('pdfjs-dist').then((lib: any) => {
+      lib.GlobalWorkerOptions.workerSrc = new URL(
+        'pdfjs-dist/build/pdf.worker.min.mjs',
+        import.meta.url,
+      ).href;
+      setPdfjsLib(lib);
+    });
+  }, []);
+
+  // ── Re-render canvas when page/scale changes ──
+  useEffect(() => {
+    if (!pdfProxy) return;
+    void renderPage(pdfProxy, currentPage, scale);
+  }, [pdfProxy, currentPage, scale]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const renderPage = async (doc: any, pageNum: number, sc: number) => {
+    if (renderTaskRef.current) { try { renderTaskRef.current.cancel(); } catch {} }
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const page = await doc.getPage(pageNum);
+    const vp   = page.getViewport({ scale: sc });
+    canvas.width  = vp.width;
+    canvas.height = vp.height;
+    const ctx  = canvas.getContext('2d')!;
+    const task = page.render({ canvasContext: ctx, viewport: vp });
+    renderTaskRef.current = task;
+    try { await task.promise; } catch { /* cancelled by page change — ignore */ }
+  };
+
+  // ── Load a PDF file ──
+  const loadPdf = async (file: File) => {
+    if (!pdfjsLib) { setError('PDF engine is still loading — please try again in a moment.'); return; }
+    setError(null);
+    setFields([]);
+    setSelectedId(null);
+    setOfferTemplate(null);
+    setPdfFileName(file.name);
+    setPdfFileSize(file.size);
+    try {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      setPdfBytes(bytes);
+      const doc = await pdfjsLib.getDocument({ data: bytes }).promise;
+      setPdfProxy(doc);
+      setPageCount(doc.numPages);
+      setCurrentPage(1);
+      // Check for a saved template for this PDF
+      const pdfKey   = `${file.name}::${file.size}`;
+      const matching = pffGetTemplates().find((t) => t.pdfKey === pdfKey);
+      if (matching) setOfferTemplate(matching);
+    } catch {
+      setError('Could not read this PDF. It may be corrupted or password-protected.');
+    }
+  };
+
+  // ── Smart field detection ──
+  const detectFields = async () => {
+    if (!pdfProxy) return;
+    setDetecting(true);
+    const detected: PffField[] = [];
+    for (let pNum = 1; pNum <= pageCount; pNum++) {
+      const page  = await pdfProxy.getPage(pNum);
+      const vp    = page.getViewport({ scale: 1 });
+      const pageW = vp.width;
+      const pageH = vp.height;
+      const tc    = await page.getTextContent();
+      for (const item of tc.items as any[]) {
+        const str = (item.str ?? '').trim();
+        if (!str) continue;
+        const tx    = item.transform as number[];
+        const itmX  = tx[4];
+        // pdf.js origin is bottom-left; flip to top-left for screen coords
+        const itmY  = pageH - tx[5] - (item.height || 12);
+        const itmW  = item.width || 60;
+        const itmH  = Math.max(item.height || 12, 14);
+
+        // Blank fill line (underscores / dashes / ruled line characters)
+        if (/^[_\-─═]{3,}$/.test(str)) {
+          detected.push({
+            id: pffId(), pageIndex: pNum - 1,
+            xPct: Math.max(0, itmX / pageW),
+            yPct: Math.max(0, (itmY - 2) / pageH),
+            wPct: Math.min(itmW / pageW, 0.55),
+            hPct: Math.max(itmH / pageH, 0.025),
+            value: '', fontSize: 10, align: 'left',
+            label: '', type: 'text', isDetected: true,
+          });
+          continue;
+        }
+
+        // Known label keyword followed by colon / blank
+        const strL = str.toLowerCase().replace(/:$/, '').trim();
+        const isLabel = PFF_LABEL_KEYWORDS.some(
+          (kw) => strL === kw || strL === `${kw}:` || strL.startsWith(`${kw} `) || strL.startsWith(`${kw}:`),
+        );
+        if (isLabel) {
+          const fx    = itmX + itmW + 4;
+          const availW = Math.max((pageW - fx) * 0.5, 40);
+          const fType: PffFieldType =
+            strL.includes('date') ? 'date'
+            : (strL.includes('phone') || strL.includes('fax') || strL.includes('qty') ||
+               strL.includes('amount') || strL.includes('total') || strL.includes('number') || strL.includes('zip')) ? 'number'
+            : 'text';
+          detected.push({
+            id: pffId(), pageIndex: pNum - 1,
+            xPct: Math.min(fx / pageW, 0.92),
+            yPct: Math.max(0, (itmY - 1) / pageH),
+            wPct: Math.min(availW / pageW, 0.5),
+            hPct: Math.max(itmH / pageH, 0.025),
+            value: '', fontSize: 10, align: 'left',
+            label: str.replace(/:$/, '').trim(),
+            type:  fType, isDetected: true,
+          });
+        }
+      }
+    }
+    setFields((prev) => [...prev.filter((f) => !f.isDetected), ...detected]);
+    setDetecting(false);
+  };
+
+  // ── Export PDF ──
+  const exportPdf = async () => {
+    if (!pdfBytes) return;
+    setExporting(true);
+    try {
+      const { PDFDocument, StandardFonts, rgb } = await import('pdf-lib');
+      const doc  = await PDFDocument.load(pdfBytes);
+      const font = await doc.embedFont(StandardFonts.Helvetica);
+      const pages = doc.getPages();
+      for (const field of fields.filter((f) => f.value.trim())) {
+        const pg = pages[field.pageIndex];
+        if (!pg) continue;
+        const { width, height } = pg.getSize();
+        // Convert screen top-left % to PDF bottom-left coords
+        const x = field.xPct * width + 2;
+        const y = height - (field.yPct + field.hPct) * height + 2;
+        try {
+          pg.drawText(field.value, { x, y, size: field.fontSize, font, color: rgb(0, 0, 0), maxWidth: field.wPct * width - 4 });
+        } catch { /* skip malformed field */ }
+      }
+      const uri = await doc.saveAsBase64({ dataUri: true });
+      const a   = document.createElement('a');
+      a.href     = uri;
+      a.download = `filled-${pdfFileName}`;
+      a.click();
+    } catch { setError('Export failed. Please try again.'); }
+    finally   { setExporting(false); }
+  };
+
+  // ── Templates ──
+  const saveTemplate = () => {
+    if (!tplNameInput.trim() || !pdfFileName) return;
+    const pdfKey = `${pdfFileName}::${pdfFileSize}`;
+    const tpl: PffTemplate = {
+      id: pffId(), name: tplNameInput.trim(), pdfKey, createdAt: Date.now(),
+      fields: fields.map(({ value: _v, ...rest }) => rest),
+    };
+    const existing = pffGetTemplates();
+    const updated  = [...existing.filter((t) => !(t.pdfKey === pdfKey && t.name === tpl.name)), tpl];
+    pffSaveTemplates(updated);
+    setTemplates(updated);
+    setTplNameInput('');
+    setShowTplPanel(false);
+  };
+  const loadTemplate = (tpl: PffTemplate) => {
+    setFields(tpl.fields.map((f) => ({ ...f, value: '' })));
+    setOfferTemplate(null);
+    setShowTplPanel(false);
+  };
+  const deleteTemplate = (id: string) => {
+    const updated = templates.filter((t) => t.id !== id);
+    pffSaveTemplates(updated);
+    setTemplates(updated);
+  };
+
+  // ── Field interactions ──
+  const addFieldAtPct = (xPct: number, yPct: number) => {
+    const f: PffField = {
+      id: pffId(), pageIndex: currentPage - 1,
+      xPct: Math.max(0, xPct - 0.12), yPct: Math.max(0, yPct - 0.02),
+      wPct: 0.25, hPct: 0.04,
+      value: '', fontSize: 11, align: 'left', label: '', type: 'text', isDetected: false,
+    };
+    setFields((prev) => [...prev, f]);
+    setSelectedId(f.id);
+    setMode('select');
+  };
+
+  const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (mode !== 'add' || !canvasRef.current) return;
+    const r   = canvasRef.current.getBoundingClientRect();
+    const xPct = (e.clientX - r.left) / r.width;
+    const yPct = (e.clientY - r.top)  / r.height;
+    addFieldAtPct(xPct, yPct);
+  };
+
+  const updateField = (id: string, patch: Partial<PffField>) =>
+    setFields((prev) => prev.map((f) => f.id === id ? { ...f, ...patch } : f));
+  const deleteField  = (id: string) => { setFields((prev) => prev.filter((f) => f.id !== id)); if (selectedId === id) setSelectedId(null); };
+  const duplicateField = (field: PffField) => {
+    const dup: PffField = { ...field, id: pffId(), xPct: field.xPct + 0.02, yPct: field.yPct + 0.02, value: '' };
+    setFields((prev) => [...prev, dup]);
+    setSelectedId(dup.id);
+  };
+
+  // Drag-to-move
+  const handleFieldPtrDown = (e: React.PointerEvent, field: PffField) => {
+    if (!containerRef.current) return;
+    e.preventDefault(); e.stopPropagation();
+    setSelectedId(field.id);
+    dragRef.current = { id: field.id, startX: e.clientX, startY: e.clientY, ox: field.xPct, oy: field.yPct };
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  };
+  const handleFieldPtrMove = (e: React.PointerEvent) => {
+    if (!dragRef.current || !containerRef.current) return;
+    const r    = containerRef.current.getBoundingClientRect();
+    const dxPct = (e.clientX - dragRef.current.startX) / r.width;
+    const dyPct = (e.clientY - dragRef.current.startY) / r.height;
+    updateField(dragRef.current.id, {
+      xPct: Math.max(0, Math.min(0.95, dragRef.current.ox + dxPct)),
+      yPct: Math.max(0, Math.min(0.95, dragRef.current.oy + dyPct)),
+    });
+  };
+  const handleFieldPtrUp = () => { dragRef.current = null; };
+
+  // Resize handle
+  const handleResizePtrDown = (e: React.PointerEvent, field: PffField) => {
+    e.preventDefault(); e.stopPropagation();
+    resizeRef.current = { id: field.id, startX: e.clientX, startY: e.clientY, ow: field.wPct, oh: field.hPct };
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  };
+  const handleResizePtrMove = (e: React.PointerEvent) => {
+    if (!resizeRef.current || !containerRef.current) return;
+    const r    = containerRef.current.getBoundingClientRect();
+    const dwPct = (e.clientX - resizeRef.current.startX) / r.width;
+    const dhPct = (e.clientY - resizeRef.current.startY) / r.height;
+    updateField(resizeRef.current.id, {
+      wPct: Math.max(0.04, resizeRef.current.ow + dwPct),
+      hPct: Math.max(0.02, resizeRef.current.oh + dhPct),
+    });
+  };
+  const handleResizePtrUp = () => { resizeRef.current = null; };
+
+  const selectedField = fields.find((f) => f.id === selectedId);
+  const pageFields    = fields.filter((f) => f.pageIndex === currentPage - 1);
+  const pdfKey        = pdfFileName ? `${pdfFileName}::${pdfFileSize}` : '';
+  const myTemplates   = templates.filter((t) => !pdfKey || t.pdfKey === pdfKey);
+  const allTemplates  = templates;
+
+  return (
+    <section className="renamer-page pff-page" data-testid="pdf-form-filler">
+      <BackButton fallback="/library" label="Back to library" />
+
+      {/* Tool header */}
+      <div className="tool-title-row">
+        <div>
+          <div className="eyebrow">Cubical tool · works in browser</div>
+          <div className="tool-title-with-icon">
+            <span className="renamer-tool-icon" style={{ color: 'hsl(210 60% 42%)', background: 'hsl(210 60% 42% / .11)' }}><FormInput /></span>
+            <div><h1>PDF Form Filler.</h1><p>Detect fields, fill them in, export a finished PDF.</p></div>
+          </div>
+        </div>
+        <span className="tool-status"><i className="status-dot" /> Local only</span>
+      </div>
+
+      <DisplacedWidgetBand />
+
+      {/* Toolbar */}
+      <div className="pff-toolbar">
+        {/* Open */}
+        <label className="pff-toolbar-btn" title="Open PDF">
+          <FilePlus2 className="w-4 h-4" /><span>Open PDF</span>
+          <input type="file" accept="application/pdf" className="sr-only"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) void loadPdf(f); e.target.value = ''; }} />
+        </label>
+        {pdfProxy && (<>
+          <div className="pff-toolbar-sep" />
+          {/* Page nav */}
+          <button className="pff-toolbar-icon" onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage <= 1} title="Previous page"><ChevronLeft /></button>
+          <span className="pff-page-label">{currentPage} / {pageCount}</span>
+          <button className="pff-toolbar-icon" onClick={() => setCurrentPage((p) => Math.min(pageCount, p + 1))} disabled={currentPage >= pageCount} title="Next page"><ChevronRight /></button>
+          {/* Zoom */}
+          <button className="pff-toolbar-icon" onClick={() => setScale((s) => Math.max(0.5, +(s - 0.2).toFixed(1)))} title="Zoom out"><Minus /></button>
+          <span className="pff-page-label">{Math.round(scale * 100)}%</span>
+          <button className="pff-toolbar-icon" onClick={() => setScale((s) => Math.min(3, +(s + 0.2).toFixed(1)))} title="Zoom in"><Plus /></button>
+          <button className="pff-toolbar-icon" onClick={() => setScale(1.4)} title="Fit page">↔</button>
+          <div className="pff-toolbar-sep" />
+          {/* Mode */}
+          <button className={`pff-toolbar-btn${mode === 'select' ? ' active' : ''}`} onClick={() => setMode('select')} title="Select / move fields">
+            <MousePointer2 className="w-4 h-4" /><span>Select</span>
+          </button>
+          <button className={`pff-toolbar-btn${mode === 'add' ? ' active' : ''}`} onClick={() => setMode('add')} title="Click on the PDF to add a text field">
+            <Plus className="w-4 h-4" /><span>Add Field</span>
+          </button>
+          <div className="pff-toolbar-sep" />
+          {/* Detection */}
+          <button className="pff-toolbar-btn" onClick={() => void detectFields()} disabled={detecting} title="Auto-detect fillable areas across all pages">
+            <Sparkles className="w-4 h-4" /><span>{detecting ? 'Detecting…' : 'Detect Fields'}</span>
+          </button>
+          {fields.some((f) => f.isDetected) && (<>
+            <button className="pff-toolbar-btn" title="Accept all detected fields" onClick={() => setFields((prev) => prev.map((f) => ({ ...f, isDetected: false })))}>
+              <Check className="w-4 h-4" /><span>Accept All</span>
+            </button>
+            <button className="pff-toolbar-btn pff-toolbar-btn--danger" title="Remove all detected fields" onClick={() => setFields((prev) => prev.filter((f) => !f.isDetected))}>
+              <Trash2 className="w-4 h-4" /><span>Clear Detected</span>
+            </button>
+          </>)}
+          <div className="pff-toolbar-sep" />
+          {/* Templates & Export */}
+          <button className="pff-toolbar-btn" onClick={() => setShowTplPanel((v) => !v)} title="Templates">
+            <BookOpen className="w-4 h-4" /><span>Templates</span>
+          </button>
+          <button className="pff-toolbar-btn pff-toolbar-btn--primary" onClick={() => void exportPdf()} disabled={exporting || !fields.some((f) => f.value.trim())} title="Export filled PDF">
+            <Download className="w-4 h-4" /><span>{exporting ? 'Exporting…' : 'Export PDF'}</span>
+          </button>
+        </>)}
+      </div>
+
+      {error && <div className="pff-error"><AlertCircle className="w-4 h-4 shrink-0" />{error}<button onClick={() => setError(null)}><X className="w-3 h-3" /></button></div>}
+
+      {/* Template offer banner */}
+      {offerTemplate && (
+        <div className="pff-offer-banner">
+          <BookOpen className="w-4 h-4 shrink-0" />
+          <span>Template <strong>"{offerTemplate.name}"</strong> found for this PDF.</span>
+          <button className="button-quiet" onClick={() => loadTemplate(offerTemplate)}>Apply template</button>
+          <button className="pff-offer-dismiss" onClick={() => setOfferTemplate(null)}><X className="w-3 h-3" /></button>
+        </div>
+      )}
+
+      {/* Main editor area */}
+      {!pdfProxy ? (
+        <div className="toolbox-drop-panel"
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f?.type === 'application/pdf') void loadPdf(f); }}>
+          <div className="empty-cube"><FormInput /></div>
+          <h2>Open a PDF to get started.</h2>
+          <p>Drop a PDF here, or use "Open PDF" above. Field detection, manual editing, and export all happen locally — nothing leaves your device.</p>
+          <label className="file-picker" style={{ marginTop: 16 }}>
+            <FilePlus2 /><span>Browse for a PDF</span>
+            <input type="file" accept="application/pdf" onChange={(e) => { const f = e.target.files?.[0]; if (f) void loadPdf(f); e.target.value = ''; }} />
+          </label>
+        </div>
+      ) : (
+        <div className="pff-editor-layout">
+          {/* Canvas + field overlay */}
+          <div className="pff-canvas-scroll">
+            <div className="pff-canvas-wrap" ref={containerRef}
+              onPointerMove={(e) => { handleFieldPtrMove(e); handleResizePtrMove(e); }}
+              onPointerUp={() => { handleFieldPtrUp(); handleResizePtrUp(); }}>
+              <canvas ref={canvasRef}
+                className={`pff-canvas${mode === 'add' ? ' pff-canvas--add' : ''}`}
+                onClick={handleCanvasClick} />
+              {/* Field overlays */}
+              {pageFields.map((field) => {
+                const isSelected = field.id === selectedId;
+                return (
+                  <div
+                    key={field.id}
+                    className={`pff-field${isSelected ? ' is-selected' : ''}${field.isDetected ? ' is-detected' : ''}`}
+                    style={{ left: `${field.xPct * 100}%`, top: `${field.yPct * 100}%`, width: `${field.wPct * 100}%`, height: `${field.hPct * 100}%` }}
+                    onPointerDown={(e) => handleFieldPtrDown(e, field)}
+                  >
+                    <input
+                      type={field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : 'text'}
+                      className="pff-field-input"
+                      placeholder={field.label || ''}
+                      value={field.value}
+                      style={{ fontSize: field.fontSize, textAlign: field.align }}
+                      onChange={(e) => updateField(field.id, { value: e.target.value })}
+                      onFocus={() => setSelectedId(field.id)}
+                      onClick={(e) => e.stopPropagation()}
+                      onPointerDown={(e) => e.stopPropagation()}
+                    />
+                    {isSelected && (
+                      <div
+                        className="pff-resize-handle"
+                        onPointerDown={(e) => handleResizePtrDown(e, field)}
+                      />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Side panel — field properties */}
+          {selectedField && (
+            <div className="pff-side-panel">
+              <div className="pff-side-title">Field properties</div>
+              <label className="pff-side-label">Internal label</label>
+              <input className="pff-side-input" type="text" value={selectedField.label} placeholder="e.g. Project Name"
+                onChange={(e) => updateField(selectedField.id, { label: e.target.value })} />
+              <label className="pff-side-label">Type</label>
+              <div className="settings-mode-group" style={{ marginBottom: 10 }}>
+                {(['text','number','date'] as PffFieldType[]).map((t) => (
+                  <button key={t} className={`settings-mode-btn${selectedField.type === t ? ' active' : ''}`}
+                    onClick={() => updateField(selectedField.id, { type: t })}>
+                    {t.charAt(0).toUpperCase() + t.slice(1)}
+                  </button>
+                ))}
+              </div>
+              <label className="pff-side-label">Font size</label>
+              <div className="pff-side-row">
+                <input className="pff-side-input" type="number" min={6} max={36} value={selectedField.fontSize}
+                  onChange={(e) => updateField(selectedField.id, { fontSize: +e.target.value })} style={{ width: 70 }} />
+                <span style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>pt</span>
+              </div>
+              <label className="pff-side-label">Alignment</label>
+              <div className="settings-mode-group" style={{ marginBottom: 10 }}>
+                {(['left','center','right'] as PffAlign[]).map((a) => (
+                  <button key={a} className={`settings-mode-btn${selectedField.align === a ? ' active' : ''}`}
+                    onClick={() => updateField(selectedField.id, { align: a })}>
+                    {a.charAt(0).toUpperCase() + a.slice(1)}
+                  </button>
+                ))}
+              </div>
+              <div className="pff-side-actions">
+                <button className="button-quiet" onClick={() => duplicateField(selectedField)}>
+                  <Files className="w-3.5 h-3.5" /> Duplicate
+                </button>
+                <button className="button-quiet pff-delete-btn" onClick={() => deleteField(selectedField.id)}>
+                  <Trash2 className="w-3.5 h-3.5" /> Delete
+                </button>
+              </div>
+              {selectedField.isDetected && (
+                <div className="pff-detected-note">
+                  <Sparkles className="w-3 h-3" /> Auto-detected — drag to adjust
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Template panel */}
+      {showTplPanel && (
+        <div className="pff-tpl-panel">
+          <div className="pff-tpl-panel-header">
+            <span className="pff-side-title">Templates</span>
+            <button onClick={() => setShowTplPanel(false)}><X className="w-4 h-4" /></button>
+          </div>
+          {pdfProxy && fields.length > 0 && (
+            <div className="pff-tpl-save">
+              <div className="pff-side-label">Save current layout as template</div>
+              <div className="pff-side-row" style={{ gap: 8 }}>
+                <input className="pff-side-input" type="text" placeholder="Template name…" value={tplNameInput}
+                  onChange={(e) => setTplNameInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') saveTemplate(); }} />
+                <button className="button-quiet" onClick={saveTemplate} disabled={!tplNameInput.trim()}>Save</button>
+              </div>
+            </div>
+          )}
+          {allTemplates.length === 0 ? (
+            <p style={{ fontSize: 13, color: 'hsl(var(--muted-foreground))', padding: '8px 0' }}>No templates saved yet.</p>
+          ) : (
+            <div className="pff-tpl-list">
+              {allTemplates.map((tpl) => (
+                <div key={tpl.id} className="pff-tpl-row">
+                  <div className="pff-tpl-info">
+                    <span className="pff-tpl-name">{tpl.name}</span>
+                    <span className="pff-tpl-meta">{tpl.fields.length} fields · {tpl.pdfKey.split('::')[0]}</span>
+                  </div>
+                  <button className="button-quiet" onClick={() => loadTemplate(tpl)}>Apply</button>
+                  <button className="button-quiet pff-delete-btn" onClick={() => deleteTemplate(tpl.id)}><Trash2 className="w-3.5 h-3.5" /></button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
 // ─── System Info ──────────────────────────────────────────────────────────────
 
 function SystemInfoPage() {
@@ -7560,6 +8117,7 @@ function App() {
               <Route path="/tool/startup-manager"><StartupManager /></Route>
               <Route path="/tool/file-inspector"><FileInspector /></Route>
               <Route path="/tool/system-info"><SystemInfoPage /></Route>
+              <Route path="/tool/pdf-form-filler"><PdfFormFiller /></Route>
               <Route path="/profile"><ProfilePage /></Route>
               <Route path="/settings"><SettingsPage /></Route>
               <Route><NotFound /></Route>

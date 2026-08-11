@@ -1,0 +1,367 @@
+Create a new full Cubical Tool called:
+
+PDF Form Filler
+
+IMPORTANT:
+This is a full TOOL, not a widget.
+
+It should use the same Tool architecture, Store integration, installation flow, Library behavior, navigation, styling, persistence, and launch behavior as the existing Cubical Tools.
+
+PURPOSE:
+
+The tool should let a user open a PDF, automatically detect areas that likely need text input, place suggested editable text fields over those areas, allow the user to manually correct or add fields, fill the form, and export the completed PDF.
+
+The core idea is:
+
+Open PDF
+→ Detect likely fillable areas
+→ Automatically suggest/place text boxes
+→ User reviews/corrects fields
+→ User fills out the document
+→ Export completed PDF
+
+The automatic detection should save time, but the user must always retain full manual control.
+
+PDF IMPORT AND VIEWER
+
+Allow the user to:
+
+Browse for a PDF
+Drag and drop a PDF into the Tool
+View all PDF pages inside Cubical
+Scroll through multi-page PDFs
+Zoom in/out
+Fit page to width/window
+Navigate between pages
+Clearly see the current page number
+
+The viewer should feel responsive and clean.
+
+Do not upload the PDF to an external service for basic editing or detection. Keep processing local whenever practical.
+
+SMART FIELD DETECTION
+
+After a PDF is opened, provide an action such as:
+
+"Detect Fields"
+
+Cubical should analyze the PDF pages and identify areas that likely need user input.
+
+Examples include:
+
+Blank lines next to labels
+Empty boxes
+Areas following labels such as:
+Name
+Date
+Address
+Phone
+Email
+Project
+Signature
+Initials
+Notes
+Total
+Table cells that appear intended for text
+Underlined blank spaces
+Existing empty form-like areas
+
+When likely input areas are found:
+
+Overlay suggested editable text fields on the PDF
+Visually distinguish newly detected/suggested fields
+Let the user review them before or while using them
+Do not permanently modify the original PDF during detection
+
+Automatic detection does NOT need to be perfect.
+
+The user should be able to quickly correct bad guesses.
+
+MANUAL FIELD TOOLS
+
+Even though the Tool is smart-first, it must include full manual editing controls.
+
+Allow the user to manually:
+
+Add a text field anywhere on the PDF
+Click and drag to position a field
+Move existing fields
+Resize fields
+Delete fields
+Duplicate fields
+Adjust font size
+Adjust text alignment
+Change field width/height
+Edit text inside fields
+
+When useful, support:
+
+Multiline text
+Single-line text
+Numeric fields
+Date fields
+
+A simple toolbar could include:
+
+Select
+Add Text
+Duplicate
+Delete
+Font Size
+Alignment
+
+The exact UI can adapt to Cubical's design language.
+
+FIELD REVIEW / SMART CORRECTION
+
+Detected fields should be easy to review.
+
+Suggested behavior:
+
+Newly detected fields can have a subtle highlighted border
+Clicking a field selects it
+Selected fields show resize handles
+User can drag them into the correct position
+User can delete incorrect detections
+User can add missing fields manually
+
+If practical, provide:
+
+"Accept All Detected Fields"
+
+and/or
+
+"Clear Detected Fields"
+
+Do not force the user through a complicated approval wizard.
+
+The goal should be fast correction.
+
+FORM FILLING
+
+Once fields exist, the user should be able to fill the document directly inside Cubical.
+
+Requirements:
+
+Click a field and type
+Tab or otherwise move between fields easily
+Text should remain aligned with the underlying PDF
+Moving between pages should preserve entered values
+Zooming should not change actual field placement
+Field positions should be stored relative to the PDF page, not screen pixels if possible
+
+The user should not lose entered data because of ordinary navigation within the Tool.
+
+EXPORT COMPLETED PDF
+
+Provide an obvious action such as:
+
+"Export PDF"
+
+The exported PDF should:
+
+Preserve all original PDF pages
+Include the user's entered text in the correct positions
+Be readable in standard PDF viewers
+Save to a user-selected location
+Never overwrite the original PDF unless the user explicitly chooses to do so
+
+For the first implementation, it is acceptable to flatten the entered text into the exported PDF rather than creating fully interactive Acrobat form fields.
+
+Reliability is more important than advanced PDF form features.
+
+TEMPLATE SYSTEM
+
+This is an important feature.
+
+Allow the user to save the field layout as a reusable Cubical template.
+
+Example flow:
+
+Open a recurring PDF form
+Run field detection
+Correct the detected fields
+Save the corrected layout as a template
+Next time the user opens the same form, Cubical can reuse that layout instead of detecting everything again
+
+Template data should include:
+
+PDF/form identity where practical
+Page number
+Field coordinates
+Field size
+Font size
+Alignment
+Field type
+Optional field label/name
+
+Provide actions such as:
+
+"Save as Template"
+
+"Load Template"
+
+If Cubical recognizes a PDF for which a template already exists, it may offer:
+
+"Use saved template?"
+
+Do not automatically overwrite existing templates.
+
+FIELD LABELS / NAMES
+
+Allow fields to optionally have internal names such as:
+
+Project Name
+Date
+Foreman
+Address
+Total
+Notes
+
+These labels do not need to appear on the exported document.
+
+They are primarily for Cubical's template system and easier editing.
+
+If smart detection can infer a nearby label, use it as the suggested field name.
+
+Example:
+
+PDF text:
+"Project Name: __________"
+
+Detected field name:
+Project Name
+
+FUTURE-READY FIELD TYPES
+
+Structure the Tool so it can later support additional field types without requiring a complete rewrite.
+
+Potential future types include:
+
+Checkbox
+Radio button
+Signature
+Initials
+Dropdown
+Date picker
+Image/stamp
+Saved signature
+
+For this initial version, prioritize TEXT FIELDS.
+
+Do not delay a usable first version just to implement every future field type.
+
+STORE INTEGRATION
+
+Add PDF Form Filler to the Cubical Store as a FREE Tool.
+
+Store listing:
+
+Name:
+PDF Form Filler
+
+Description:
+"Automatically detect fillable areas in PDFs, add text fields, save templates, and complete forms faster."
+
+Price:
+FREE
+
+It should behave exactly like other Cubical Tools:
+
+Visible in Store
+Shows FREE
+Can be installed
+Installed state persists
+Appears in Library
+Store card shows the existing installed/owned treatment when installed
+Launches from Library
+Uses the existing Tool navigation system
+Back button returns the user to where they came from
+
+Do not create a separate installation framework.
+
+VISUAL DESIGN
+
+Match Cubical's existing cozy visual language.
+
+The PDF itself should remain the visual focus.
+
+Keep the surrounding interface:
+
+Clean
+Friendly
+Uncluttered
+Easy to understand
+Consistent with other Cubical Tools
+
+Suggested layout:
+
+Top toolbar:
+Open PDF
+Detect Fields
+Add Text
+Save Template
+Export PDF
+
+Center:
+PDF viewer/editor
+
+Optional side panel:
+Selected field properties
+Field list
+Template controls
+
+Do not make it look like enterprise document software.
+
+SAFETY / FILE HANDLING
+
+Protect the user's original documents.
+
+Requirements:
+
+Do not modify the original PDF unless explicitly requested
+Export to a new file by default
+Do not delete source files
+Do not silently overwrite existing files
+Keep document processing local whenever practical
+Handle invalid/corrupted PDFs gracefully
+Show clear errors instead of crashing
+IMPLEMENTATION PRIORITY
+
+Build the Tool in this order:
+
+Register Tool in Cubical
+Add Store listing
+Install/Library/launch flow
+PDF viewer
+Manual text field placement
+Move/resize/delete fields
+Fill fields
+Export completed PDF
+Smart field detection
+Save/load templates
+Polish
+
+Manual editing + reliable export should work even if smart detection still needs improvement.
+
+Do NOT build a fake smart detection demo using hardcoded fields.
+
+If automatic detection is difficult, implement a real basic detection approach first and preserve the manual workflow as the fallback.
+
+SUCCESS CRITERIA
+
+A successful first version should allow this exact workflow:
+
+Install PDF Form Filler from Store
+Open it from Library
+Load a real PDF
+Run Detect Fields
+See suggested text fields appear
+Move/delete incorrect suggestions
+Add missing fields manually
+Type into the fields
+Save the corrected layout as a template
+Export a finished PDF
+Reopen the same form later and reuse the saved layout
+
+Preserve all existing Cubical functionality while adding this Tool.
