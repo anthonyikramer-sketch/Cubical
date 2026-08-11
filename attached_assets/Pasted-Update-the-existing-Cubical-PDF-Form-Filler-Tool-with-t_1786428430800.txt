@@ -1,0 +1,408 @@
+Update the existing Cubical PDF Form Filler Tool with the following changes.
+
+IMPORTANT:
+This is an existing full Cubical TOOL, not a widget.
+
+Do not redesign the entire PDF Form Filler.
+Do not change unrelated functionality.
+Preserve the existing PDF viewer, templates, export flow, Add Field behavior, Stamp system, field properties, colors, font sizes, Delete key support, Find feature, and current coordinate-placement fixes unless explicitly changed below.
+
+--------------------------------------------------
+1. REMOVE DETECT FIELDS COMPLETELY
+--------------------------------------------------
+
+Remove the Detect Fields feature from the PDF Form Filler.
+
+The current automatic field detection is not useful enough and should no longer appear in the interface.
+
+Remove:
+
+- Detect Fields toolbar button
+- Accept All button if it only applies to detected fields
+- Clear Detected button if it only applies to detected fields
+- Automatic field detection logic
+- Detection-only UI state
+- Detection-only field styling
+- Detection-only code paths that are no longer needed
+
+IMPORTANT:
+
+Do NOT remove manual field functionality.
+
+Keep:
+
+- Add Field
+- Add Checkbox
+- Stamp placement
+- Manual movement/resizing
+- Templates
+- Export PDF
+- Existing normal fields
+
+If detection-related code is shared with unrelated functionality, only remove what is safe to remove.
+
+The toolbar should become cleaner after Detect Fields is removed.
+
+--------------------------------------------------
+2. CHANGE "STAMPS" TO "STAMP BOX"
+--------------------------------------------------
+
+Rename the clickable toolbar/menu button currently labeled:
+
+Stamps
+
+to:
+
+Stamp Box
+
+This is the button the user clicks to open the stamp popout.
+
+Use:
+
+Stamp Box
+
+everywhere that visible UI label appears.
+
+Do not rename internal variables unless necessary.
+
+--------------------------------------------------
+3. MOVE CHECKBOX INTO THE STAMP BOX AREA
+--------------------------------------------------
+
+Remove the standalone:
+
+Add Checkbox
+
+button from the main toolbar.
+
+Checkbox placement should now be accessed from the same toolbar control area as Stamp Box.
+
+I want the toolbar control to visually behave like a combined/split control.
+
+Something approximately like:
+
+[ Stamp Box | Checkbox ]
+
+or:
+
+[ Stamp Box ] [ Checkbox ]
+
+The important behavior is:
+
+- Stamp Box opens the existing stamp popout
+- Checkbox activates checkbox placement mode
+
+These should feel visually grouped together as one compact control instead of unrelated toolbar actions.
+
+Match Cubical's existing styling.
+
+Do not make the toolbar cluttered.
+
+--------------------------------------------------
+4. CHECKBOX PLACEMENT SHOULD BE REPEATING
+--------------------------------------------------
+
+Currently Add Checkbox appears to behave like a one-shot action.
+
+Change checkbox placement so it behaves like Stamp placement.
+
+Desired flow:
+
+1. Click Checkbox
+2. Checkbox placement mode activates
+3. Click anywhere on the PDF
+4. A checkbox is placed
+5. Checkbox placement mode REMAINS ACTIVE
+6. Click another location
+7. Another checkbox is placed
+8. Continue placing as many checkboxes as needed
+
+The user should NOT have to click Checkbox again after every placement.
+
+--------------------------------------------------
+5. EXIT CHECKBOX MODE
+--------------------------------------------------
+
+Checkbox placement mode should remain active until the user explicitly leaves it.
+
+Exit Checkbox mode when:
+
+- User clicks Select
+- User clicks Add Field
+- User chooses a Stamp
+- User activates another placement tool
+- User presses Escape, if practical
+
+Once Select is active:
+
+Clicking the PDF should no longer place checkboxes.
+
+Only one placement mode should be active at a time.
+
+Examples:
+
+Checkbox active
+→ click Stamp
+→ Checkbox mode ends
+→ Stamp mode begins
+
+Stamp active
+→ click Checkbox
+→ Stamp mode ends
+→ Checkbox mode begins
+
+Checkbox active
+→ click Select
+→ Checkbox mode ends
+
+--------------------------------------------------
+6. CHECKBOX PLACEMENT ACCURACY
+--------------------------------------------------
+
+Checkboxes must use the same correct page-relative coordinate system as:
+
+- Add Field
+- Stamp placement
+
+When the user clicks a point on the PDF, the checkbox should appear exactly where clicked.
+
+This must work correctly at:
+
+- Different zoom levels
+- Different scroll positions
+- Different pages
+
+Do not use separate approximate positioning logic.
+
+Reuse the existing correct PDF coordinate conversion system.
+
+--------------------------------------------------
+7. CHECKBOX MODE VISUAL FEEDBACK
+--------------------------------------------------
+
+Make it obvious when Checkbox placement mode is active.
+
+For example:
+
+- Highlight the Checkbox side of the control
+- Slightly tint the button
+- Show active styling consistent with Stamp mode
+
+The user should be able to glance at the toolbar and know:
+
+"My next click will place a checkbox."
+
+Do not make the active state distracting.
+
+--------------------------------------------------
+8. STAMP BOX POPOUT SHOULD STAY AS IT IS
+--------------------------------------------------
+
+Preserve the current Stamp Box popout design and functionality.
+
+The current popout contains:
+
+- Create a stamp input
+- Size selector
+- Color selector
+- Saved stamp list
+- Saved font size
+- Saved color
+- X delete controls
+
+Keep all of that behavior.
+
+The only requested changes to this area are:
+
+- Rename the toolbar/menu trigger from Stamps to Stamp Box
+- Group Checkbox with Stamp Box in the toolbar
+
+Do not redesign the stamp popout unnecessarily.
+
+--------------------------------------------------
+9. CHECKBOXES SHOULD REMAIN NORMAL EDITABLE OBJECTS
+--------------------------------------------------
+
+After a checkbox is placed, it should continue behaving like the existing checkbox object.
+
+Preserve any existing support for:
+
+- Selecting checkbox
+- Moving checkbox
+- Resizing if currently supported
+- Deleting
+- Exporting
+- Saving with templates
+
+Repeated placement should only change how checkbox creation mode works.
+
+--------------------------------------------------
+10. TOOLBAR CLEANUP
+--------------------------------------------------
+
+After these changes, the main toolbar should no longer contain:
+
+- Detect Fields
+- Standalone Add Checkbox
+
+Instead, toolbar functionality should be organized approximately as:
+
+Open PDF
+Page Controls
+Zoom Controls
+Select
+Add Field
+[ Stamp Box | Checkbox ]
+Templates
+Find
+Export PDF
+
+Exact ordering may adapt to the current layout.
+
+The important goals are:
+
+- Cleaner toolbar
+- No Detect Fields
+- Checkbox grouped with Stamp Box
+- Existing functions preserved
+
+--------------------------------------------------
+11. DO NOT BREAK
+--------------------------------------------------
+
+Preserve:
+
+- Open PDF
+- PDF rendering
+- Page navigation
+- Zoom
+- Select
+- Add Field
+- Stamp Box
+- Stamp creation
+- Stamp colors
+- Stamp font sizes
+- Stamp persistence
+- Repeated Stamp placement
+- Text fields
+- Text colors
+- Field properties
+- Delete key support
+- Templates
+- Find
+- Export PDF
+- Accurate placement coordinates
+
+Do not redesign Cubical.
+
+--------------------------------------------------
+12. SUCCESS TESTS
+--------------------------------------------------
+
+TEST 1:
+
+Open PDF Form Filler.
+
+Confirm Detect Fields is completely gone from the toolbar.
+
+Confirm Accept All / Clear Detected are also gone if they only belonged to detection.
+
+--------------------------------------------------
+
+TEST 2:
+
+Confirm the toolbar button previously called:
+
+Stamps
+
+now reads:
+
+Stamp Box
+
+--------------------------------------------------
+
+TEST 3:
+
+Confirm Add Checkbox is no longer a standalone toolbar button.
+
+Confirm Checkbox is visually grouped with Stamp Box.
+
+Example:
+
+Stamp Box | Checkbox
+
+--------------------------------------------------
+
+TEST 4:
+
+Click Checkbox.
+
+Click three different locations on the PDF.
+
+Confirm:
+
+- Checkbox 1 appears at click 1
+- Checkbox 2 appears at click 2
+- Checkbox 3 appears at click 3
+
+Confirm Checkbox mode stayed active after each placement.
+
+--------------------------------------------------
+
+TEST 5:
+
+While Checkbox mode is active, click Select.
+
+Then click the PDF.
+
+Confirm no new checkbox is created.
+
+--------------------------------------------------
+
+TEST 6:
+
+Activate Checkbox mode.
+
+Then choose a Stamp.
+
+Confirm Checkbox mode ends and Stamp mode becomes active.
+
+--------------------------------------------------
+
+TEST 7:
+
+Activate Stamp mode.
+
+Then click Checkbox.
+
+Confirm Stamp mode ends and Checkbox mode becomes active.
+
+--------------------------------------------------
+
+TEST 8:
+
+Test Checkbox placement at:
+
+100%
+140%
+200%
+
+Confirm checkboxes appear exactly where clicked at every zoom level.
+
+--------------------------------------------------
+
+TEST 9:
+
+Scroll the PDF.
+
+Place a checkbox lower on the page.
+
+Confirm it appears exactly where clicked.
+
+--------------------------------------------------
+
+TEST 10:
+
+Open Stamp Box.
+
+Confirm all current stamp functionality still works exactly as before.

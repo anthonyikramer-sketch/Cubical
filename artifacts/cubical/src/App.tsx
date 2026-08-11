@@ -7946,7 +7946,7 @@ function PdfFormFiller() {
         id: pffId(), pageIndex: currentPage - 1,
         xPct: Math.max(0, xPct - 0.02), yPct: Math.max(0, yPct - 0.02),
         wPct: 0.04, hPct: 0.04,
-        value: '', fontSize: 11, align: 'left', color: '#000000', label: '', type: 'checkbox', isDetected: false,
+        value: 'checked', fontSize: 11, align: 'left', color: '#000000', label: '', type: 'checkbox', isDetected: false,
       };
       setFields((prev) => [...prev, f]);
       setSelectedId(f.id);
