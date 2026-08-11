@@ -3602,6 +3602,33 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
   background: hsl(var(--surface));
   display: block;
 }
+.ic-thumb-placeholder {
+  width: 72px;
+  height: 72px;
+  border-radius: 8px;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--muted));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ic-thumb-ext {
+  font-family: var(--app-font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  color: hsl(var(--muted-foreground));
+  background: hsl(var(--primary) / .12);
+  color: hsl(var(--primary));
+  border-radius: 5px;
+  padding: 3px 6px;
+  letter-spacing: .04em;
+  line-height: 1.2;
+  text-align: center;
+  max-width: 58px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .ic-thumb-remove {
   position: absolute;
   top: 3px;

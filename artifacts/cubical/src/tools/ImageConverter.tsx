@@ -3,6 +3,12 @@ import { zipSync } from 'fflate';
 import { ArrowRight, Download, FileArchive, ImagePlus, X } from 'lucide-react';
 import { BackButton, DisplacedWidgetBand } from '../shared/contexts';
 
+/** Extract the uppercased file extension without the leading dot. */
+function getFileExt(name: string): string {
+  const m = name.match(/\.([^.]+)$/);
+  return m ? m[1].toUpperCase() : '???';
+}
+
 export function ImageConverter() {
   const [files, setFiles]         = useState<File[]>([]);
   const [format, setFormat]       = useState<'png' | 'jpeg' | 'webp'>('png');
@@ -14,6 +20,7 @@ export function ImageConverter() {
   const [results, setResults]     = useState<{ name: string; url: string }[]>([]);
   const [zipFilename, setZipFilename] = useState('converted-images');
   const [previews, setPreviews] = useState<{ name: string; url: string }[]>([]);
+  const [failedThumbs, setFailedThumbs] = useState<Set<number>>(new Set());
   const cancelledRef = useRef(false);
   const previewUrlsRef = useRef<string[]>([]);
 
@@ -25,6 +32,7 @@ export function ImageConverter() {
     previewUrlsRef.current = newPreviews.map((p) => p.url);
     setFiles(accepted);
     setPreviews(newPreviews);
+    setFailedThumbs(new Set());
     setResults([]);
   };
 
@@ -35,6 +43,11 @@ export function ImageConverter() {
     previewUrlsRef.current = newPreviews.map((p) => p.url);
     setFiles(newFiles);
     setPreviews(newPreviews);
+    setFailedThumbs((prev) => {
+      const next = new Set<number>();
+      prev.forEach((n) => { if (n < index) next.add(n); else if (n > index) next.add(n - 1); });
+      return next;
+    });
     setResults([]);
   };
 
@@ -147,7 +160,18 @@ export function ImageConverter() {
               {previews.map((p, i) => (
                 <div className="ic-thumb-item" key={i}>
                   <div className="ic-thumb-img-wrap">
-                    <img src={p.url} alt={p.name} className="ic-thumb-img" />
+                    {failedThumbs.has(i) ? (
+                      <div className="ic-thumb-placeholder" aria-label={p.name}>
+                        <span className="ic-thumb-ext">{getFileExt(p.name)}</span>
+                      </div>
+                    ) : (
+                      <img
+                        src={p.url}
+                        alt={p.name}
+                        className="ic-thumb-img"
+                        onError={() => setFailedThumbs((prev) => new Set(prev).add(i))}
+                      />
+                    )}
                     <button
                       type="button"
                       className="ic-thumb-remove"
