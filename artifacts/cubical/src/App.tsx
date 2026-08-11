@@ -6599,6 +6599,37 @@ function isExifCapableFile(file: File): boolean {
   return RAW_EXIF_EXTS.has(ext);
 }
 
+/**
+ * Reads pixel dimensions from EXIF tags. Used as a fallback when the browser cannot decode a
+ * file as an <img> element (e.g. RAW/HEIC). Uses a flat (non-expanded) ExifReader load so that
+ * IFD0 tags (ImageWidth / ImageLength) and Exif sub-IFD tags (PixelXDimension / PixelYDimension)
+ * are all accessible at the top level. IFD0 tags are checked first because RAW files (CR2, NEF,
+ * ARW, DNG) reliably store full-sensor pixel dimensions there; PixelXDimension falls back for
+ * files that only populate the Exif sub-IFD.
+ * Returns null gracefully when no usable tags are found or parsing fails.
+ */
+async function extractDimsFromExifTags(file: File): Promise<{ w: number; h: number } | null> {
+  try {
+    const buf  = await file.arrayBuffer();
+    // Flat (non-expanded) load — IFD0 and Exif sub-IFD tags appear at the top level.
+    const tags = ExifReader.load(buf) as Record<string, { description?: string; value?: unknown } | undefined>;
+    const numTag = (key: string): number | null => {
+      const t = tags[key];
+      if (!t) return null;
+      const v = typeof t.value === 'number' ? t.value
+               : typeof t.description === 'string' ? Number(t.description)
+               : NaN;
+      return isFinite(v) && v > 0 ? v : null;
+    };
+    // IFD0 tags (reliable for RAW/TIFF): ImageWidth / ImageLength
+    // Exif sub-IFD tags (JPEG/processed): PixelXDimension / PixelYDimension
+    const w = numTag('ImageWidth')  ?? numTag('PixelXDimension');
+    const h = numTag('ImageLength') ?? numTag('PixelYDimension');
+    if (w !== null && h !== null) return { w, h };
+    return null;
+  } catch { return null; }
+}
+
 async function extractExif(file: File): Promise<ExifData | null> {
   try {
     const buf = await file.arrayBuffer();
@@ -6679,6 +6710,12 @@ async function buildToolboxEntry(file: File): Promise<ToolboxEntry> {
     ? await detectMediaCodec(file)
     : null;
   const exif = isExifCapableFile(file) ? await extractExif(file) : null;
+  // When browser-based dimension decoding produced null (e.g. RAW/HEIC files the browser
+  // cannot render, or any image/ type whose <img> load fired onerror), fall back to pixel
+  // dimensions stored in EXIF tags. Covers all EXIF-capable files regardless of MIME type.
+  if (dims === null && isExifCapableFile(file)) {
+    dims = await extractDimsFromExifTags(file);
+  }
   return { file, hash, dims, mediaDuration, videoDims, mediaCodec, exif };
 }
 
