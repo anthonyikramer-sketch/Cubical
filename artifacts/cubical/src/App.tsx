@@ -7328,13 +7328,20 @@ interface PffTemplate {
   pdfKey:    string;    // `${fileName}::${fileSize}` — used to recognise the same form
   createdAt: number;
   fields:    Omit<PffField, 'value'>[];
-  stamps?:   string[];  // saved stamps for this PDF/template
+  stamps?:   PffStamp[];  // saved stamps for this PDF/template
 }
 
-const PFF_TEMPLATES_KEY  = 'cubical-pff-templates-v1';
-const PFF_STAMPS_KEY     = 'cubical-pff-stamps-v1';
-const PFF_MY_DETAILS_KEY = 'cubical-pff-my-details-v1';
-const PFF_MAX_STAMPS     = 10;
+interface PffStamp {
+  text:     string;
+  fontSize: number;
+  color:    string;
+}
+
+const PFF_TEMPLATES_KEY    = 'cubical-pff-templates-v1';
+const PFF_STAMPS_KEY       = 'cubical-pff-stamps-v1';
+const PFF_MY_DETAILS_KEY   = 'cubical-pff-my-details-v1';
+const PFF_MAX_STAMPS       = 10;
+const PFF_STAMP_FONT_SIZES = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32];
 
 interface PersonalDetail {
   key:   string;  // e.g. 'Name', 'Email'
@@ -7398,13 +7405,16 @@ function pffGetTemplates(): PffTemplate[] {
 function pffSaveTemplates(ts: PffTemplate[]) {
   try { window.localStorage.setItem(PFF_TEMPLATES_KEY, JSON.stringify(ts)); } catch {}
 }
-function pffGetStamps(pdfKey: string): string[] {
-  try { return (JSON.parse(window.localStorage.getItem(PFF_STAMPS_KEY) ?? '{}') as Record<string,string[]>)[pdfKey] ?? []; }
-  catch { return []; }
-}
-function pffSaveStamps(pdfKey: string, stamps: string[]) {
+function pffGetStamps(pdfKey: string): PffStamp[] {
   try {
-    const all = JSON.parse(window.localStorage.getItem(PFF_STAMPS_KEY) ?? '{}') as Record<string,string[]>;
+    const raw = (JSON.parse(window.localStorage.getItem(PFF_STAMPS_KEY) ?? '{}') as Record<string, unknown[]>)[pdfKey] ?? [];
+    // Migrate legacy string[] → PffStamp[]
+    return raw.map((s) => typeof s === 'string' ? { text: s, fontSize: 12, color: '#000000' } : s as PffStamp);
+  } catch { return []; }
+}
+function pffSaveStamps(pdfKey: string, stamps: PffStamp[]) {
+  try {
+    const all = JSON.parse(window.localStorage.getItem(PFF_STAMPS_KEY) ?? '{}') as Record<string, PffStamp[]>;
     all[pdfKey] = stamps;
     window.localStorage.setItem(PFF_STAMPS_KEY, JSON.stringify(all));
   } catch {}
@@ -7427,10 +7437,12 @@ function PdfFormFiller() {
   const [pdfFileSize,  setPdfFileSize]  = useState(0);
   const [pdfjsLib,     setPdfjsLib]     = useState<any>(null);
   // ── Stamp state ──
-  const [stamps,          setStamps]          = useState<string[]>([]);
-  const [stampMode,       setStampMode]       = useState<string | null>(null); // text of active stamp, or null
+  const [stamps,          setStamps]          = useState<PffStamp[]>([]);
+  const [stampMode,       setStampMode]       = useState<PffStamp | null>(null); // active stamp preset, or null
   const [showStampPopout, setShowStampPopout] = useState(false);
   const [stampInput,      setStampInput]      = useState('');
+  const [stampFontSize,   setStampFontSize]   = useState(12);   // persists across stamp creations
+  const [stampColor,      setStampColor]      = useState('#000000'); // persists across stamp creations
   const stampBtnRef   = useRef<HTMLButtonElement>(null);
   // ── Template UI ──
   const [templates,     setTemplates]    = useState<PffTemplate[]>(pffGetTemplates);
@@ -7723,21 +7735,22 @@ function PdfFormFiller() {
   const addStamp = () => {
     const text = stampInput.trim();
     if (!text) return;
-    if (stamps.includes(text)) { setStampInput(''); return; }
+    if (stamps.some((s) => s.text === text)) { setStampInput(''); return; }
     if (stamps.length >= PFF_MAX_STAMPS) { setError(`Stamp limit reached (max ${PFF_MAX_STAMPS}). Remove a stamp first.`); return; }
-    const next = [...stamps, text];
+    const newStamp: PffStamp = { text, fontSize: stampFontSize, color: stampColor };
+    const next = [...stamps, newStamp];
     setStamps(next);
     if (pdfKey) pffSaveStamps(pdfKey, next);
-    setStampInput('');
+    setStampInput('');  // only the text input clears; fontSize and color persist
   };
   const removeStamp = (text: string) => {
-    const next = stamps.filter((s) => s !== text);
+    const next = stamps.filter((s) => s.text !== text);
     setStamps(next);
-    if (stampMode === text) setStampMode(null);
+    if (stampMode?.text === text) setStampMode(null);
     if (pdfKey) pffSaveStamps(pdfKey, next);
   };
-  const selectStamp = (text: string) => {
-    setStampMode(text);
+  const selectStamp = (stamp: PffStamp) => {
+    setStampMode(stamp);
     setShowStampPopout(false);
     setMode('select');  // clear add-field mode; stamp has its own click handler
   };
@@ -7773,12 +7786,13 @@ function PdfFormFiller() {
   };
 
   // ── Field helpers ──
-  const makeField = (xPct: number, yPct: number, value = '', label = ''): PffField => ({
+  // Compact single-line default: ~18% wide, ~2.2% tall (fits 12pt text with minimal padding)
+  const makeField = (xPct: number, yPct: number, value = '', label = '', fontSize = 12, color = '#000000'): PffField => ({
     id: pffId(), pageIndex: currentPage - 1,
     xPct: Math.max(0, Math.min(0.94, xPct)),
     yPct: Math.max(0, Math.min(0.94, yPct)),
-    wPct: 0.25, hPct: 0.04,
-    value, fontSize: 11, align: 'left', color: '#000000', label, type: 'text', isDetected: false,
+    wPct: 0.18, hPct: 0.028,
+    value, fontSize, align: 'left', color, label, type: 'text', isDetected: false,
   });
 
   // ── Canvas click: place field or stamp at exact page-relative position ──
@@ -7791,8 +7805,8 @@ function PdfFormFiller() {
     const yPct = e.nativeEvent.offsetY / canvas.offsetHeight;
 
     if (stampMode !== null) {
-      // Place stamp as a normal text field pre-filled with the stamp text
-      const f = makeField(xPct, yPct, stampMode, stampMode);
+      // Place stamp using its saved text, font size, and color
+      const f = makeField(xPct, yPct, stampMode.text, stampMode.text, stampMode.fontSize, stampMode.color);
       setFields((prev) => [...prev, f]);
       setSelectedId(f.id);
       // Stay in stamp mode so user can place multiple copies
@@ -7947,11 +7961,13 @@ function PdfFormFiller() {
               onClick={() => { setShowStampPopout((v) => !v); }}
               title="Stamp — place reusable text onto the PDF">
               <Stamp className="w-4 h-4" />
-              <span>{isPlacingStamp ? `Stamp: ${stampMode}` : 'Stamp'}</span>
+              <span>{isPlacingStamp ? `Stamp: ${stampMode!.text}` : 'Stamp'}</span>
             </button>
             {showStampPopout && (
               <div id="pff-stamp-popout" className="pff-stamp-popout">
                 <div className="pff-stamp-popout-header">Stamps</div>
+
+                {/* ── Stamp creation controls ── */}
                 <div className="pff-stamp-new">
                   <input
                     className="pff-side-input"
@@ -7962,18 +7978,45 @@ function PdfFormFiller() {
                     onKeyDown={(e) => { if (e.key === 'Enter') addStamp(); }}
                     autoFocus
                   />
+                  <div className="pff-stamp-new-row">
+                    <span className="pff-stamp-new-label">Size</span>
+                    <select
+                      className="pff-side-input pff-stamp-size-sel"
+                      value={stampFontSize}
+                      onChange={(e) => setStampFontSize(+e.target.value)}>
+                      {PFF_STAMP_FONT_SIZES.map((sz) => (
+                        <option key={sz} value={sz}>{sz}</option>
+                      ))}
+                    </select>
+                    <span className="pff-stamp-new-label">Color</span>
+                  </div>
+                  <div className="pff-color-swatches">
+                    {PFF_COLORS.map(({ hex, label }) => (
+                      <button
+                        key={hex}
+                        className={`pff-color-swatch${stampColor === hex ? ' active' : ''}`}
+                        style={{ background: hex }}
+                        title={label}
+                        onClick={() => setStampColor(hex)}
+                      />
+                    ))}
+                  </div>
                 </div>
+
+                {/* ── Saved stamp list ── */}
                 {stamps.length === 0 ? (
                   <p className="pff-stamp-empty">No stamps yet — type above and press Enter.</p>
                 ) : (
                   <ul className="pff-stamp-list">
                     {stamps.map((s) => (
-                      <li key={s} className={`pff-stamp-item${stampMode === s ? ' active' : ''}`} onClick={() => selectStamp(s)}>
-                        <span className="pff-stamp-text">{s}</span>
+                      <li key={s.text} className={`pff-stamp-item${stampMode?.text === s.text ? ' active' : ''}`} onClick={() => selectStamp(s)}>
+                        <span className="pff-stamp-color-dot" style={{ background: s.color }} />
+                        <span className="pff-stamp-text">{s.text}</span>
+                        <span className="pff-stamp-meta">{s.fontSize}pt</span>
                         <button
                           className="pff-stamp-del"
                           title="Remove stamp"
-                          onClick={(e) => { e.stopPropagation(); removeStamp(s); }}>
+                          onClick={(e) => { e.stopPropagation(); removeStamp(s.text); }}>
                           ×
                         </button>
                       </li>

@@ -1,0 +1,513 @@
+Improve the existing Cubical PDF Form Filler Tool with the following changes.
+
+IMPORTANT:
+This is an existing full Cubical TOOL, not a widget.
+
+Do not redesign the entire PDF Form Filler.
+Do not change unrelated functionality.
+Preserve the existing viewer, toolbar, stamps, templates, export system, field properties, checkboxes, Detect Fields, Add Field behavior, and current placement fix.
+
+The field placement is now much closer to correct, so focus only on the changes below.
+
+--------------------------------------------------
+1. CHANGE DEFAULT TEXT FIELD FONT SIZE
+--------------------------------------------------
+
+The default font size for newly created text fields should be:
+
+12 pt
+
+This applies to:
+
+- Add Field
+- Stamp-created fields
+- Newly detected text fields where appropriate
+
+The default text color should remain:
+
+BLACK
+
+The user should still be able to change font size afterward using the existing Field Properties panel.
+
+--------------------------------------------------
+2. MAKE NEW TEXT BOXES SMALLER BY DEFAULT
+--------------------------------------------------
+
+The default text field box is currently too large.
+
+Reduce the default size of newly created text fields.
+
+The default field should be a compact single-line text box.
+
+It should be:
+
+- Much shorter in height than the current field
+- Narrower than the current default width
+- Large enough to comfortably contain typical short form text
+- Easy to resize manually afterward
+
+The field height should visually fit a single line of 12 pt text with a small amount of vertical padding.
+
+Do not make the field microscopic.
+
+The goal is for a newly placed field to feel appropriate for something like:
+
+Project Name: __________
+
+rather than appearing like a large paragraph box.
+
+Use the same compact default dimensions for:
+
+- Add Field
+- Stamp fields
+
+Large multiline fields can still be manually resized later.
+
+--------------------------------------------------
+3. ADD FONT SIZE AND COLOR CONTROLS TO THE STAMP MENU
+--------------------------------------------------
+
+Enhance the existing Stamp popout.
+
+At the TOP of the Stamp menu, where the user creates a new stamp, add controls for:
+
+- Stamp text
+- Stamp font size
+- Stamp text color
+
+Suggested layout:
+
+[ Create a stamp... ]
+
+Font Size: [ 12 ▼ ]
+
+Color:
+● Black
+● Red
+● Blue
+● Green
+● Gray
+● Purple
+
+Then display the saved stamps underneath.
+
+Keep the UI compact and consistent with Cubical.
+
+--------------------------------------------------
+4. STAMP FONT SIZE
+--------------------------------------------------
+
+Allow the user to choose the font size that will be saved with a new stamp.
+
+Default:
+
+12 pt
+
+Support reasonable font sizes such as:
+
+8
+9
+10
+11
+12
+14
+16
+18
+20
+24
+28
+32
+
+A dropdown, number input, or compact stepper is fine.
+
+IMPORTANT:
+
+The selected font size should PERSIST while the Stamp popout remains in use.
+
+Example:
+
+User chooses:
+
+Font Size: 16
+
+Then types:
+
+APPROVED
+
+Presses Enter.
+
+APPROVED is created as a 16 pt stamp.
+
+After pressing Enter:
+
+- The stamp text input becomes blank
+- Font Size remains 16
+
+Then the user types:
+
+COMPLETE
+
+Presses Enter.
+
+COMPLETE is also created as a 16 pt stamp unless the user changes the font size first.
+
+DO NOT reset the font size to 12 every time a stamp is created.
+
+--------------------------------------------------
+5. STAMP COLOR
+--------------------------------------------------
+
+Allow the user to choose the text color saved with a new stamp.
+
+At minimum support:
+
+- Black
+- Red
+- Blue
+
+Also preserve the other existing field colors if practical:
+
+- Green
+- Gray
+- Purple
+
+Default stamp color:
+
+BLACK
+
+IMPORTANT:
+
+The selected color should also PERSIST after creating a stamp.
+
+Example:
+
+User selects:
+
+Red
+16 pt
+
+Types:
+
+APPROVED
+
+Presses Enter.
+
+The APPROVED stamp is saved as:
+
+- Red
+- 16 pt
+
+After pressing Enter:
+
+- Stamp text input clears
+- Selected color remains RED
+- Selected font size remains 16
+
+The user can immediately type another stamp using those same settings.
+
+Only the TEXT INPUT should reset after pressing Enter.
+
+--------------------------------------------------
+6. SAVE STYLE WITH EACH STAMP
+--------------------------------------------------
+
+Each saved stamp should store its own:
+
+- Text
+- Font size
+- Text color
+
+Example saved stamp data:
+
+APPROVED
+Color: Red
+Font Size: 16
+
+N/A
+Color: Black
+Font Size: 12
+
+URGENT
+Color: Red
+Font Size: 20
+
+When the user later selects one of these stamps and places it on the PDF, the created field should use that stamp's saved:
+
+- Text
+- Color
+- Font size
+
+Do not use whatever settings are currently selected in the Stamp creation menu when placing an already saved stamp.
+
+The stamp must remember the settings it was created with.
+
+--------------------------------------------------
+7. STAMP CREATION FLOW
+--------------------------------------------------
+
+The creation workflow should remain fast.
+
+Example:
+
+Click Stamp.
+
+The popout opens.
+
+User chooses:
+
+Color: Blue
+Font Size: 14
+
+User types:
+
+REVIEWED
+
+User presses Enter.
+
+Immediately:
+
+- REVIEWED is added to the saved stamp list
+- The text input becomes blank
+- Color remains Blue
+- Font size remains 14
+- Input remains ready for another stamp
+
+The user can then type:
+
+COMPLETE
+
+Press Enter.
+
+COMPLETE is also saved as Blue / 14 pt.
+
+This should allow rapid creation of several stamps without repeatedly selecting the same style settings.
+
+--------------------------------------------------
+8. SAVED STAMP LIST
+--------------------------------------------------
+
+Keep the current simple saved stamp list.
+
+Each saved stamp should still have the existing X on the far-right side for deletion.
+
+Do not add a complicated editing interface.
+
+If useful, the saved stamp row may subtly indicate its saved style.
+
+For example:
+
+APPROVED     16 pt     ●     ×
+
+But keep this compact.
+
+The X should continue to turn red on hover.
+
+--------------------------------------------------
+9. PLACING A STAMP
+--------------------------------------------------
+
+Existing Stamp placement behavior should remain unchanged.
+
+When the user clicks a saved stamp:
+
+- Stamp popout closes
+- Stamp placement mode activates
+- Clicking the PDF places that stamp
+- The field appears at the clicked location
+- The field uses the saved stamp text
+- The field uses the saved stamp font size
+- The field uses the saved stamp text color
+
+The placed stamp then becomes a normal editable field.
+
+The user should still be able to:
+
+- Move it
+- Resize it
+- Change its font size
+- Change its color
+- Change alignment
+- Edit text
+- Duplicate
+- Delete
+
+Editing a placed stamp should NOT modify the original saved stamp preset.
+
+--------------------------------------------------
+10. DO NOT RESET STAMP STYLE AFTER ENTER
+--------------------------------------------------
+
+This behavior is especially important.
+
+After creating a stamp by pressing Enter:
+
+RESET:
+
+- Stamp text input
+
+DO NOT RESET:
+
+- Stamp color
+- Stamp font size
+
+Example:
+
+Current Stamp settings:
+
+Red
+18 pt
+
+Type:
+APPROVED
+
+Press Enter.
+
+Result:
+
+Saved stamp:
+APPROVED
+Red
+18 pt
+
+Stamp creation controls remain:
+
+Color: Red
+Font Size: 18
+
+Text input:
+Blank
+
+--------------------------------------------------
+11. PRESERVE EXISTING FUNCTIONALITY
+--------------------------------------------------
+
+Do not break:
+
+- Open PDF
+- PDF rendering
+- Zoom
+- Page navigation
+- Add Field
+- Add Checkbox
+- Detect Fields
+- Stamp placement
+- Existing stamp deletion
+- Field movement
+- Field resizing
+- Field editing
+- Field Properties
+- Text color editing
+- Font size editing
+- Delete key support
+- Templates
+- Export PDF
+- Current field-placement coordinate fix
+
+Do not redesign Cubical.
+
+--------------------------------------------------
+12. SUCCESS TESTS
+--------------------------------------------------
+
+TEST 1:
+
+Use Add Field.
+
+Confirm the new field:
+
+- Defaults to 12 pt
+- Defaults to black text
+- Is noticeably smaller and more compact than the current default box
+
+--------------------------------------------------
+
+TEST 2:
+
+Open Stamp.
+
+Select:
+
+Red
+16 pt
+
+Type:
+
+APPROVED
+
+Press Enter.
+
+Confirm:
+
+- APPROVED appears in saved stamps
+- Stamp text input becomes blank
+- Color remains Red
+- Font size remains 16 pt
+
+--------------------------------------------------
+
+TEST 3:
+
+Without changing settings, type:
+
+COMPLETE
+
+Press Enter.
+
+Confirm COMPLETE is also saved as:
+
+Red
+16 pt
+
+--------------------------------------------------
+
+TEST 4:
+
+Change stamp settings to:
+
+Blue
+12 pt
+
+Create:
+
+REVIEWED
+
+Confirm REVIEWED saves as:
+
+Blue
+12 pt
+
+--------------------------------------------------
+
+TEST 5:
+
+Select APPROVED and place it on the PDF.
+
+Confirm:
+
+- Text says APPROVED
+- Text is red
+- Font size is 16 pt
+- Field box is compact
+- Field appears at the clicked location
+
+--------------------------------------------------
+
+TEST 6:
+
+Select REVIEWED and place it.
+
+Confirm:
+
+- Text says REVIEWED
+- Text is blue
+- Font size is 12 pt
+
+--------------------------------------------------
+
+TEST 7:
+
+Edit the placed APPROVED field and change it to black / 12 pt.
+
+Confirm the saved APPROVED stamp remains Red / 16 pt.
+
+Saved stamp presets and placed field instances should be independent.

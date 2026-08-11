@@ -4338,6 +4338,37 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
 }
 .pff-stamp-del:hover { color: hsl(0 65% 45%); background: hsl(0 65% 45% / .08); }
 
+.pff-stamp-new-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+.pff-stamp-new-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: hsl(var(--muted-foreground));
+  white-space: nowrap;
+}
+.pff-stamp-size-sel {
+  width: 58px !important;
+  padding: 4px 6px !important;
+  font-size: 12px !important;
+}
+.pff-stamp-color-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  border: 1px solid hsl(var(--border));
+}
+.pff-stamp-meta {
+  font-size: 10.5px;
+  color: hsl(var(--muted-foreground));
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 /* ── PFF — Autofill hint ─────────────────────────────────────────────── */
 
 .pff-autofill-hint {
