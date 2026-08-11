@@ -1,5 +1,5 @@
 import { createPortal } from 'react-dom';
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties, type ReactNode } from 'react';
+import { createContext, lazy, Suspense, useCallback, useContext, useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties, type ReactNode } from 'react';
 import ExifReader from 'exifreader';
 import { zipSync } from 'fflate';
 import {
@@ -97,21 +97,22 @@ import {
   usePortable,
   DisplacedWidgetBandCtx,
 } from './shared/contexts';
-import { BulkFileRenamer }      from './tools/BulkFileRenamer';
-import { SpreadsheetCleaner }   from './tools/SpreadsheetCleaner';
-import { StorageExplorer }      from './tools/StorageExplorer';
-import { StartupManager }       from './tools/StartupManager';
-import { SystemInfoPage }       from './tools/SystemInfoPage';
-import { FileFinderPage }       from './tools/FileFinderPage';
-import { ProfilePage }          from './tools/ProfilePage';
-import { SettingsPage }         from './tools/SettingsPage';
-import { ImageConverter }       from './tools/ImageConverter';
-import { FileOrganizerPage }    from './tools/FileOrganizerPage';
-import { DuplicateFinderPage }  from './tools/DuplicateFinderPage';
-import { PdfToolkitPage }       from './tools/PdfToolkitPage';
-import { FileToolbox }          from './tools/FileToolbox';
-import { FileInspector }        from './tools/FileInspector';
-import { PdfFormFiller }        from './tools/PdfFormFiller';
+// ─── Lazy-loaded tool pages (each becomes its own JS chunk) ──────────────────
+const BulkFileRenamer     = lazy(() => import('./tools/BulkFileRenamer').then(m    => ({ default: m.BulkFileRenamer })));
+const SpreadsheetCleaner  = lazy(() => import('./tools/SpreadsheetCleaner').then(m => ({ default: m.SpreadsheetCleaner })));
+const StorageExplorer     = lazy(() => import('./tools/StorageExplorer').then(m    => ({ default: m.StorageExplorer })));
+const StartupManager      = lazy(() => import('./tools/StartupManager').then(m     => ({ default: m.StartupManager })));
+const SystemInfoPage      = lazy(() => import('./tools/SystemInfoPage').then(m     => ({ default: m.SystemInfoPage })));
+const FileFinderPage      = lazy(() => import('./tools/FileFinderPage').then(m     => ({ default: m.FileFinderPage })));
+const ProfilePage         = lazy(() => import('./tools/ProfilePage').then(m        => ({ default: m.ProfilePage })));
+const SettingsPage        = lazy(() => import('./tools/SettingsPage').then(m       => ({ default: m.SettingsPage })));
+const ImageConverter      = lazy(() => import('./tools/ImageConverter').then(m     => ({ default: m.ImageConverter })));
+const FileOrganizerPage   = lazy(() => import('./tools/FileOrganizerPage').then(m  => ({ default: m.FileOrganizerPage })));
+const DuplicateFinderPage = lazy(() => import('./tools/DuplicateFinderPage').then(m => ({ default: m.DuplicateFinderPage })));
+const PdfToolkitPage      = lazy(() => import('./tools/PdfToolkitPage').then(m     => ({ default: m.PdfToolkitPage })));
+const FileToolbox         = lazy(() => import('./tools/FileToolbox').then(m        => ({ default: m.FileToolbox })));
+const FileInspector       = lazy(() => import('./tools/FileInspector').then(m      => ({ default: m.FileInspector })));
+const PdfFormFiller       = lazy(() => import('./tools/PdfFormFiller').then(m      => ({ default: m.PdfFormFiller })));
 
 // ─── App version (injected by Vite define at build time) ─────────────────────
 declare const __APP_VERSION__: string;
@@ -4834,6 +4835,11 @@ function App() {
         <NavProvider>
           <DisplacedWidgetBandCtx.Provider value={DisplacedWidgetBandImpl}>
           <AppShell libraryCount={libraryProducts.length}>
+            <Suspense fallback={
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', width: '100%' }}>
+                <div style={{ width: 32, height: 32, border: '3px solid var(--border)', borderTopColor: 'var(--primary)', borderRadius: '50%', animation: 'ff-spin 0.7s linear infinite' }} />
+              </div>
+            }>
             <Switch>
               <Route path="/"><HomePage /></Route>
               <Route path="/store">
@@ -4868,6 +4874,7 @@ function App() {
               <Route path="/settings"><SettingsPage /></Route>
               <Route><NotFound /></Route>
             </Switch>
+            </Suspense>
             {toast && <div className="toast-message" role="status" data-testid="status-toast"><Check /> {toast}</div>}
           </AppShell>
           </DisplacedWidgetBandCtx.Provider>
