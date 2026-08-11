@@ -6255,6 +6255,7 @@ function ImageConverter() {
   const [progress, setProgress]   = useState<{ done: number; total: number } | null>(null);
   const [results, setResults]     = useState<{ name: string; url: string }[]>([]);
   const [zipFilename, setZipFilename] = useState('converted-images');
+  const cancelledRef = useRef(false);
 
   const handleFiles = (list: FileList | null) => {
     if (!list) return;
@@ -6262,16 +6263,24 @@ function ImageConverter() {
     setResults([]);
   };
 
+  const cancelConversion = () => {
+    cancelledRef.current = true;
+  };
+
   const convertAll = async () => {
     if (!files.length) return;
+    cancelledRef.current = false;
     setConverting(true);
     setProgress({ done: 0, total: files.length });
+    setResults([]);
     const out: { name: string; url: string }[] = [];
     const allocatedNames = new Set<string>(); // all output names already assigned
     for (const file of files) {
+      if (cancelledRef.current) break;
       const imgUrl = URL.createObjectURL(file);
       const img    = new Image();
       await new Promise<void>((res) => { img.onload = () => res(); img.src = imgUrl; });
+      if (cancelledRef.current) { URL.revokeObjectURL(imgUrl); break; }
       let w = img.naturalWidth, h = img.naturalHeight;
       const mw = parseInt(maxWidth), mh = parseInt(maxHeight);
       if (!isNaN(mw) && mw > 0) { const s = mw / w; h = Math.round(h * s); w = mw; }
@@ -6298,7 +6307,13 @@ function ImageConverter() {
       out.push({ name: candidate, url: URL.createObjectURL(blob) });
       setProgress((p) => p ? { done: p.done + 1, total: p.total } : p);
     }
-    setResults(out);
+    if (cancelledRef.current) {
+      // Revoke any object URLs we allocated before releasing them
+      out.forEach((r) => URL.revokeObjectURL(r.url));
+      setResults([]);
+    } else {
+      setResults(out);
+    }
     setConverting(false);
     setProgress(null);
   };
@@ -6399,7 +6414,12 @@ function ImageConverter() {
             <div className="ic-progress-wrap">
               <div className="ic-progress-label">
                 <span>{progress.done} of {progress.total} converted</span>
-                <span>{Math.round((progress.done / progress.total) * 100)}%</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span>{Math.round((progress.done / progress.total) * 100)}%</span>
+                  <button type="button" className="button-quiet" onClick={cancelConversion} style={{ fontSize: 11, minHeight: 28, padding: '0 12px' }} data-testid="button-cancel-conversion">
+                    <X /> Cancel
+                  </button>
+                </div>
               </div>
               <div className="ic-progress-bar">
                 <div className="ic-progress-fill" style={{ width: `${(progress.done / progress.total) * 100}%` }} />
