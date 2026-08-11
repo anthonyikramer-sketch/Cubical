@@ -7138,7 +7138,10 @@ function FileInspector() {
               <button type="button" className="button-quiet" onClick={() => copyText(entry.file.name, 'name')}><ClipboardCopy /> {copied === 'name' ? 'Copied!' : 'Copy filename'}</button>
               {entry.hash && <button type="button" className="button-quiet" onClick={() => copyText(entry.hash!, 'hash')}><ClipboardCopy /> {copied === 'hash' ? 'Copied!' : 'Copy SHA-256'}</button>}
               {(isAudio || isVideo) && mediaUrl && (
-                <a href={mediaUrl} download={entry.file.name} className="button-quiet"><Download /> Download</a>
+                <>
+                  <a href={mediaUrl} download={entry.file.name} className="button-quiet"><Download /> Download</a>
+                  <a href={mediaUrl} target="_blank" rel="noopener noreferrer" className="button-quiet"><ExternalLink /> Open in tab</a>
+                </>
               )}
               <button type="button" className="button-quiet" onClick={() => { setEntry(null); setCopied(null); clearMedia(); setTextPreview(null); }}>Inspect another file</button>
             </div>
