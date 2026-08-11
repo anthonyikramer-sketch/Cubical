@@ -23,8 +23,10 @@ export function ImageConverter() {
   const [zipFilename, setZipFilename] = useState('converted-images');
   const [previews, setPreviews] = useState<{ name: string; url: string }[]>([]);
   const [failedThumbs, setFailedThumbs] = useState<Set<number>>(new Set());
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const cancelledRef = useRef(false);
   const previewUrlsRef = useRef<string[]>([]);
+  const dragIndexRef = useRef<number | null>(null);
 
   // Send To incoming queue
   const IC_TOOL_ID = 'image-converter';
@@ -76,6 +78,21 @@ export function ImageConverter() {
       prev.forEach((n) => { if (n < index) next.add(n); else if (n > index) next.add(n - 1); });
       return next;
     });
+    setResults([]);
+  };
+
+  const reorderImages = (from: number, to: number) => {
+    if (from === to) return;
+    const newFiles    = [...files];
+    const newPreviews = [...previews];
+    const [movedFile]    = newFiles.splice(from, 1);
+    const [movedPreview] = newPreviews.splice(from, 1);
+    newFiles.splice(to, 0, movedFile);
+    newPreviews.splice(to, 0, movedPreview);
+    previewUrlsRef.current = newPreviews.map((p) => p.url);
+    setFiles(newFiles);
+    setPreviews(newPreviews);
+    setFailedThumbs(new Set());
     setResults([]);
   };
 
@@ -202,7 +219,21 @@ export function ImageConverter() {
           {previews.length > 0 && (
             <div className="ic-thumb-strip" data-testid="image-thumbnail-strip">
               {previews.map((p, i) => (
-                <div className="ic-thumb-item" key={i}>
+                <div
+                  className={`ic-thumb-item${dragOverIndex === i ? ' is-drag-over' : ''}`}
+                  key={i}
+                  draggable
+                  onDragStart={() => { dragIndexRef.current = i; }}
+                  onDragOver={(e) => { e.preventDefault(); if (dragOverIndex !== i) setDragOverIndex(i); }}
+                  onDragLeave={() => setDragOverIndex(null)}
+                  onDrop={() => {
+                    const from = dragIndexRef.current;
+                    setDragOverIndex(null);
+                    dragIndexRef.current = null;
+                    if (from !== null) reorderImages(from, i);
+                  }}
+                  onDragEnd={() => { setDragOverIndex(null); dragIndexRef.current = null; }}
+                >
                   <div className="ic-thumb-img-wrap">
                     {failedThumbs.has(i) ? (
                       <div className="ic-thumb-placeholder" aria-label={p.name}>

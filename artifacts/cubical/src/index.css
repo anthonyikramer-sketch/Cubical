@@ -3582,6 +3582,21 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
   align-items: center;
   gap: 4px;
   width: 72px;
+  cursor: grab;
+  transition: opacity .15s ease, transform .15s ease;
+}
+.ic-thumb-item:active { cursor: grabbing; }
+.ic-thumb-item.is-drag-over {
+  opacity: .6;
+  transform: scale(.95);
+}
+.ic-thumb-item.is-drag-over .ic-thumb-img-wrap::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 8px;
+  border: 2px solid hsl(var(--primary));
+  pointer-events: none;
 }
 .ic-thumb-img-wrap {
   position: relative;
