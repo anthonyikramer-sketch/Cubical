@@ -3793,6 +3793,18 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
   color: hsl(142 52% 40%);
 }
 
+.exif-copy-all-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+}
+.exif-copy-all-btn svg { width: 13px; height: 13px; }
+.exif-copy-all-btn.is-copied {
+  color: hsl(142 52% 40%);
+  border-color: hsl(142 52% 40% / .35);
+}
+
 .inspector-gps-link {
   color: hsl(var(--primary));
   text-decoration: none;

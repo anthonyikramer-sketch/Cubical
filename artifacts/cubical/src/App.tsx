@@ -7093,6 +7093,27 @@ function FileInspector() {
                     );
                   })()}
                 </div>
+                <button
+                  type="button"
+                  className={`button-quiet exif-copy-all-btn${copied === 'exif-all' ? ' is-copied' : ''}`}
+                  onClick={() => {
+                    const exif = entry.exif!;
+                    const lines: string[] = [];
+                    if (exif.make || exif.model) lines.push(`Camera: ${[exif.make, exif.model].filter(Boolean).join(' ')}`);
+                    if (exif.dateTaken)          lines.push(`Date taken: ${exif.dateTaken}`);
+                    if (exif.iso)                lines.push(`ISO: ${exif.iso}`);
+                    if (exif.shutterSpeed)       lines.push(`Shutter speed: ${exif.shutterSpeed}`);
+                    if (exif.aperture)           lines.push(`Aperture: ${exif.aperture}`);
+                    if (exif.focalLength)        lines.push(`Focal length: ${exif.focalLength}`);
+                    if (exif.flash)              lines.push(`Flash: ${exif.flash}`);
+                    if (exif.orientation)        lines.push(`Orientation: ${exif.orientation}`);
+                    if (exif.gpsLat && exif.gpsLon) lines.push(`GPS: ${exif.gpsLat}, ${exif.gpsLon}`);
+                    copyText(lines.join('\n'), 'exif-all');
+                  }}
+                >
+                  {copied === 'exif-all' ? <Check className="w-3.5 h-3.5" /> : <ClipboardCopy className="w-3.5 h-3.5" />}
+                  {copied === 'exif-all' ? 'Copied!' : 'Copy all EXIF'}
+                </button>
               </div>
             )}
             {mediaUrl && isVideo && (
