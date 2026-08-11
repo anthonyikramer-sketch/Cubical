@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { zipSync } from 'fflate';
-import { ArrowRight, Download, FileArchive, ImagePlus, X } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Download, FileArchive, ImagePlus, X } from 'lucide-react';
 import { BackButton, DisplacedWidgetBand } from '../shared/contexts';
 import { peekHandoffs, removeHandoff, clearHandoffs, subscribeHandoffs, handoffToFile, type FileHandoff } from '../shared/sendTo';
 import { IncomingFilesQueue } from '../shared/IncomingFilesQueue';
@@ -9,6 +9,27 @@ import { IncomingFilesQueue } from '../shared/IncomingFilesQueue';
 function getFileExt(name: string): string {
   const m = name.match(/\.([^.]+)$/);
   return m ? m[1].toUpperCase() : '???';
+}
+
+/**
+ * Extensions that browsers cannot decode via the Canvas API.
+ * Files with these extensions will still be accepted but a warning is shown.
+ * This set is the single source of truth — the file-picker accept attribute is
+ * derived from it at module load time to prevent drift.
+ */
+const NON_RENDERABLE_EXTS = new Set([
+  'CR2', 'CR3', 'NEF', 'ARW', 'DNG', 'HEIC', 'HEIF',
+  'TIFF', 'TIF', 'RAF', 'ORF', 'RW2', 'PEF', 'SRW',
+]);
+
+/** Accept string for the file input — image/* plus every RAW/HEIC extension. */
+const IMAGE_ACCEPT = [
+  'image/*',
+  ...[...NON_RENDERABLE_EXTS].map((ext) => `.${ext.toLowerCase()}`),
+].join(',');
+
+function isNonRenderable(name: string): boolean {
+  return NON_RENDERABLE_EXTS.has(getFileExt(name));
 }
 
 export function ImageConverter() {
@@ -56,7 +77,10 @@ export function ImageConverter() {
 
   const handleFiles = (list: FileList | null) => {
     if (!list) return;
-    const accepted = Array.from(list).filter((f) => f.type.startsWith('image/'));
+    // Accept standard image/* MIME types AND files with known RAW/HEIC extensions
+    const accepted = Array.from(list).filter(
+      (f) => f.type.startsWith('image/') || isNonRenderable(f.name),
+    );
     previewUrlsRef.current.forEach((u) => URL.revokeObjectURL(u));
     const newPreviews = accepted.map((f) => ({ name: f.name, url: URL.createObjectURL(f) }));
     previewUrlsRef.current = newPreviews.map((p) => p.url);
@@ -214,7 +238,7 @@ export function ImageConverter() {
           </div>
           <label className="file-picker">
             <ImagePlus /><span>{files.length ? 'Choose different images' : 'Select images'}</span>
-            <input type="file" accept="image/*" multiple onChange={(e) => handleFiles(e.target.files)} data-testid="input-image-picker" />
+            <input type="file" accept={IMAGE_ACCEPT} multiple onChange={(e) => handleFiles(e.target.files)} data-testid="input-image-picker" />
           </label>
           {previews.length > 0 && (
             <div className="ic-thumb-strip" data-testid="image-thumbnail-strip">
@@ -246,6 +270,15 @@ export function ImageConverter() {
                         className="ic-thumb-img"
                         onError={() => setFailedThumbs((prev) => new Set(prev).add(i))}
                       />
+                    )}
+                    {isNonRenderable(p.name) && (
+                      <div
+                        className="ic-thumb-raw-badge"
+                        title="RAW/HEIC files cannot be decoded in the browser. Convert to JPEG or PNG with a native app first for best results."
+                        aria-label="RAW format — may not convert correctly in browser"
+                      >
+                        <AlertTriangle />
+                      </div>
                     )}
                     <button
                       type="button"
@@ -336,6 +369,19 @@ export function ImageConverter() {
                   </a>
                 </div>
               ))}
+            </div>
+          )}
+          {files.some((f) => isNonRenderable(f.name)) && (
+            <div className="ic-raw-warning" data-testid="raw-format-warning">
+              <AlertTriangle />
+              <div>
+                <strong>Some files may not convert correctly</strong>
+                <span>
+                  RAW and HEIC formats ({files.filter((f) => isNonRenderable(f.name)).map((f) => getFileExt(f.name)).filter((v, i, a) => a.indexOf(v) === i).join(', ')}) cannot be decoded directly in the browser.
+                  For reliable results, convert them to JPEG or PNG with a native app (e.g. Photos, Lightroom, Preview) first.
+                  You can still try — some HEIC files may work depending on your browser and OS.
+                </span>
+              </div>
             </div>
           )}
           <div className="renamer-actions">

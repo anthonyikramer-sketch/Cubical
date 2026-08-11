@@ -3644,6 +3644,47 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Warning badge for RAW/HEIC thumbnails that browsers can't render */
+.ic-thumb-raw-badge {
+  position: absolute;
+  bottom: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  background: hsl(38 95% 52%);
+  color: hsl(30 60% 12%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 2;
+}
+.ic-thumb-raw-badge svg { width: 11px; height: 11px; stroke-width: 2.5; }
+
+/* Inline warning shown below the thumbnail strip when RAW files are present */
+.ic-raw-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid hsl(38 90% 52% / .4);
+  border-radius: 12px;
+  background: hsl(38 90% 52% / .08);
+  color: hsl(38 60% 30%);
+}
+.dark .ic-raw-warning {
+  color: hsl(38 80% 70%);
+  border-color: hsl(38 90% 52% / .3);
+  background: hsl(38 90% 52% / .07);
+}
+.ic-raw-warning > svg { width: 16px; height: 16px; flex: 0 0 16px; margin-top: 1px; stroke-width: 2; }
+.ic-raw-warning > div { display: flex; flex-direction: column; gap: 3px; }
+.ic-raw-warning strong { font-size: 11px; font-weight: 800; color: hsl(38 55% 25%); }
+.dark .ic-raw-warning strong { color: hsl(38 80% 72%); }
+.ic-raw-warning span { font-size: 11px; color: hsl(var(--muted-foreground)); line-height: 1.55; }
+
 .ic-thumb-remove {
   position: absolute;
   top: 3px;
