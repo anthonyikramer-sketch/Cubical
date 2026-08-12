@@ -3420,6 +3420,7 @@ function DisplacedWidgetBandImpl() {
               {d.id === 'link-shelf'     && <LinkShelfWidget gridW={isExpanded ? 4 : 3} gridH={isExpanded ? 3 : 2} />}
               {d.id === 'decision-maker' && <DecisionMakerWidget gridW={isExpanded ? 4 : 3} gridH={isExpanded ? 3 : 2} />}
               {d.id === 'calculator'     && <CalculatorWidget />}
+              {d.id === 'file-shelf'    && <FileShelfWidget />}
             </div>
           </div>
         );

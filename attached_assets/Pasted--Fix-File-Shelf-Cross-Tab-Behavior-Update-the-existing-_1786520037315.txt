@@ -1,0 +1,472 @@
+# Fix File Shelf Cross-Tab Behavior
+
+Update the existing **File Shelf** Cubicle widget.
+
+There are currently two major problems:
+
+1. When File Shelf is moved to a different Cubicle tab, the widget appears visually but stops functioning correctly.
+2. Open File Shelf Viewer objects do not properly persist or move across Cubicle tabs.
+
+Fix BOTH issues.
+
+The goal is:
+
+**File Shelf must work identically on every Cubicle tab.**
+
+And:
+
+**A File Shelf Viewer must behave like a real movable Cubicle workspace object that can exist on any tab, not something tied to Home.**
+
+---
+
+# Core Requirement
+
+File Shelf must NOT be hard-coded to the Home tab.
+
+All File Shelf functionality must work regardless of which Cubicle tab currently contains the widget.
+
+For example:
+
+User moves File Shelf from:
+
+**Home**
+
+to:
+
+**Work**
+
+Then clicks:
+
+**October Event Master**
+
+The file must still open normally.
+
+The fact that File Shelf is on another tab must not disable:
+
+* File clicking
+* File opening
+* Right-click menus
+* Folder navigation
+* Search
+* Adding files
+* Removing references
+* Drag-and-drop
+* Viewer creation
+* Viewer resizing
+* Viewer movement
+
+Do not create separate implementations for Home versus other tabs.
+
+File Shelf should use the common Cubicle widget/workspace system.
+
+---
+
+# File Shelf Viewer Must Spawn on the CURRENT Tab
+
+When the user clicks a file inside File Shelf, create the File Shelf Viewer on the SAME Cubicle tab that the user is currently viewing.
+
+Example:
+
+Current tab:
+
+**Work**
+
+File Shelf is on Work.
+
+User clicks:
+
+**Budget.xlsx**
+
+The File Shelf Viewer should appear on:
+
+**Work**
+
+NOT on Home.
+
+NOT on a hidden tab.
+
+NOT inside File Shelf itself.
+
+NOT inside the tool/page content underneath the workspace.
+
+It should spawn as a normal workspace object on the active Cubicle tab.
+
+---
+
+# Viewer Must Not Be Tied to File Shelf's Original Tab
+
+A File Shelf Viewer must have its own workspace identity.
+
+Once created, it should NOT depend on:
+
+* File Shelf remaining open
+* File Shelf staying on the same tab
+* File Shelf remaining in the same position
+* The Home tab
+* The tab where File Shelf was originally created
+
+The viewer should reference the selected file directly and maintain its own workspace state.
+
+---
+
+# Viewer Can Move Freely Between Tabs
+
+The File Shelf Viewer must be movable between Cubicle tabs using the same tab-movement behavior used by normal widgets.
+
+For example:
+
+User opens:
+
+**October Event Master — Viewer**
+
+on:
+
+**Home**
+
+Then moves that viewer to:
+
+**Planning**
+
+The viewer must continue functioning normally on Planning.
+
+It should preserve:
+
+* Selected file
+* Current file reference
+* Viewer type
+* Viewer position
+* Viewer size
+* Zoom level where practical
+* Current PDF page / scroll position where practical
+
+Moving between tabs must NOT destroy and recreate the viewer in a way that loses its state unless technically necessary.
+
+---
+
+# Viewer State Must Persist Per Viewer
+
+Each opened File Shelf Viewer must have its own state.
+
+Do NOT store viewer state only inside the File Shelf widget component.
+
+Instead, each viewer should have its own persistent workspace object/state record.
+
+Conceptually, a File Shelf Viewer should contain data such as:
+
+* Unique viewer ID
+* File Shelf file/reference ID
+* Local file path/reference
+* Viewer/file type
+* Current Cubicle tab ID
+* X position
+* Y position
+* Width
+* Height
+* Viewer-specific state
+* Open/closed status
+
+Use Cubicle's existing widget/workspace persistence architecture wherever possible.
+
+---
+
+# Do Not Mount Viewers Inside a Tool Page
+
+The screenshot currently shows File Shelf sitting on top of another tool page.
+
+That is fine.
+
+However, File Shelf Viewers must belong to the **Cubicle workspace overlay/layer**, not to the underlying tool's DOM hierarchy.
+
+A viewer should be visually and functionally independent from whichever tool/page is open beneath it.
+
+For example:
+
+The user may be using:
+
+**Image Converter**
+
+on the current tab.
+
+File Shelf is also present.
+
+The user opens:
+
+**Employee Handbook.pdf**
+
+The PDF viewer should appear over the Cubicle workspace and remain movable/resizable WITHOUT becoming part of Image Converter's layout.
+
+Switching the underlying tool should not destroy the File Shelf Viewer.
+
+---
+
+# Cross-Tab Rendering Architecture
+
+Investigate whether File Shelf currently relies on:
+
+* Home-specific React state
+* Home-specific event handlers
+* A Home-only overlay root
+* A Home-only portal target
+* Local component state that disappears during tab changes
+* DOM references that only exist on Home
+* Tool-page-specific positioning logic
+
+Remove those dependencies.
+
+File Shelf and File Shelf Viewers should use shared Cubicle workspace state and rendering.
+
+If Cubicle already has a common widget registry/store, use it.
+
+Do not duplicate a second positioning system just for File Shelf.
+
+---
+
+# Tab Switching
+
+When switching away from a tab containing an open File Shelf Viewer and returning later:
+
+The viewer should still exist.
+
+It should retain:
+
+* Position
+* Size
+* Open file
+* Viewer state where practical
+
+Example:
+
+**Tab 1 — Home**
+
+contains:
+
+October Event Master Viewer
+
+User switches to:
+
+**Tab 2 — Work**
+
+Then returns to Home.
+
+The October Event Master Viewer should still be there.
+
+Do not silently close viewers when tabs become inactive.
+
+---
+
+# Moving File Shelf Itself Between Tabs
+
+The File Shelf widget itself must also preserve full functionality after moving between tabs.
+
+Example:
+
+File Shelf begins on Home.
+
+User moves it to:
+
+**Reference**
+
+After the move:
+
+* Search still works
+* Add File still works
+* Create Folder still works
+* Folder navigation still works
+* File clicks still work
+* Context menus still work
+* Drag-and-drop still works
+* Opening files still spawns File Shelf Viewers correctly
+
+Do not treat tab movement as a purely visual relocation.
+
+The File Shelf component must remain fully mounted/functional in its new workspace context.
+
+---
+
+# Multiple File Shelf Viewers Across Multiple Tabs
+
+Support multiple viewers on different tabs at the same time.
+
+Example:
+
+**Home**
+
+* Event Master.pdf Viewer
+
+**Planning**
+
+* Budget.xlsx Viewer
+
+**Reference**
+
+* Handbook.pdf Viewer
+
+All three should remain alive independently.
+
+Opening a new file should NOT close existing viewers.
+
+Switching tabs should NOT destroy viewers belonging to other tabs.
+
+---
+
+# Viewer Close Behavior
+
+The viewer's X button should close ONLY that particular viewer.
+
+It must NOT:
+
+* Remove the file from File Shelf
+* Delete the file
+* Close File Shelf
+* Close other File Shelf Viewers
+
+Viewer closure should update only that viewer's workspace state.
+
+---
+
+# Viewer Reopening
+
+After a viewer is closed, clicking the file in File Shelf should open a new viewer again.
+
+If the same file is already open somewhere else, choose a consistent behavior.
+
+Preferred behavior:
+
+If that file already has an open viewer, either:
+
+1. Bring/focus the existing viewer, or
+2. Allow multiple viewers only if the user explicitly requests another one.
+
+For V1, prefer focusing the existing viewer rather than creating accidental duplicates.
+
+If the existing viewer is on another tab, optionally switch to that tab or clearly indicate where it is open.
+
+---
+
+# Position and Size
+
+Every File Shelf Viewer should behave like a normal resizable/movable workspace object.
+
+The user should be able to:
+
+* Drag it anywhere within the current workspace
+* Resize from supported edges/corners
+* Move it to another Cubicle tab
+* Place multiple viewers alongside other widgets
+* Position it over/around the currently open tool
+
+Use the same constraints, snapping behavior, and persistence rules as Cubicle's existing widgets wherever possible.
+
+---
+
+# Viewport/Viewer Rendering Must Survive Tab Changes
+
+For PDF viewers specifically:
+
+Moving a viewer between tabs or switching tabs must NOT break PDF rendering.
+
+When the viewer becomes visible again:
+
+* Reuse or safely recreate the PDF rendering context
+* Restore the current document
+* Restore zoom where practical
+* Restore current page/scroll position where practical
+* Prevent duplicate PDF.js render tasks
+
+Do not assume that because the viewer became temporarily hidden it should be destroyed.
+
+---
+
+# PDF.js Stability
+
+If the File Shelf PDF viewer uses PDF.js:
+
+Never run multiple render operations against the same canvas simultaneously.
+
+Tab changes and viewer moves may cause mounting/resizing events.
+
+Properly cancel or await active render tasks before triggering new renders.
+
+Clean up stale render operations when moving/unmounting/remounting viewers.
+
+Prevent errors such as:
+
+`Cannot use the same canvas during multiple render() operations.`
+
+---
+
+# Persistence Between Cubicle Sessions
+
+Where consistent with Cubicle's existing workspace persistence, preserve open File Shelf Viewer layout across application restarts.
+
+At minimum persist:
+
+* Viewer file reference
+* Tab ID
+* Position
+* Size
+
+If Cubicle already restores normal widgets/windows between sessions, File Shelf Viewers should participate in that same system.
+
+Do not build a separate incompatible persistence mechanism.
+
+---
+
+# Important Architectural Rule
+
+Treat File Shelf Viewer as:
+
+**A Cubicle workspace object that happens to display a file.**
+
+Do NOT treat it as:
+
+**A temporary child component of the File Shelf widget.**
+
+This distinction is essential.
+
+File Shelf should create/open a viewer object through the Cubicle workspace system.
+
+The workspace should own the viewer after it is created.
+
+---
+
+# Desired Behavior Example
+
+The following entire workflow must work:
+
+1. User has File Shelf on Home.
+2. User moves File Shelf to a new tab called Work.
+3. User opens Work.
+4. User clicks `Budget.xlsx`.
+5. A File Shelf Viewer appears on Work.
+6. User resizes the viewer.
+7. User drags it beside another widget.
+8. User moves the viewer to Planning.
+9. User switches to Planning.
+10. The viewer is still open and functioning.
+11. User returns to Work.
+12. File Shelf is still functional.
+13. User opens a second PDF.
+14. That PDF spawns as a separate viewer.
+15. Both viewers can be independently moved/resized/closed.
+
+No step in this workflow should require returning to Home.
+
+---
+
+# Final Requirement
+
+File Shelf and File Shelf Viewers must be **tab-agnostic**.
+
+They must work:
+
+* On Home
+* On custom tabs
+* Over tool pages
+* Beside widgets
+* After being moved between tabs
+* After repeatedly switching tabs
+
+Do not patch only the visual symptom.
+
+Fix the state ownership, event handling, rendering, and workspace integration so File Shelf behaves like a genuine Cubicle-wide widget system feature.

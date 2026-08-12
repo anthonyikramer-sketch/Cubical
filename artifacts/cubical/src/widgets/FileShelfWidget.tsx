@@ -113,10 +113,12 @@ function nextOrder(list: { order: number }[]): number {
   return list.length === 0 ? 0 : Math.max(...list.map(x => x.order)) + 1;
 }
 
-// ─── Module-level viewer pub-sub ─────────────────────────────────────────────
+// ─── Module-level viewer pub-sub (tab-aware + persisted) ─────────────────────
 export interface ViewerInfo {
   id: string;
   file: ShelfFile;
+  /** Hash route of the tab this viewer belongs to, e.g. '/' or '/breakroom'. */
+  tabId: string;
   x: number;
   y: number;
   w: number;
@@ -127,27 +129,120 @@ type SetViewers = (vs: ViewerInfo[]) => void;
 let _viewers: ViewerInfo[] = [];
 const _viewerSubs = new Set<SetViewers>();
 
+// ── Persistence ───────────────────────────────────────────────────────────────
+const VIEWERS_STORAGE_KEY = 'cubical-shelf-viewers';
+
+interface PersistedViewer { id: string; fileId: string; tabId: string; x: number; y: number; w: number; h: number; }
+
+function _readPersisted(): PersistedViewer[] {
+  try {
+    const raw = localStorage.getItem(VIEWERS_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((v: unknown): v is PersistedViewer =>
+      !!v && typeof v === 'object' &&
+      typeof (v as PersistedViewer).id     === 'string' &&
+      typeof (v as PersistedViewer).fileId === 'string' &&
+      typeof (v as PersistedViewer).tabId  === 'string',
+    );
+  } catch { return []; }
+}
+
+function _persist() {
+  try {
+    const records: PersistedViewer[] = _viewers.map(v => ({
+      id: v.id, fileId: v.file.id, tabId: v.tabId,
+      x: v.x, y: v.y, w: v.w, h: v.h,
+    }));
+    localStorage.setItem(VIEWERS_STORAGE_KEY, JSON.stringify(records));
+  } catch {}
+}
+
+function _initViewers() {
+  const records = _readPersisted();
+  if (records.length === 0) return;
+  const shelf   = readShelf();
+  const fileMap = new Map(shelf.files.map(f => [f.id, f] as const));
+  _viewers = records
+    .map(r => { const file = fileMap.get(r.fileId); return file ? { id: r.id, file, tabId: r.tabId, x: r.x, y: r.y, w: r.w, h: r.h } : null; })
+    .filter((v): v is ViewerInfo => v !== null);
+}
+
+// Hydrate from localStorage immediately when the module loads
+_initViewers();
+
+// ── Tab helpers ───────────────────────────────────────────────────────────────
+function getCurrentTab(): string {
+  const hash = window.location.hash;
+  const path = hash.startsWith('#') ? hash.slice(1) : hash;
+  return path || '/';
+}
+
+function tabLabel(tabId: string): string {
+  if (tabId === '/') return 'Home';
+  if (tabId === '/breakroom') return 'Breakroom';
+  if (tabId.startsWith('/library') || tabId.startsWith('/tool/')) return 'Library';
+  if (tabId.startsWith('/store')   || tabId.startsWith('/product/')) return 'Store';
+  return tabId.slice(1).replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || tabId;
+}
+
+function getAvailableTabs(): Array<{ tabId: string; label: string }> {
+  const seen = new Set<string>();
+  const tabs: Array<{ tabId: string; label: string }> = [];
+  const add = (id: string) => { if (!seen.has(id)) { seen.add(id); tabs.push({ tabId: id, label: tabLabel(id) }); } };
+
+  add('/'); // Home is always available
+
+  // Tabs from displaced widgets
+  try {
+    const raw = localStorage.getItem('cubical-displaced-widgets');
+    if (raw) {
+      const parsed: Array<{ id: string; page: string }> = JSON.parse(raw);
+      parsed.forEach(d => { if (d.page) add(d.page); });
+    }
+  } catch {}
+
+  // Tabs where viewers already live
+  _viewers.forEach(v => add(v.tabId));
+
+  return tabs;
+}
+
+// ── Pub-sub helpers ───────────────────────────────────────────────────────────
 function _notify() { _viewerSubs.forEach(fn => fn([..._viewers])); }
 
 export function openShelfViewer(file: ShelfFile) {
+  // If file already open anywhere, return (V1: focus-existing behavior)
   if (_viewers.some(v => v.file.id === file.id)) return;
-  const offset = _viewers.length * 28;
+  const tabId     = getCurrentTab();
+  const tabCount  = _viewers.filter(v => v.tabId === tabId).length;
+  const offset    = tabCount * 28;
   _viewers = [..._viewers, {
-    id: crypto.randomUUID(), file,
+    id: crypto.randomUUID(), file, tabId,
     x: Math.max(60, 100 + offset), y: Math.max(60, 80 + offset),
     w: 600, h: 700,
   }];
   _notify();
+  _persist();
 }
 
 function closeViewer(id: string) {
   _viewers = _viewers.filter(v => v.id !== id);
   _notify();
+  _persist();
 }
 
 function patchViewer(id: string, patch: Partial<Pick<ViewerInfo, 'x' | 'y' | 'w' | 'h'>>) {
   _viewers = _viewers.map(v => v.id === id ? { ...v, ...patch } : v);
   _notify();
+  _persist();
+}
+
+function moveViewerToTab(id: string, tabId: string) {
+  _viewers = _viewers.map(v => v.id === id ? { ...v, tabId } : v);
+  _notify();
+  _persist();
 }
 
 function useViewerStore() {
@@ -781,9 +876,31 @@ function ViewerContent({ file }: { file: ShelfFile }) {
 
 // ─── Floating viewer panel ────────────────────────────────────────────────────
 function FileShelfViewer({ info }: { info: ViewerInfo }) {
-  const dragRef   = useRef<{ sx: number; sy: number; px: number; py: number } | null>(null);
-  const resizeRef = useRef<{ sw: number; sh: number; px: number; py: number } | null>(null);
+  const dragRef    = useRef<{ sx: number; sy: number; px: number; py: number } | null>(null);
+  const resizeRef  = useRef<{ sw: number; sh: number; px: number; py: number } | null>(null);
+  const [moveMenu, setMoveMenu] = useState<{ x: number; y: number } | null>(null);
   const MIN_W = 340, MIN_H = 260;
+
+  const otherTabs = useMemo(
+    () => getAvailableTabs().filter(t => t.tabId !== info.tabId),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [info.tabId, info.id], // re-derive when viewer identity changes
+  );
+
+  const moveItems: MenuItem[] = useMemo(
+    () => otherTabs.map(t => ({
+      label: `Move to ${t.label}`,
+      onClick: () => { moveViewerToTab(info.id, t.tabId); setMoveMenu(null); },
+    })),
+    [otherTabs, info.id],
+  );
+
+  const handleMoveBtnClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (moveMenu) { setMoveMenu(null); return; }
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    setMoveMenu({ x: rect.left, y: rect.bottom + 4 });
+  }, [moveMenu]);
 
   return (
     <div className="fsv-panel" style={{ left: info.x, top: info.y, width: info.w, height: info.h }}>
@@ -807,6 +924,15 @@ function FileShelfViewer({ info }: { info: ViewerInfo }) {
         <span className="fsv-title-icon">{fileIcon(info.file.mimeType)}</span>
         <span className="fsv-title-text" title={info.file.nickname}>{info.file.nickname}</span>
         <span className="fsv-title-fname">{info.file.filename}</span>
+        {/* Move-to-tab button (only shown when other tabs exist) */}
+        {otherTabs.length > 0 && (
+          <button
+            className="fsv-move-btn"
+            title="Move to another tab"
+            onPointerDown={e => e.stopPropagation()}
+            onClick={handleMoveBtnClick}
+          >⇄</button>
+        )}
         <button className="fsv-close-btn" onPointerDown={e => e.stopPropagation()} onClick={() => closeViewer(info.id)}>
           <X className="w-3.5 h-3.5" />
         </button>
@@ -835,17 +961,32 @@ function FileShelfViewer({ info }: { info: ViewerInfo }) {
         }}
         onPointerUp={() => { resizeRef.current = null; }}
       />
+
+      {/* Move-to-tab context menu */}
+      {moveMenu && moveItems.length > 0 && (
+        <CtxMenu items={moveItems} x={moveMenu.x} y={moveMenu.y} onClose={() => setMoveMenu(null)} />
+      )}
     </div>
   );
 }
 
-// ─── Viewer layer (mount once at app level) ───────────────────────────────────
+// ─── Viewer layer (mount once at app level, tab-filtered) ─────────────────────
 export function FileShelfViewerLayer() {
+  const [currentTab, setCurrentTab] = useState(getCurrentTab);
   const viewers = useViewerStore();
-  if (viewers.length === 0) return null;
+
+  // Track hash changes so we always show the right tab's viewers
+  useEffect(() => {
+    const handler = () => setCurrentTab(getCurrentTab());
+    window.addEventListener('hashchange', handler);
+    return () => window.removeEventListener('hashchange', handler);
+  }, []);
+
+  const tabViewers = viewers.filter(v => v.tabId === currentTab);
+  if (tabViewers.length === 0) return null;
   return createPortal(
     <div className="fsv-layer">
-      {viewers.map(v => <FileShelfViewer key={v.id} info={v} />)}
+      {tabViewers.map(v => <FileShelfViewer key={v.id} info={v} />)}
     </div>,
     document.body
   );
