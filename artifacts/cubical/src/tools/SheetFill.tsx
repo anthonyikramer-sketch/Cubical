@@ -23,6 +23,11 @@ import {
   ExternalLink, FileSpreadsheet, FileText, Info, RefreshCw, TriangleAlert, X,
 } from 'lucide-react';
 import { BackButton, DisplacedWidgetBand } from '../shared/contexts';
+import {
+  SHELF_DRAG_TYPE,
+  getActiveDragMime, isMimeCompatible,
+  decodeShelfDrag, shelfPayloadToFile,
+} from '../shared/fileShelfHandoff';
 import type { MatchResult } from './sheetfill/types';
 import { PdfViewer } from './sheetfill/PdfViewer';
 import type { PdfViewerHandle } from './sheetfill/PdfViewer';
@@ -54,14 +59,23 @@ interface DropZoneProps {
   onClear: () => void;
   disabled?: boolean;
   compact?: boolean;
+  /** MIME types for File Shelf drag compatibility check. */
+  shelfMimes?: string[];
 }
 
-function DropZone({ label, accept, acceptDesc, icon, file, onFile, onClear, disabled, compact }: DropZoneProps) {
+function DropZone({ label, accept, acceptDesc, icon, file, onFile, onClear, disabled, compact, shelfMimes }: DropZoneProps) {
   const [dragging, setDragging] = useState(false);
+  const [shelfDragState, setShelfDragState] = useState<'none' | 'compat' | 'incompat'>('none');
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault(); setDragging(false);
+    e.preventDefault(); setDragging(false); setShelfDragState('none');
+    const shelfRaw = e.dataTransfer.getData(SHELF_DRAG_TYPE);
+    if (shelfRaw) {
+      const payload = decodeShelfDrag(shelfRaw);
+      if (payload) { const f = shelfPayloadToFile(payload); if (f) onFile(f); }
+      return;
+    }
     const f = e.dataTransfer.files[0]; if (f) onFile(f);
   };
 
@@ -84,9 +98,19 @@ function DropZone({ label, accept, acceptDesc, icon, file, onFile, onClear, disa
     <div className="sf-drop-zone-wrap">
       {!compact && <div className="sf-drop-label">{label}</div>}
       <div
-        className={`sf-drop-zone${dragging ? ' dragging' : ''}${compact ? ' compact' : ''}`}
-        onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-        onDragLeave={() => setDragging(false)}
+        className={`sf-drop-zone${dragging ? ' dragging' : ''}${compact ? ' compact' : ''}${shelfDragState === 'compat' ? ' is-shelf-drag-compat' : shelfDragState === 'incompat' ? ' is-shelf-drag-incompat' : ''}`}
+        onDragOver={(e) => {
+          e.preventDefault();
+          if (e.dataTransfer.types.includes(SHELF_DRAG_TYPE)) {
+            const mime = getActiveDragMime();
+            setShelfDragState(
+              shelfMimes && mime && isMimeCompatible(mime, shelfMimes) ? 'compat' : 'incompat',
+            );
+          } else {
+            setDragging(true);
+          }
+        }}
+        onDragLeave={() => { setDragging(false); setShelfDragState('none'); }}
         onDrop={handleDrop}
         onClick={() => inputRef.current?.click()}
       >
@@ -385,6 +409,7 @@ export function SheetFill() {
               label="1. Source Document" accept=".pdf,application/pdf" acceptDesc="a PDF"
               icon={<FileText className="w-8 h-8" />}
               file={pdfFile} onFile={loadPdfFile} onClear={clearPdf}
+              shelfMimes={['application/pdf']}
             />
             <div className="sf-drop-divider"><ChevronRight className="sf-drop-arrow" /></div>
             <DropZone
@@ -393,6 +418,7 @@ export function SheetFill() {
               acceptDesc="an XLSX file"
               icon={<FileSpreadsheet className="w-8 h-8" />}
               file={xlsxFile} onFile={loadXlsxFile} onClear={clearXlsx}
+              shelfMimes={['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']}
             />
           </div>
           <div className="sf-analyze-wrap">

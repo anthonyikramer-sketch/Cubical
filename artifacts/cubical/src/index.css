@@ -3563,7 +3563,11 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
   border: 1px solid hsl(var(--border));
   border-radius: 12px;
   background: hsl(var(--card));
+  cursor: grab;
+  transition: box-shadow .15s;
 }
+.image-result-row:active { cursor: grabbing; }
+.image-result-row:hover { box-shadow: 0 0 0 2px hsl(var(--primary) / .25); }
 .image-result-thumb {
   width: 44px; height: 44px;
   object-fit: cover;
@@ -6271,6 +6275,35 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
   height: 100%;
   overflow: hidden;
 }
+/* Tool-output drag hovering over File Shelf */
+.fsw-fill.is-tool-drag-over {
+  outline: 2px dashed hsl(var(--primary));
+  outline-offset: -3px;
+  background: hsl(var(--primary) / .06);
+}
+
+/* ── File Shelf ⇄ Tool drag feedback (shared across tools) ─────────────────── */
+.is-shelf-drag-compat {
+  outline: 2px solid hsl(145 55% 42% / .85) !important;
+  background: hsl(145 55% 42% / .07) !important;
+}
+.is-shelf-drag-incompat {
+  outline: 2px solid hsl(0 60% 50% / .55) !important;
+  background: hsl(0 60% 50% / .05) !important;
+  opacity: .75;
+}
+
+/* ClearBackground result drag hint */
+.cb-drag-hint {
+  font-size: 10px;
+  font-weight: 500;
+  color: hsl(var(--fg-muted));
+  opacity: .7;
+  user-select: none;
+}
+.cb-preview-frame[draggable="true"] { cursor: grab; transition: box-shadow .15s; }
+.cb-preview-frame[draggable="true"]:hover { box-shadow: 0 0 0 2px hsl(var(--primary) / .3); }
+.cb-preview-frame[draggable="true"]:active { cursor: grabbing; }
 
 /* Back / breadcrumb */
 .fsw-back-btn {

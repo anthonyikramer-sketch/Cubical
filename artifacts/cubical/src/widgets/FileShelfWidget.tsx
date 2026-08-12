@@ -13,6 +13,10 @@ import {
 } from 'lucide-react';
 import { PdfViewer } from '../tools/sheetfill/PdfViewer';
 import { XlsxViewer } from '../tools/sheetfill/XlsxViewer';
+import {
+  SHELF_DRAG_TYPE, TOOL_OUTPUT_DRAG_TYPE,
+  encodeShelfDrag, decodeToolOutput, toolOutputToFile, setActiveDragMime,
+} from '../shared/fileShelfHandoff';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 const FILE_SHELF_KEY = 'cubical-file-shelf';
@@ -347,10 +351,10 @@ function FormRow({ label, children }: { label: string; children: ReactNode }) {
 interface PendingFile { file: File; nickname: string; color: string; folderId: string | null; }
 
 function AddFileDialog({
-  files, folders, onAdd, onClose,
-}: { files: File[]; folders: ShelfFolder[]; onAdd: (p: PendingFile[]) => void; onClose: () => void }) {
+  files, folders, onAdd, onClose, defaultFolderId,
+}: { files: File[]; folders: ShelfFolder[]; onAdd: (p: PendingFile[]) => void; onClose: () => void; defaultFolderId?: string | null }) {
   const [entries, setEntries] = useState<PendingFile[]>(() =>
-    files.map(f => ({ file: f, nickname: f.name.replace(/\.[^.]+$/, ''), color: FS_COLORS[0], folderId: null }))
+    files.map(f => ({ file: f, nickname: f.name.replace(/\.[^.]+$/, ''), color: FS_COLORS[0], folderId: defaultFolderId ?? null }))
   );
   const up = (i: number, patch: Partial<PendingFile>) =>
     setEntries(prev => prev.map((e, idx) => idx === i ? { ...e, ...patch } : e));
@@ -546,6 +550,9 @@ export function FileShelfWidget() {
   const [editFolderDlg, setEditFolderDlg] = useState<ShelfFolder | null>(null);
   const [dragFileId, setDragFileId]     = useState<string | null>(null);
   const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
+  const [addFileFolderId, setAddFileFolderId] = useState<string | null>(null);
+  const [isToolDragOver, setIsToolDragOver] = useState(false);
+  const toolDragCountRef = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { writeShelf(data); }, [data]);
@@ -628,11 +635,23 @@ export function FileShelfWidget() {
   }, [data.folders]);
 
   // ── Drag-drop (external files into widget) ─────────────────────────────────
-  const handleDrop = useCallback((e: React.DragEvent) => {
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
     e.preventDefault();
-    const files = Array.from(e.dataTransfer.files);
-    if (files.length > 0) setAddFileDlg(files);
-  }, []);
+    toolDragCountRef.current = 0;
+    setIsToolDragOver(false);
+    // Read all dataTransfer values synchronously before any await
+    const toolOutputRaw = e.dataTransfer.getData(TOOL_OUTPUT_DRAG_TYPE);
+    const nativeFiles   = Array.from(e.dataTransfer.files);
+    if (toolOutputRaw) {
+      const meta = decodeToolOutput(toolOutputRaw);
+      if (meta) {
+        const file = await toolOutputToFile(meta);
+        if (file) { setAddFileFolderId(null); setAddFileDlg([file]); }
+      }
+      return;
+    }
+    if (nativeFiles.length > 0) setAddFileDlg(nativeFiles);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Filtered lists ─────────────────────────────────────────────────────────
   const isSearching = query.trim().length > 0;
@@ -658,7 +677,21 @@ export function FileShelfWidget() {
   const openFolder = data.folders.find(f => f.id === openFolderId) ?? null;
 
   return (
-    <div className="fsw-fill" onDragOver={e => e.preventDefault()} onDrop={handleDrop}>
+    <div
+      className={`fsw-fill${isToolDragOver ? ' is-tool-drag-over' : ''}`}
+      onDragEnter={e => {
+        if (e.dataTransfer.types.includes(TOOL_OUTPUT_DRAG_TYPE)) {
+          toolDragCountRef.current += 1;
+          setIsToolDragOver(true);
+        }
+      }}
+      onDragLeave={() => {
+        toolDragCountRef.current = Math.max(0, toolDragCountRef.current - 1);
+        if (toolDragCountRef.current === 0) setIsToolDragOver(false);
+      }}
+      onDragOver={e => e.preventDefault()}
+      onDrop={handleDrop}
+    >
 
       {/* Header */}
       <div className="widget-header">
@@ -721,7 +754,23 @@ export function FileShelfWidget() {
             onContextMenu={e => { e.preventDefault(); setCtxMenu({ type: 'folder', id: folder.id, x: e.clientX, y: e.clientY }); }}
             onDragOver={e => { e.preventDefault(); setDragOverFolderId(folder.id); }}
             onDragLeave={() => setDragOverFolderId(null)}
-            onDrop={e => { e.preventDefault(); if (dragFileId) moveFile(dragFileId, folder.id); setDragFileId(null); setDragOverFolderId(null); }}
+            onDrop={async e => {
+              e.preventDefault();
+              const toolOutputRaw = e.dataTransfer.getData(TOOL_OUTPUT_DRAG_TYPE);
+              const nativeFiles   = Array.from(e.dataTransfer.files);
+              if (toolOutputRaw) {
+                const meta = decodeToolOutput(toolOutputRaw);
+                if (meta) {
+                  const file = await toolOutputToFile(meta);
+                  if (file) { setAddFileFolderId(folder.id); setAddFileDlg([file]); }
+                }
+              } else if (nativeFiles.length > 0) {
+                setAddFileFolderId(folder.id); setAddFileDlg(nativeFiles);
+              } else if (dragFileId) {
+                moveFile(dragFileId, folder.id);
+              }
+              setDragFileId(null); setDragOverFolderId(null);
+            }}
           >
             <span className="fsw-color-dot" style={{ background: folder.color }} />
             <Folder className="fsw-row-icon" />
@@ -744,8 +793,15 @@ export function FileShelfWidget() {
               key={file.id}
               className="fsw-row fsw-file-row"
               draggable
-              onDragStart={() => setDragFileId(file.id)}
-              onDragEnd={() => { setDragFileId(null); setDragOverFolderId(null); }}
+              onDragStart={(e) => {
+                setDragFileId(file.id);
+                if (file.dataUrl) {
+                  e.dataTransfer.setData(SHELF_DRAG_TYPE, encodeShelfDrag(file));
+                  e.dataTransfer.effectAllowed = 'copy';
+                }
+                setActiveDragMime(file.mimeType);
+              }}
+              onDragEnd={() => { setDragFileId(null); setDragOverFolderId(null); setActiveDragMime(null); }}
               onClick={() => openShelfViewer(file)}
               onContextMenu={e => { e.preventDefault(); setCtxMenu({ type: 'file', id: file.id, x: e.clientX, y: e.clientY }); }}
             >
@@ -789,7 +845,7 @@ export function FileShelfWidget() {
       )}
 
       {/* Dialogs */}
-      {addFileDlg && <AddFileDialog files={addFileDlg} folders={data.folders} onAdd={handleAddFiles} onClose={() => setAddFileDlg(null)} />}
+      {addFileDlg && <AddFileDialog files={addFileDlg} folders={data.folders} defaultFolderId={addFileFolderId} onAdd={handleAddFiles} onClose={() => { setAddFileDlg(null); setAddFileFolderId(null); }} />}
       {createFolderDlg && <CreateFolderDialog onCreate={createFolder} onClose={() => setCreateFolderDlg(false)} />}
       {removeDlg && <RemoveFileDialog file={removeDlg} onConfirm={() => removeFile(removeDlg.id)} onClose={() => setRemoveDlg(null)} />}
       {deleteFolderDlg && (

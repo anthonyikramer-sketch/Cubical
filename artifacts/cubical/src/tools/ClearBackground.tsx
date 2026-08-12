@@ -8,6 +8,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Download, Pipette, RefreshCw, RotateCcw, UploadCloud } from 'lucide-react';
 import { BackButton, DisplacedWidgetBand } from '../shared/contexts';
+import {
+  SHELF_DRAG_TYPE, TOOL_OUTPUT_DRAG_TYPE,
+  getActiveDragMime, isMimeCompatible,
+  decodeShelfDrag, shelfPayloadToFile,
+  encodeToolOutput,
+} from '../shared/fileShelfHandoff';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -132,6 +138,8 @@ export function ClearBackground() {
   const [tolerance,    setTolerance]    = useState(DEFAULT_TOLERANCE);
   const [resultUrl,    setResultUrl]    = useState<string | null>(null);
   const [isDragging,   setIsDragging]   = useState(false);
+  const [shelfDragState, setShelfDragState] = useState<'none' | 'compat' | 'incompat'>('none');
+  const [sourceFileName, setSourceFileName] = useState<string>('');
   const [isPicking,    setIsPicking]    = useState(false);
   const [processing,   setProcessing]   = useState(false);
 
@@ -187,6 +195,7 @@ export function ClearBackground() {
     if (sourceFile) URL.revokeObjectURL(sourceFile);
     const url = URL.createObjectURL(file);
     setSourceFile(url);
+    setSourceFileName(file.name);
     const img = new Image();
     img.onload = () => {
       setSourceImg(img);
@@ -195,7 +204,7 @@ export function ClearBackground() {
       setResultUrl(null);
     };
     img.src = url;
-  }, [sourceFile]);
+  }, [sourceFile]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -204,11 +213,29 @@ export function ClearBackground() {
   };
 
   // ── Drag & drop ──────────────────────────────────────────────────────────
-  const handleDragOver  = (e: React.DragEvent) => { e.preventDefault(); setIsDragging(true); };
-  const handleDragLeave = () => setIsDragging(false);
+  const CB_ACCEPTED_MIMES = ['image/*'];
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    if (e.dataTransfer.types.includes(SHELF_DRAG_TYPE)) {
+      const mime = getActiveDragMime();
+      setShelfDragState(mime && isMimeCompatible(mime, CB_ACCEPTED_MIMES) ? 'compat' : 'incompat');
+    } else {
+      setIsDragging(true);
+    }
+  };
+  const handleDragLeave = () => { setIsDragging(false); setShelfDragState('none'); };
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
+    setShelfDragState('none');
+    // Handle File Shelf → Clear Background
+    const shelfRaw = e.dataTransfer.getData(SHELF_DRAG_TYPE);
+    if (shelfRaw) {
+      const payload = decodeShelfDrag(shelfRaw);
+      if (payload) { const file = shelfPayloadToFile(payload); if (file) loadFile(file); }
+      return;
+    }
     const file = e.dataTransfer.files[0];
     if (file) loadFile(file);
   };
@@ -275,7 +302,7 @@ export function ClearBackground() {
       {!sourceImg && (
         <div
           ref={dropRef}
-          className={`cb-dropzone${isDragging ? ' dragging' : ''}`}
+          className={`cb-dropzone${isDragging ? ' dragging' : ''}${shelfDragState === 'compat' ? ' is-shelf-drag-compat' : shelfDragState === 'incompat' ? ' is-shelf-drag-incompat' : ''}`}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
@@ -317,8 +344,23 @@ export function ClearBackground() {
 
             {/* Result */}
             <div className="cb-preview-panel">
-              <div className="cb-preview-label">Result</div>
-              <div className="cb-preview-frame cb-checker">
+              <div className="cb-preview-label">
+                Result
+                {resultUrl && <span className="cb-drag-hint"> · drag to File Shelf</span>}
+              </div>
+              <div
+                className="cb-preview-frame cb-checker"
+                draggable={!!resultUrl}
+                title={resultUrl ? 'Drag to File Shelf to save' : undefined}
+                onDragStart={resultUrl ? (e) => {
+                  const baseName = sourceFileName.replace(/\.[^.]+$/, '') || 'image';
+                  e.dataTransfer.setData(
+                    TOOL_OUTPUT_DRAG_TYPE,
+                    encodeToolOutput({ filename: `${baseName}-no-bg.png`, mimeType: 'image/png', objectUrl: resultUrl }),
+                  );
+                  e.dataTransfer.effectAllowed = 'copy';
+                } : undefined}
+              >
                 {processing ? (
                   <div className="cb-processing">
                     <span className="ff-spinner" />

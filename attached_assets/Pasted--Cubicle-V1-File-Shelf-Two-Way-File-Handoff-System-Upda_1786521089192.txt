@@ -1,0 +1,735 @@
+# Cubicle V1 — File Shelf Two-Way File Handoff System
+
+Update Cubicle so **File Shelf acts as the central file handoff point between Cubicle tools.**
+
+For V1, do NOT build direct tool-to-tool file transfers.
+
+The intended workflow is:
+
+# Tool ⇄ File Shelf ⇄ Tool
+
+Files should be draggable BOTH:
+
+**Tool → File Shelf**
+
+and:
+
+**File Shelf → Tool**
+
+File Shelf is the bridge between tools.
+
+---
+
+# Core V1 Concept
+
+The user should be able to:
+
+1. Open a Cubicle tool.
+2. Create, load, or save a file using that tool.
+3. Drag that file/output directly into File Shelf.
+4. Return to the Cubicle menu.
+5. Open another compatible tool.
+6. Drag the file directly from File Shelf into that tool.
+
+Example:
+
+**Image Converter**
+
+→ creates `logo.png`
+
+→ drag `logo.png` into **File Shelf**
+
+→ return to Cubicle menu
+
+→ open **Clear Background**
+
+→ drag `logo.png` from **File Shelf** into Clear Background
+
+No need to browse through Windows folders again.
+
+---
+
+# Critical Two-Way Drag-and-Drop Requirement
+
+File Shelf must support file drag-and-drop in BOTH DIRECTIONS.
+
+## Direction 1
+
+# File Shelf → Tool
+
+The user can drag a file from File Shelf and drop it onto the currently open compatible Cubicle tool.
+
+## Direction 2
+
+# Tool → File Shelf
+
+The user can drag a valid local file or saved tool output from the currently open Cubicle tool and drop it directly onto File Shelf.
+
+These are BOTH required V1 behaviors.
+
+Do not implement only File Shelf → Tool.
+
+Do not implement Tool → File Shelf only as a button.
+
+Actual drag-and-drop should work in both directions wherever the file exists as a valid persistent local file.
+
+---
+
+# Use File References, Not Duplicate Files
+
+Cubicle should pass and store LOCAL FILE REFERENCES rather than unnecessarily copying the actual file contents.
+
+Example:
+
+A file physically exists at:
+
+`C:\Users\User\Documents\EventMaster.pdf`
+
+File Shelf should store a reference to that original local file.
+
+Cubicle may store lightweight metadata such as:
+
+* Local file path/reference
+* Filename
+* Extension
+* File type
+* File size
+* File Shelf nickname
+* File Shelf color
+* File Shelf folder
+* Ordering
+
+Do NOT unnecessarily create another copy of `EventMaster.pdf` inside Cubicle.
+
+The actual file remains where the user saved it.
+
+---
+
+# FILE SHELF → TOOL
+
+Files inside File Shelf should be draggable.
+
+When the user begins dragging a File Shelf file, Cubicle should recognize it as a local file reference.
+
+If the currently open tool accepts that file type, its file input/drop area should visually indicate that the file can be dropped there.
+
+Example:
+
+File Shelf contains:
+
+📄 `photo.jpg`
+
+Current tool:
+
+**Clear Background**
+
+The user drags `photo.jpg` from File Shelf onto Clear Background.
+
+Clear Background accepts JPG.
+
+The tool should highlight as a valid destination.
+
+When dropped, Clear Background loads the file exactly as though the user had selected it through:
+
+**Browse Files**
+
+---
+
+# Use Existing Tool Input Logic
+
+Do not build completely separate file-loading systems for:
+
+**Browse Files**
+
+and:
+
+**File Shelf Drag-and-Drop**
+
+Where possible, both should feed into the same underlying file-loading logic.
+
+Conceptually:
+
+Browse Files
+↘
+
+**Tool File Input**
+
+↗
+File Shelf Drag-and-Drop
+
+This keeps behavior consistent and easier to maintain.
+
+---
+
+# File Shelf Dragging Does NOT Remove the File
+
+Dragging a file OUT of File Shelf must NOT:
+
+* Remove it from File Shelf
+* Move its physical location
+* Delete it
+* Change its nickname
+* Change its color
+* Change its File Shelf folder
+
+Dragging means:
+
+**Use this file in the current tool.**
+
+It does NOT mean:
+
+**Move this file out of File Shelf.**
+
+The File Shelf entry remains exactly where it was.
+
+---
+
+# Tool File-Type Compatibility
+
+Applicable Cubicle tools should declare which local file types they accept.
+
+For example:
+
+## Clear Background
+
+Accepts:
+
+* PNG
+* JPG
+* JPEG
+* WEBP
+
+## Image Converter
+
+Accepts:
+
+* PNG
+* JPG
+* JPEG
+* WEBP
+* BMP
+* other formats actually supported by the tool
+
+## PDF Tool
+
+Accepts:
+
+* PDF
+
+The exact implementation should fit Cubicle's existing architecture.
+
+Do NOT make File Shelf manually know the rules for every tool.
+
+The tool should declare what it accepts.
+
+---
+
+# Valid Drop Feedback
+
+When dragging a File Shelf file over a compatible tool input, provide visual feedback.
+
+For example:
+
+**Drop JPG here**
+
+or highlight the tool's existing drop zone.
+
+The interaction should make it obvious:
+
+**Yes, this tool can use this file.**
+
+---
+
+# Invalid Drop Feedback
+
+If the current tool does not support the dragged file type, do not crash or silently fail.
+
+Provide simple feedback such as:
+
+**This tool doesn't support PDF files.**
+
+Where useful, show the formats the tool accepts.
+
+---
+
+# TOOL → FILE SHELF
+
+This direction is equally important.
+
+When a Cubicle tool currently contains or has created a valid PERSISTENT LOCAL FILE, the user should be able to drag that file/output directly onto File Shelf.
+
+Example:
+
+Image Converter creates and saves:
+
+`logo.png`
+
+The tool displays the output.
+
+The user grabs/drags that output and drops it onto:
+
+**File Shelf**
+
+File Shelf recognizes the local file and adds a reference to it.
+
+---
+
+# File Must Exist Locally
+
+File Shelf should only create a permanent reference when the file exists as a persistent local file or other appropriate persistent desktop file reference.
+
+Do NOT permanently add references to:
+
+* Temporary browser blobs
+* Temporary development URLs
+* Replit URLs
+* Ephemeral memory objects
+* Temporary preview data that disappears when Cubicle closes
+
+If a tool's output has NOT been saved locally yet, File Shelf should not pretend it can permanently reference it.
+
+Instead provide a simple workflow such as:
+
+**Save this file before adding it to File Shelf.**
+
+Allow the user to save it.
+
+Then complete the File Shelf addition using the newly created local file reference.
+
+---
+
+# Drop Onto File Shelf
+
+When dragging a valid local file from a Cubicle tool over File Shelf, visually indicate that File Shelf can accept it.
+
+For example:
+
+**Drop to add to File Shelf**
+
+Highlight the File Shelf widget or an appropriate drop area.
+
+When dropped, open a lightweight addition interface.
+
+---
+
+# Tool → File Shelf Addition Interface
+
+After a valid file is dropped onto File Shelf, allow the user to choose:
+
+**Nickname**
+
+Default to the filename.
+
+**Color**
+
+Optional.
+
+**Folder**
+
+Choose:
+
+* Main File Shelf
+* Any existing File Shelf folder
+
+Then:
+
+**Cancel | Add to File Shelf**
+
+Keep this fast.
+
+The user should not have to go through a complicated import process for a single file.
+
+---
+
+# Drag Directly Onto a File Shelf Folder
+
+Where practical, allow a file from a Cubicle tool to be dragged directly onto a visible File Shelf folder.
+
+Example:
+
+Tool output:
+
+`OctoberBudget.xlsx`
+
+User drags it directly onto:
+
+📁 **Budgets**
+
+File Shelf should understand:
+
+**Destination = Budgets**
+
+Then show the lightweight addition interface with:
+
+**Folder: Budgets**
+
+already selected.
+
+The user can confirm or change it.
+
+---
+
+# Optional Add to File Shelf Button
+
+Applicable tools MAY also provide:
+
+**Add to File Shelf**
+
+as a convenience button.
+
+However, this button is NOT a replacement for drag-and-drop.
+
+V1 should support:
+
+**Drag Tool → File Shelf**
+
+AND, where useful:
+
+**Click Add to File Shelf**
+
+Both can call the same underlying File Shelf addition logic.
+
+---
+
+# Multiple Files
+
+Where a tool produces or holds multiple valid local files, support dragging multiple files into File Shelf where practical.
+
+Likewise, File Shelf may eventually support selecting multiple files and dragging them into a tool that supports batch input.
+
+If the destination tool supports multiple files:
+
+Pass the complete compatible group.
+
+If it only supports one:
+
+Do not silently discard the others.
+
+Provide clear feedback.
+
+---
+
+# File Shelf Remains the Central Bridge
+
+For V1, the intended ecosystem is:
+
+**Tool A**
+
+↓
+
+**File Shelf**
+
+↓
+
+**Tool B**
+
+NOT:
+
+**Tool A → Tool B**
+
+The user returns to the Cubicle menu before opening another tool.
+
+File Shelf remains available as a widget and preserves the file reference for later use.
+
+---
+
+# Example Complete Workflow
+
+The following should work:
+
+### Step 1
+
+User opens:
+
+**Image Converter**
+
+### Step 2
+
+User converts:
+
+`logo.jpg`
+
+into:
+
+`logo.png`
+
+### Step 3
+
+User saves `logo.png` locally.
+
+### Step 4
+
+User drags the saved output from Image Converter onto:
+
+**File Shelf**
+
+### Step 5
+
+File Shelf asks:
+
+**Nickname:** Logo
+
+**Color:** Purple
+
+**Folder:** Project Assets
+
+### Step 6
+
+User confirms.
+
+File Shelf now contains a reference to:
+
+`logo.png`
+
+### Step 7
+
+User returns to the Cubicle menu.
+
+### Step 8
+
+User opens:
+
+**Clear Background**
+
+### Step 9
+
+File Shelf remains accessible.
+
+User drags:
+
+**Logo**
+
+from File Shelf onto Clear Background.
+
+### Step 10
+
+Clear Background recognizes the PNG and loads it into its normal input.
+
+The workflow is complete.
+
+---
+
+# No Direct Tool-to-Tool Transfers Yet
+
+For V1, explicitly DO NOT implement:
+
+* Tool A directly sending files to Tool B
+* Dragging from one tool directly into another tool
+* Automatic opening of another tool
+* Global Send To Tool menus
+* Tool discovery menus
+* Cross-tool pipelines
+* Background processing chains
+* Tool A needing to know Tool B exists
+
+These features may be built later.
+
+Do not spend development effort implementing them now.
+
+---
+
+# Do Not Hard-Code Tool Relationships
+
+Even though File Shelf is the bridge, avoid code such as:
+
+`File Shelf knows about Clear Background`
+
+or:
+
+`Image Converter knows about Clear Background`
+
+Instead:
+
+**File Shelf knows:**
+I have a PNG.
+
+**Clear Background knows:**
+I accept PNG.
+
+Cubicle handles the compatibility when the File Shelf file is dragged onto the currently open tool.
+
+This leaves room for future expansion without building direct tool-to-tool communication today.
+
+---
+
+# File Shelf Viewers Are Separate
+
+Opening a file in the existing File Shelf Viewer remains separate from handing that file to a tool.
+
+For example:
+
+Click:
+
+`EventMaster.pdf`
+
+→ Open File Shelf Viewer for reading.
+
+Drag:
+
+`EventMaster.pdf`
+
+→ Hand the PDF reference to the currently open compatible tool.
+
+Do not confuse:
+
+**Click to View**
+
+with:
+
+**Drag to Use**
+
+Both behaviors should coexist.
+
+---
+
+# File Shelf Folders
+
+File Shelf's existing folders remain VIRTUAL organizational folders.
+
+Moving a reference between File Shelf folders does not physically move the original file.
+
+Likewise, dragging a file from a File Shelf folder into a tool does NOT remove it from that folder.
+
+Example:
+
+📁 Project Assets
+└── `logo.png`
+
+Drag `logo.png` into Clear Background.
+
+Afterward:
+
+📁 Project Assets
+└── `logo.png`
+
+should still exist exactly where it was inside File Shelf.
+
+---
+
+# Missing File Handling
+
+Before handing a File Shelf reference to a tool, verify that the original local file is still available.
+
+If it has been moved, renamed, deleted, or disconnected, display:
+
+**File unavailable**
+
+`File Shelf can't find this file at its saved location.`
+
+Provide:
+
+**Locate File**
+
+and:
+
+**Remove from File Shelf**
+
+If the user locates it again, update the reference while preserving:
+
+* Nickname
+* Color
+* File Shelf folder
+* Ordering
+
+---
+
+# Local / Offline Requirement
+
+The entire:
+
+# Tool ⇄ File Shelf ⇄ Tool
+
+handoff system must work locally inside the packaged Cubicle Electron desktop application.
+
+It must NOT require:
+
+* AI
+* Cloud APIs
+* Replit
+* Internet access
+* Remote file storage
+
+These are local files being handed between local Cubicle components.
+
+---
+
+# File Safety
+
+Passing files between File Shelf and tools must NOT silently modify the original file.
+
+Tools should read the source file.
+
+If a tool transforms the file, prefer creating a NEW output file unless that specific tool explicitly supports intentional overwrite behavior.
+
+File Shelf itself must NEVER:
+
+* Modify source file contents
+* Delete source files
+* Physically move source files
+* Rename source files
+
+File Shelf organizes REFERENCES.
+
+---
+
+# Desktop / Electron Requirement
+
+This functionality must work in the packaged Cubicle Electron application.
+
+Do not rely on:
+
+* Replit development URLs
+* Replit-specific paths
+* Browser-only temporary file behavior
+* Temporary blobs for permanent references
+* Development-only drag-and-drop behavior
+
+Use appropriate Electron/local filesystem behavior.
+
+---
+
+# Architecture for Later Expansion
+
+Direct tool-to-tool communication is OUT OF SCOPE.
+
+However, do not deliberately architect V1 in a way that makes future expansion impossible.
+
+V1 should establish reusable concepts such as:
+
+* Local file references
+* Tool accepted-file declarations
+* Drag source behavior
+* Drop target behavior
+* File Shelf ingestion
+* File Shelf output
+* File availability checking
+
+Later, these concepts may be expanded.
+
+Do NOT implement that expansion now.
+
+---
+
+# V1 Final Rule
+
+The current Cubicle file workflow is:
+
+# TOOL ⇄ FILE SHELF ⇄ TOOL
+
+Both arrows are important.
+
+### Tool → File Shelf
+
+**Drag a valid local file/output from the current tool onto File Shelf.**
+
+### File Shelf → Tool
+
+**Drag a File Shelf file onto the currently open compatible tool.**
+
+### Tool → Tool
+
+**NOT SUPPORTED YET.**
+
+File Shelf is the bridge.
+
+Keep V1 focused on making this interaction fast, intuitive, local, and reliable.

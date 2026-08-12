@@ -4,6 +4,12 @@ import { AlertTriangle, ArrowRight, Download, FileArchive, ImagePlus, X } from '
 import { BackButton, DisplacedWidgetBand } from '../shared/contexts';
 import { peekHandoffs, removeHandoff, clearHandoffs, subscribeHandoffs, handoffToFile, type FileHandoff } from '../shared/sendTo';
 import { IncomingFilesQueue } from '../shared/IncomingFilesQueue';
+import {
+  SHELF_DRAG_TYPE, TOOL_OUTPUT_DRAG_TYPE,
+  getActiveDragMime, isMimeCompatible,
+  decodeShelfDrag, shelfPayloadToFile,
+  encodeToolOutput,
+} from '../shared/fileShelfHandoff';
 
 /** Extract the uppercased file extension without the leading dot. */
 function getFileExt(name: string): string {
@@ -46,6 +52,7 @@ export function ImageConverter() {
   const [failedThumbs, setFailedThumbs] = useState<Set<number>>(new Set());
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const [shelfDragState, setShelfDragState] = useState<'none' | 'compat' | 'incompat'>('none');
   const cancelledRef = useRef(false);
   const previewUrlsRef = useRef<string[]>([]);
   const dragIndexRef = useRef<number | null>(null);
@@ -105,14 +112,25 @@ export function ImageConverter() {
     setResults([]);
   };
 
+  /** MIME types accepted by the Image Converter for shelf drag compatibility. */
+  const IC_ACCEPTED_MIMES = ['image/*'];
+
   const handleDropZoneDragEnter = (e: React.DragEvent) => {
-    if (!e.dataTransfer.types.includes('Files')) return;
+    const hasFiles = e.dataTransfer.types.includes('Files');
+    const hasShelf = e.dataTransfer.types.includes(SHELF_DRAG_TYPE);
+    if (!hasFiles && !hasShelf) return;
     e.preventDefault();
-    dropCounterRef.current += 1;
-    setIsDraggingOver(true);
+    if (hasShelf) {
+      const mime = getActiveDragMime();
+      setShelfDragState(mime && isMimeCompatible(mime, IC_ACCEPTED_MIMES) ? 'compat' : 'incompat');
+    } else {
+      dropCounterRef.current += 1;
+      setIsDraggingOver(true);
+    }
   };
 
   const handleDropZoneDragLeave = (e: React.DragEvent) => {
+    if (e.dataTransfer.types.includes(SHELF_DRAG_TYPE)) { setShelfDragState('none'); return; }
     // Only decrement for file drags — thumbnail reorder drags must not affect this counter.
     if (!e.dataTransfer.types.includes('Files')) return;
     dropCounterRef.current = Math.max(0, dropCounterRef.current - 1);
@@ -120,7 +138,9 @@ export function ImageConverter() {
   };
 
   const handleDropZoneDragOver = (e: React.DragEvent) => {
-    if (!e.dataTransfer.types.includes('Files')) return;
+    const hasFiles = e.dataTransfer.types.includes('Files');
+    const hasShelf = e.dataTransfer.types.includes(SHELF_DRAG_TYPE);
+    if (!hasFiles && !hasShelf) return;
     e.preventDefault();
   };
 
@@ -128,6 +148,17 @@ export function ImageConverter() {
     e.preventDefault();
     dropCounterRef.current = 0;
     setIsDraggingOver(false);
+    setShelfDragState('none');
+    // Handle File Shelf → Image Converter
+    const shelfRaw = e.dataTransfer.getData(SHELF_DRAG_TYPE);
+    if (shelfRaw) {
+      const payload = decodeShelfDrag(shelfRaw);
+      if (payload) {
+        const file = shelfPayloadToFile(payload);
+        if (file) { const dt = new DataTransfer(); dt.items.add(file); addFiles(dt.files); }
+      }
+      return;
+    }
     if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files);
   };
 
@@ -273,7 +304,7 @@ export function ImageConverter() {
       </div>
       <div className="image-converter-workspace">
         <div
-          className="image-converter-controls"
+          className={`image-converter-controls${shelfDragState === 'compat' ? ' is-shelf-drag-compat' : shelfDragState === 'incompat' ? ' is-shelf-drag-incompat' : ''}`}
           onDragEnter={handleDropZoneDragEnter}
           onDragLeave={handleDropZoneDragLeave}
           onDragOver={handleDropZoneDragOver}
@@ -407,15 +438,31 @@ export function ImageConverter() {
             <div className="renamer-empty"><div className="empty-cube"><ImagePlus /></div><h2>Converted images appear here.</h2><p>Choose images and a format, then click Convert.</p></div>
           ) : results.length === 0 ? null : (
             <div className="image-result-list">
-              {results.map((r, i) => (
-                <div className="image-result-row" key={i}>
-                  <img src={r.url} alt={r.name} className="image-result-thumb" />
-                  <span className="image-result-name">{r.name}</span>
-                  <a href={r.url} download={r.name} className="button-primary" style={{ fontSize: 11, minHeight: 34, padding: '0 14px', textDecoration: 'none' }}>
-                    <Download /> Save
-                  </a>
-                </div>
-              ))}
+              {results.map((r, i) => {
+                const ext = r.name.split('.').pop()?.toLowerCase() ?? 'png';
+                const resultMime = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : ext === 'webp' ? 'image/webp' : 'image/png';
+                return (
+                  <div
+                    className="image-result-row"
+                    key={i}
+                    draggable
+                    title="Drag to File Shelf to save"
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData(
+                        TOOL_OUTPUT_DRAG_TYPE,
+                        encodeToolOutput({ filename: r.name, mimeType: resultMime, objectUrl: r.url }),
+                      );
+                      e.dataTransfer.effectAllowed = 'copy';
+                    }}
+                  >
+                    <img src={r.url} alt={r.name} className="image-result-thumb" />
+                    <span className="image-result-name">{r.name}</span>
+                    <a href={r.url} download={r.name} className="button-primary" style={{ fontSize: 11, minHeight: 34, padding: '0 14px', textDecoration: 'none' }}>
+                      <Download /> Save
+                    </a>
+                  </div>
+                );
+              })}
             </div>
           )}
           {files.some((f) => isNonRenderable(f.name)) && (

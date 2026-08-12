@@ -9,6 +9,11 @@ import {
   type FileHandoff,
 } from '../shared/sendTo';
 import { IncomingFilesQueue } from '../shared/IncomingFilesQueue';
+import {
+  SHELF_DRAG_TYPE,
+  getActiveDragMime, isMimeCompatible,
+  decodeShelfDrag, shelfPayloadToFile,
+} from '../shared/fileShelfHandoff';
 import { BackButton, DisplacedWidgetBand } from '../shared/contexts';
 
 // ── Types & constants ─────────────────────────────────────────────────────────
@@ -205,6 +210,7 @@ export function PdfFormFiller() {
   const findCacheRef  = useRef<PffFindPage[] | null>(null);
   const findInputRef  = useRef<HTMLInputElement>(null);
   const canvasScrollRef = useRef<HTMLDivElement>(null);
+  const [shelfDragPffState, setShelfDragPffState] = useState<'none' | 'compat' | 'incompat'>('none');
 
   // Incoming files queue (Send To system)
   const TOOL_ID = 'pdf-form-filler';
@@ -921,9 +927,26 @@ export function PdfFormFiller() {
       {/* ── Drop zone / Editor ── */}
       {!pdfProxy ? (
         <div
-          className="toolbox-drop-panel"
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f?.type === 'application/pdf') void loadPdf(f); }}>
+          className={`toolbox-drop-panel${shelfDragPffState === 'compat' ? ' is-shelf-drag-compat' : shelfDragPffState === 'incompat' ? ' is-shelf-drag-incompat' : ''}`}
+          onDragOver={(e) => {
+            e.preventDefault();
+            if (e.dataTransfer.types.includes(SHELF_DRAG_TYPE)) {
+              const mime = getActiveDragMime();
+              setShelfDragPffState(mime && isMimeCompatible(mime, ['application/pdf']) ? 'compat' : 'incompat');
+            }
+          }}
+          onDragLeave={() => setShelfDragPffState('none')}
+          onDrop={(e) => {
+            e.preventDefault();
+            setShelfDragPffState('none');
+            const shelfRaw = e.dataTransfer.getData(SHELF_DRAG_TYPE);
+            if (shelfRaw) {
+              const payload = decodeShelfDrag(shelfRaw);
+              if (payload) { const file = shelfPayloadToFile(payload); if (file) void loadPdf(file); }
+              return;
+            }
+            const f = e.dataTransfer.files[0]; if (f?.type === 'application/pdf') void loadPdf(f);
+          }}>
           <div className="empty-cube"><FormInput /></div>
           <h2>Open a PDF to get started.</h2>
           <p>Drop a PDF here, or use "Open PDF" above. Fill fields, place stamps, and export — all locally, nothing leaves your device.</p>

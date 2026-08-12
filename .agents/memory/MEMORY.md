@@ -3,3 +3,4 @@
 - [Widget portability system](widget-portability-system.md) — always-on drag (6px threshold), registry-based portability default, DisplacedWidgetBand layout rules, section routing, Calendar mode thresholds.
 - [Catalog & distribution system](catalog-system.md) — stable IDs (tool./skin./game.), useCatalog() hook, LEGACY_ID_MAP, auto-updater, UpdatePanel, StorePage props.
 - [PDF Form Filler architecture](pdf-form-filler.md) — pdfjs-dist (dynamic import), pdf-lib (dynamic export), fields as % coords, templates in localStorage.
+- [File Shelf ⇄ Tool handoff](file-shelf-handoff.md) — SHELF_DRAG_TYPE / TOOL_OUTPUT_DRAG_TYPE, module-level activeDragMime workaround, sync getData before await, AddFileDialog defaultFolderId.
