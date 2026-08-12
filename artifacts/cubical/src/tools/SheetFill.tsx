@@ -229,15 +229,17 @@ export function SheetFill() {
     setPdfFile(file);
     const buf = await file.arrayBuffer();
     setPdfData(buf);
-    setPreviewTab('pdf');
-  }, []);
+    // If xlsx already present → go straight to side-by-side
+    setPreviewTab(xlsxData ? 'side-by-side' : 'pdf');
+  }, [xlsxData]);
 
   const loadXlsxFile = useCallback(async (file: File) => {
     setXlsxFile(file);
     const buf = await file.arrayBuffer();
     setXlsxData(buf);
-    setPreviewTab((prev) => prev === 'pdf' ? 'side-by-side' : 'xlsx-orig');
-  }, []);
+    // If pdf already present → go straight to side-by-side
+    setPreviewTab(pdfData ? 'side-by-side' : 'xlsx-orig');
+  }, [pdfData]);
 
   const clearPdf = () => { setPdfFile(null); setPdfData(null); if (previewTab === 'pdf' || previewTab === 'side-by-side') setPreviewTab('xlsx-orig'); };
   const clearXlsx = () => { setXlsxFile(null); setXlsxData(null); if (previewTab !== 'pdf') setPreviewTab('pdf'); };
@@ -325,12 +327,13 @@ export function SheetFill() {
   const notFound        = matches.filter((m) => !m.extractedValue || m.confidence === 'low');
   const totalApproved   = matches.filter((m) => m.approved && m.extractedValue).length;
 
-  // ── Available preview tabs ────────────────────────────────────────────────
+  // ── Tab / state logic ────────────────────────────────────────────────────
   const hasPdf  = !!pdfData;
   const hasXlsx = !!xlsxData;
   const isReviewOrFinal = step === 'review' || step === 'final-review';
 
-  const availableTabs = useMemo<PreviewTab[]>(() => {
+  // Review-phase tabs (used inside the two-column review workspace)
+  const reviewTabs = useMemo<PreviewTab[]>(() => {
     const tabs: PreviewTab[] = [];
     if (hasPdf)  tabs.push('pdf');
     if (hasXlsx) tabs.push('xlsx-orig');
@@ -340,10 +343,18 @@ export function SheetFill() {
     return tabs;
   }, [hasPdf, hasXlsx, isReviewOrFinal]);
 
-  // Ensure current tab is valid
-  const activeTab = availableTabs.includes(previewTab) ? previewTab : (availableTabs[0] ?? 'pdf');
+  const activeTab = reviewTabs.includes(previewTab) ? previewTab : (reviewTabs[0] ?? 'pdf');
 
-  const showWorkspace = hasPdf || hasXlsx;
+  // Setup-phase active tab (viewer workspace)
+  const SETUP_TABS: PreviewTab[] = ['side-by-side', 'pdf', 'xlsx-orig'];
+  const setupActiveTab: PreviewTab = SETUP_TABS.includes(previewTab) ? previewTab
+    : hasPdf && hasXlsx ? 'side-by-side'
+    : hasPdf ? 'pdf' : 'xlsx-orig';
+
+  // Three mutually exclusive states
+  const showInitialSetup    = step === 'setup' && !hasPdf && !hasXlsx;
+  const showViewerWorkspace = (hasPdf || hasXlsx) && (step === 'setup' || step === 'analyzing');
+  const showReviewWorkspace = step === 'review' || step === 'final-review';
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -366,40 +377,160 @@ export function SheetFill() {
         </div>
       )}
 
-      {/* ── Full-page workspace (files loaded) ── */}
-      {showWorkspace ? (
-        <div className="sf-workspace">
+      {/* ══ STATE A: Initial setup (no files yet) ══ */}
+      {showInitialSetup && (
+        <>
+          <div className="sf-drop-row">
+            <DropZone
+              label="1. Source Document" accept=".pdf,application/pdf" acceptDesc="a PDF"
+              icon={<FileText className="w-8 h-8" />}
+              file={pdfFile} onFile={loadPdfFile} onClear={clearPdf}
+            />
+            <div className="sf-drop-divider"><ChevronRight className="sf-drop-arrow" /></div>
+            <DropZone
+              label="2. Excel Template"
+              accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              acceptDesc="an XLSX file"
+              icon={<FileSpreadsheet className="w-8 h-8" />}
+              file={xlsxFile} onFile={loadXlsxFile} onClear={clearXlsx}
+            />
+          </div>
+          <div className="sf-analyze-wrap">
+            <button className="button-primary sf-analyze-btn" disabled={!pdfFile || !xlsxFile} onClick={runAnalysis}>
+              Analyze & Fill →
+            </button>
+            <p className="sf-analyze-note">Files are read locally — nothing is uploaded.</p>
+          </div>
+        </>
+      )}
 
-          {/* ── LEFT: controls ── */}
-          <div className="sf-controls-pane">
+      {/* ══ STATE B: Viewer workspace (one or both files loaded, setup/analyzing) ══ */}
+      {showViewerWorkspace && (
+        <div className="sf-viewer-workspace">
 
-            {/* Missing file prompt — shown only when one file is absent and we're still in setup */}
-            {step === 'setup' && (!pdfFile || !xlsxFile) && (
-              <div className="sf-missing-files">
-                {!pdfFile && (
-                  <DropZone
-                    label="Source Document" accept=".pdf,application/pdf" acceptDesc="PDF"
-                    icon={<FileText className="w-4 h-4" />}
-                    file={pdfFile} onFile={loadPdfFile} onClear={clearPdf}
-                    compact
-                  />
-                )}
-                {!xlsxFile && (
-                  <DropZone
-                    label="Excel Template"
-                    accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                    acceptDesc="XLSX"
-                    icon={<FileSpreadsheet className="w-4 h-4" />}
-                    file={xlsxFile} onFile={loadXlsxFile} onClear={clearXlsx}
-                    compact
-                  />
-                )}
+          {/* Tab bar — only when both files are present */}
+          {hasPdf && hasXlsx && (
+            <div className="sf-vtab-bar">
+              <button className={`sf-vtab${setupActiveTab === 'side-by-side' ? ' active' : ''}`} onClick={() => setPreviewTab('side-by-side')}>Side by Side</button>
+              <button className={`sf-vtab${setupActiveTab === 'pdf' ? ' active' : ''}`}          onClick={() => setPreviewTab('pdf')}>Master Document</button>
+              <button className={`sf-vtab${setupActiveTab === 'xlsx-orig' ? ' active' : ''}`}    onClick={() => setPreviewTab('xlsx-orig')}>Excel Template</button>
+            </div>
+          )}
+
+          <div className="sf-viewers-area">
+
+            {/* ── Side by side ── */}
+            {(setupActiveTab === 'side-by-side' || (!hasPdf && hasXlsx) || (hasPdf && !hasXlsx && false)) && setupActiveTab === 'side-by-side' && (
+              <div className="sf-viewers-pair">
+                {/* PDF block */}
+                <div className="sf-viewer-block">
+                  <div className="sf-file-above">
+                    <span className="sf-file-above-label">Master Document</span>
+                    <DropZone
+                      label="Source Document" accept=".pdf,application/pdf" acceptDesc="PDF"
+                      icon={<FileText className="w-3.5 h-3.5" />}
+                      file={pdfFile} onFile={loadPdfFile} onClear={clearPdf}
+                      disabled={step === 'analyzing'} compact
+                    />
+                  </div>
+                  <div className="sf-doc-viewer">
+                    {pdfData
+                      ? <PdfViewer ref={pdfViewerRef} data={pdfData} defaultFit={true} />
+                      : <div className="sf-viewer-empty-lg"><FileText className="w-10 h-10" /><p>Upload a PDF to preview it here.</p></div>}
+                  </div>
+                </div>
+
+                {/* XLSX block */}
+                <div className="sf-viewer-block">
+                  <div className="sf-file-above">
+                    <span className="sf-file-above-label">Excel Template</span>
+                    <DropZone
+                      label="Excel Template"
+                      accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                      acceptDesc="XLSX"
+                      icon={<FileSpreadsheet className="w-3.5 h-3.5" />}
+                      file={xlsxFile} onFile={loadXlsxFile} onClear={clearXlsx}
+                      disabled={step === 'analyzing'} compact
+                    />
+                  </div>
+                  <div className="sf-doc-viewer sf-doc-viewer-xlsx">
+                    {xlsxData
+                      ? <XlsxViewer data={xlsxData} />
+                      : <div className="sf-viewer-empty-lg"><FileSpreadsheet className="w-10 h-10" /><p>Upload an XLSX to preview it here.</p></div>}
+                  </div>
+                </div>
               </div>
             )}
 
-            {/* ── Setup controls ── */}
+            {/* ── PDF solo ── */}
+            {setupActiveTab === 'pdf' && (
+              <div className="sf-viewers-pair sf-viewer-solo">
+                <div className="sf-viewer-block">
+                  <div className="sf-file-above">
+                    <span className="sf-file-above-label">Master Document</span>
+                    <DropZone
+                      label="Source Document" accept=".pdf,application/pdf" acceptDesc="PDF"
+                      icon={<FileText className="w-3.5 h-3.5" />}
+                      file={pdfFile} onFile={loadPdfFile} onClear={clearPdf}
+                      disabled={step === 'analyzing'} compact
+                    />
+                    {!hasXlsx && (
+                      <DropZone
+                        label="Excel Template"
+                        accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        acceptDesc="XLSX"
+                        icon={<FileSpreadsheet className="w-3.5 h-3.5" />}
+                        file={xlsxFile} onFile={loadXlsxFile} onClear={clearXlsx}
+                        disabled={step === 'analyzing'} compact
+                      />
+                    )}
+                  </div>
+                  <div className="sf-doc-viewer">
+                    {pdfData
+                      ? <PdfViewer ref={pdfViewerRef} data={pdfData} defaultFit={true} />
+                      : <div className="sf-viewer-empty-lg"><FileText className="w-10 h-10" /><p>Upload a PDF to preview it here.</p></div>}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── Excel solo ── */}
+            {setupActiveTab === 'xlsx-orig' && (
+              <div className="sf-viewers-pair sf-viewer-solo">
+                <div className="sf-viewer-block">
+                  <div className="sf-file-above">
+                    <span className="sf-file-above-label">Excel Template</span>
+                    <DropZone
+                      label="Excel Template"
+                      accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                      acceptDesc="XLSX"
+                      icon={<FileSpreadsheet className="w-3.5 h-3.5" />}
+                      file={xlsxFile} onFile={loadXlsxFile} onClear={clearXlsx}
+                      disabled={step === 'analyzing'} compact
+                    />
+                    {!hasPdf && (
+                      <DropZone
+                        label="Source Document" accept=".pdf,application/pdf" acceptDesc="PDF"
+                        icon={<FileText className="w-3.5 h-3.5" />}
+                        file={pdfFile} onFile={loadPdfFile} onClear={clearPdf}
+                        disabled={step === 'analyzing'} compact
+                      />
+                    )}
+                  </div>
+                  <div className="sf-doc-viewer sf-doc-viewer-xlsx">
+                    {xlsxData
+                      ? <XlsxViewer data={xlsxData} />
+                      : <div className="sf-viewer-empty-lg"><FileSpreadsheet className="w-10 h-10" /><p>Upload an XLSX to preview it here.</p></div>}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Below-viewers: Analyze button or progress */}
+          <div className="sf-below-viewers">
             {step === 'setup' && (
-              <div className="sf-analyze-wrap">
+              <>
                 <button
                   className="button-primary sf-analyze-btn"
                   disabled={!pdfFile || !xlsxFile}
@@ -407,11 +538,16 @@ export function SheetFill() {
                 >
                   Analyze & Fill →
                 </button>
-                <p className="sf-analyze-note">Files are read locally — nothing is uploaded.</p>
-              </div>
+                {(!hasPdf || !hasXlsx) && (
+                  <p className="sf-analyze-note">
+                    {!hasPdf && !hasXlsx ? 'Add both files to continue.' : !hasPdf ? 'Add the source PDF to continue.' : 'Add the Excel template to continue.'}
+                  </p>
+                )}
+                {hasPdf && hasXlsx && (
+                  <p className="sf-analyze-note">Files are read locally — nothing is uploaded.</p>
+                )}
+              </>
             )}
-
-            {/* ── Analyzing progress ── */}
             {step === 'analyzing' && (
               <div className="sf-analyzing-steps">
                 {analyzing.map((s, i) => (
@@ -424,6 +560,16 @@ export function SheetFill() {
                 ))}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ══ STATE C: Review workspace (two-column grid, existing layout) ══ */}
+      {showReviewWorkspace && (
+        <div className="sf-workspace">
+
+          {/* ── LEFT: review controls ── */}
+          <div className="sf-controls-pane">
 
             {/* ── Review ── */}
             {step === 'review' && (
@@ -555,7 +701,7 @@ export function SheetFill() {
                 </div>
 
                 <div className="sf-final-view-btns">
-                  <button className={`sf-fv-btn${activeTab === 'pdf' ? ' active' : ''}`}       onClick={() => setPreviewTab('pdf')}>View Master</button>
+                  <button className={`sf-fv-btn${activeTab === 'pdf' ? ' active' : ''}`}        onClick={() => setPreviewTab('pdf')}>View Master</button>
                   <button className={`sf-fv-btn${activeTab === 'xlsx-orig' ? ' active' : ''}`}  onClick={() => setPreviewTab('xlsx-orig')}>Original Excel</button>
                   <button className={`sf-fv-btn${activeTab === 'xlsx-filled' ? ' active' : ''}`} onClick={() => setPreviewTab('xlsx-filled')}>Filled Excel</button>
                   <button className={`sf-fv-btn${activeTab === 'compare' ? ' active' : ''}`}    onClick={() => setPreviewTab('compare')}>Compare</button>
@@ -567,9 +713,9 @@ export function SheetFill() {
           {/* ── RIGHT: preview pane ── */}
           <div className="sf-preview-pane">
             {/* Tab bar */}
-            {availableTabs.length > 1 && step !== 'final-review' && (
+            {reviewTabs.length > 1 && step !== 'final-review' && (
               <div className="sf-preview-tabs">
-                {availableTabs.map((tab) => (
+                {reviewTabs.map((tab) => (
                   <button
                     key={tab}
                     className={`sf-preview-tab${activeTab === tab ? ' active' : ''}`}
@@ -589,21 +735,10 @@ export function SheetFill() {
                 <div className="sf-single-viewer">
                   <div className="sf-viewer-header">
                     <span className="sf-vh-label">Master Document</span>
-                    <DropZone
-                      label="Source Document" accept=".pdf,application/pdf" acceptDesc="PDF"
-                      icon={<FileText className="w-3.5 h-3.5" />}
-                      file={pdfFile} onFile={loadPdfFile} onClear={clearPdf}
-                      disabled={step === 'analyzing'} compact
-                    />
                   </div>
                   {pdfData
                     ? <PdfViewer ref={pdfViewerRef} data={pdfData} />
-                    : (
-                      <div className="sf-viewer-empty">
-                        <FileText className="w-8 h-8" />
-                        <p>Upload a PDF to preview it here.</p>
-                      </div>
-                    )}
+                    : <div className="sf-viewer-empty"><FileText className="w-8 h-8" /><p>No PDF loaded.</p></div>}
                 </div>
               )}
 
@@ -612,23 +747,10 @@ export function SheetFill() {
                 <div className="sf-single-viewer">
                   <div className="sf-viewer-header">
                     <span className="sf-vh-label">Excel Template</span>
-                    <DropZone
-                      label="Excel Template"
-                      accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                      acceptDesc="XLSX"
-                      icon={<FileSpreadsheet className="w-3.5 h-3.5" />}
-                      file={xlsxFile} onFile={loadXlsxFile} onClear={clearXlsx}
-                      disabled={step === 'analyzing'} compact
-                    />
                   </div>
                   {xlsxData
                     ? <XlsxViewer data={xlsxData} />
-                    : (
-                      <div className="sf-viewer-empty">
-                        <FileSpreadsheet className="w-8 h-8" />
-                        <p>Upload an XLSX template to preview it here.</p>
-                      </div>
-                    )}
+                    : <div className="sf-viewer-empty"><FileSpreadsheet className="w-8 h-8" /><p>No XLSX loaded.</p></div>}
                 </div>
               )}
 
@@ -648,38 +770,20 @@ export function SheetFill() {
                 </div>
               )}
 
-              {/* Side by side: file controls in each panel header */}
+              {/* Side by side */}
               {activeTab === 'side-by-side' && (
                 <div className="sf-sidebyside">
                   <div className="sf-sb-panel">
-                    <div className="sf-viewer-header">
-                      <span className="sf-vh-label">Master Document</span>
-                      <DropZone
-                        label="Source Document" accept=".pdf,application/pdf" acceptDesc="PDF"
-                        icon={<FileText className="w-3.5 h-3.5" />}
-                        file={pdfFile} onFile={loadPdfFile} onClear={clearPdf}
-                        disabled={step === 'analyzing'} compact
-                      />
-                    </div>
+                    <div className="sf-viewer-header"><span className="sf-vh-label">Master Document</span></div>
                     {pdfData
                       ? <PdfViewer ref={pdfViewerRef} data={pdfData} />
-                      : <div className="sf-viewer-empty"><FileText className="w-6 h-6" /><p>Upload a PDF</p></div>}
+                      : <div className="sf-viewer-empty"><FileText className="w-6 h-6" /><p>No PDF</p></div>}
                   </div>
                   <div className="sf-sb-panel">
-                    <div className="sf-viewer-header">
-                      <span className="sf-vh-label">Excel Template</span>
-                      <DropZone
-                        label="Excel Template"
-                        accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                        acceptDesc="XLSX"
-                        icon={<FileSpreadsheet className="w-3.5 h-3.5" />}
-                        file={xlsxFile} onFile={loadXlsxFile} onClear={clearXlsx}
-                        disabled={step === 'analyzing'} compact
-                      />
-                    </div>
+                    <div className="sf-viewer-header"><span className="sf-vh-label">Excel Template</span></div>
                     {xlsxData
                       ? <XlsxViewer data={xlsxData} />
-                      : <div className="sf-viewer-empty"><FileSpreadsheet className="w-6 h-6" /><p>Upload an XLSX</p></div>}
+                      : <div className="sf-viewer-empty"><FileSpreadsheet className="w-6 h-6" /><p>No XLSX</p></div>}
                   </div>
                 </div>
               )}
@@ -688,15 +792,11 @@ export function SheetFill() {
               {activeTab === 'compare' && xlsxData && (
                 <div className="sf-sidebyside">
                   <div className="sf-sb-panel">
-                    <div className="sf-viewer-header">
-                      <span className="sf-vh-label">Original</span>
-                    </div>
+                    <div className="sf-viewer-header"><span className="sf-vh-label">Original</span></div>
                     <XlsxViewer data={xlsxData} />
                   </div>
                   <div className="sf-sb-panel">
-                    <div className="sf-viewer-header">
-                      <span className="sf-vh-label sf-vh-label-filled">Filled Preview</span>
-                    </div>
+                    <div className="sf-viewer-header"><span className="sf-vh-label sf-vh-label-filled">Filled Preview</span></div>
                     <XlsxViewer
                       data={xlsxData}
                       virtualCells={virtualCells}
@@ -709,31 +809,6 @@ export function SheetFill() {
             </div>
           </div>
         </div>
-      ) : (
-        /* ── Initial setup (no files loaded yet) ── */
-        <>
-          <div className="sf-drop-row">
-            <DropZone
-              label="1. Source Document" accept=".pdf,application/pdf" acceptDesc="a PDF"
-              icon={<FileText className="w-8 h-8" />}
-              file={pdfFile} onFile={loadPdfFile} onClear={clearPdf}
-            />
-            <div className="sf-drop-divider"><ChevronRight className="sf-drop-arrow" /></div>
-            <DropZone
-              label="2. Excel Template"
-              accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-              acceptDesc="an XLSX file"
-              icon={<FileSpreadsheet className="w-8 h-8" />}
-              file={xlsxFile} onFile={loadXlsxFile} onClear={clearXlsx}
-            />
-          </div>
-          <div className="sf-analyze-wrap">
-            <button className="button-primary sf-analyze-btn" disabled={!pdfFile || !xlsxFile} onClick={runAnalysis}>
-              Analyze & Fill →
-            </button>
-            <p className="sf-analyze-note">Files are read locally — nothing is uploaded.</p>
-          </div>
-        </>
       )}
 
       {/* ── Cell popover ── */}

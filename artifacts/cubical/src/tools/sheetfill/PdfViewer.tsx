@@ -1,6 +1,8 @@
 /**
  * PdfViewer — renders a PDF (ArrayBuffer) as stacked canvas pages.
  * Exposes scrollToPage() via ref for "View Source" navigation.
+ *
+ * defaultFit prop: auto-sizes to show a full page on first load.
  */
 
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
@@ -13,19 +15,23 @@ export interface PdfViewerHandle {
 interface Props {
   data: ArrayBuffer;
   className?: string;
+  /** Auto-compute an initial scale so one full page fits inside the viewer. */
+  defaultFit?: boolean;
 }
 
-export const PdfViewer = forwardRef<PdfViewerHandle, Props>(({ data, className = '' }, ref) => {
+export const PdfViewer = forwardRef<PdfViewerHandle, Props>(({ data, className = '', defaultFit }, ref) => {
   const [totalPages, setTotalPages] = useState(0);
-  const [scale, setScale]           = useState(1.2);
-  const [fitScale, setFitScale]     = useState(1.2);
+  const [scale, setScale]           = useState(1.0); // will be overridden by defaultFit
+  const [fitPageScale, setFitPageScale] = useState(1.0); // "fit entire page" scale
+  const [fitWidthScale, setFitWidthScale] = useState(1.0); // "fit width" scale
   const [loading, setLoading]       = useState(true);
 
-  const pdfDocRef   = useRef<any>(null);
+  const pdfDocRef    = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const pageRefs    = useRef<(HTMLDivElement | null)[]>([]);
-  const canvasRefs  = useRef<(HTMLCanvasElement | null)[]>([]);
-  const versionRef  = useRef(0); // cancel stale renders
+  const pageRefs     = useRef<(HTMLDivElement | null)[]>([]);
+  const canvasRefs   = useRef<(HTMLCanvasElement | null)[]>([]);
+  const versionRef   = useRef(0);
+  const didFitRef    = useRef(false); // ensure auto-fit only runs once per load
 
   useImperativeHandle(ref, () => ({
     scrollToPage: (page: number) => {
@@ -34,10 +40,11 @@ export const PdfViewer = forwardRef<PdfViewerHandle, Props>(({ data, className =
     },
   }));
 
-  // Load PDF document
+  // ── Load PDF ──────────────────────────────────────────────────────────────
   useEffect(() => {
     setLoading(true);
     setTotalPages(0);
+    didFitRef.current = false; // reset fit for new document
     versionRef.current++;
     const v = versionRef.current;
 
@@ -58,7 +65,33 @@ export const PdfViewer = forwardRef<PdfViewerHandle, Props>(({ data, className =
     })();
   }, [data]);
 
-  // Re-render all pages when totalPages or scale changes
+  // ── Auto-fit: compute scale so full page fits in viewer ──────────────────
+  useEffect(() => {
+    if (!defaultFit || didFitRef.current || totalPages === 0 || !pdfDocRef.current) return;
+    didFitRef.current = true;
+
+    (async () => {
+      const page = await pdfDocRef.current.getPage(1);
+      const vp1  = page.getViewport({ scale: 1 });
+
+      // Wait for layout so container is sized
+      await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+
+      const c = containerRef.current;
+      if (!c) return;
+      const availW = c.clientWidth  - 32; // 16px padding × 2
+      const availH = c.clientHeight - 32;
+      if (availW <= 0 || availH <= 0) return;
+
+      const s = Math.min(availW / vp1.width, availH / vp1.height);
+      const sw = availW / vp1.width;
+      setFitPageScale(+s.toFixed(3));
+      setFitWidthScale(+sw.toFixed(3));
+      setScale(+s.toFixed(3));
+    })();
+  }, [totalPages, defaultFit]);
+
+  // ── Re-render pages when totalPages or scale changes ─────────────────────
   useEffect(() => {
     if (!pdfDocRef.current || totalPages === 0) return;
     versionRef.current++;
@@ -68,8 +101,8 @@ export const PdfViewer = forwardRef<PdfViewerHandle, Props>(({ data, className =
       const doc = pdfDocRef.current;
       for (let p = 1; p <= totalPages; p++) {
         if (v !== versionRef.current) return;
-        const page = await doc.getPage(p);
-        const canvas = canvasRefs.current[p - 1];
+        const page    = await doc.getPage(p);
+        const canvas  = canvasRefs.current[p - 1];
         if (!canvas) continue;
         const viewport = page.getViewport({ scale });
         canvas.width  = viewport.width;
@@ -78,18 +111,19 @@ export const PdfViewer = forwardRef<PdfViewerHandle, Props>(({ data, className =
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         await page.render({ canvasContext: ctx, viewport }).promise;
 
-        // After first page, compute fit-to-width scale
-        if (p === 1 && containerRef.current) {
+        // Compute fit-width scale from first rendered page
+        if (p === 1 && containerRef.current && !defaultFit) {
           const avail = containerRef.current.clientWidth - 32;
-          if (avail > 0) setFitScale(+(avail / viewport.width * scale).toFixed(2));
+          if (avail > 0) setFitWidthScale(+(avail / viewport.width * scale).toFixed(3));
         }
       }
     })();
-  }, [totalPages, scale]);
+  }, [totalPages, scale]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const zoom    = (delta: number) => setScale((s) => +Math.max(0.4, Math.min(3.0, s + delta)).toFixed(2));
-  const fitW    = () => setScale(fitScale);
-  const reset   = () => setScale(1.2);
+  const zoom      = (delta: number) => setScale((s) => +Math.max(0.3, Math.min(3.0, s + delta)).toFixed(2));
+  const fitPage   = () => setScale(fitPageScale);
+  const fitWidth  = () => setScale(fitWidthScale);
+  const reset     = () => setScale(1.0);
 
   return (
     <div className={`sf-pdf-root ${className}`}>
@@ -98,8 +132,9 @@ export const PdfViewer = forwardRef<PdfViewerHandle, Props>(({ data, className =
         <span className="sf-ctrl-pct">{Math.round(scale * 100)}%</span>
         <button className="sf-ctrl-btn" onClick={() => zoom(0.2)} title="Zoom in"><Plus className="w-3 h-3" /></button>
         <div className="sf-ctrl-sep" />
-        <button className="sf-ctrl-btn" onClick={fitW} title="Fit to width"><Maximize2 className="w-3 h-3" /></button>
-        <button className="sf-ctrl-btn" onClick={reset} title="100%"><RotateCcw className="w-3 h-3" /></button>
+        <button className="sf-ctrl-btn sf-ctrl-fit-page" onClick={fitPage}  title="Fit entire page"><Maximize2 className="w-3 h-3" /></button>
+        <button className="sf-ctrl-btn"                  onClick={fitWidth} title="Fit to width"><span className="sf-fit-w-icon">↔</span></button>
+        <button className="sf-ctrl-btn"                  onClick={reset}    title="100%"><RotateCcw className="w-3 h-3" /></button>
         {totalPages > 0 && (
           <span className="sf-ctrl-info">{totalPages} page{totalPages !== 1 ? 's' : ''}</span>
         )}

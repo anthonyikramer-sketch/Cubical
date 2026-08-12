@@ -1,0 +1,361 @@
+# Fix the Sheet Fill Document Viewer Layout
+
+The current document viewer layout is still incorrect and too small.
+
+This is a layout correction to the existing Sheet Fill tool.
+
+The document previews should be treated as the PRIMARY content of the page once files are loaded.
+
+## Critical Layout Requirements
+
+### 1. Center the Document Workspace
+
+The entire document viewing area must be centered horizontally within the available Sheet Fill workspace.
+
+Do not anchor the viewer against the right side of the application.
+
+The viewer area should visually sit in the center of the page.
+
+---
+
+# 2. Files Must Be ABOVE Their Viewers
+
+The uploaded file cards must NOT be inside the document viewer border.
+
+Each file should have its own separate file card/control ABOVE its corresponding viewer.
+
+Example:
+
+**Master Document**
+
+[ LiveOutLoveOct2026.pdf ]
+
+[ LARGE PDF VIEWER ]
+
+And:
+
+**Excel Template**
+
+[ LiveOutLoveX.xlsx ]
+
+[ LARGE EXCEL VIEWER ]
+
+The file card and viewer are separate UI elements.
+
+Do not place the uploaded file card inside the document viewport.
+
+---
+
+# 3. Each Document Gets Its Own Viewer
+
+The Master Document and Excel Template must each have their own independent viewer container.
+
+Do not combine both documents into one shared viewer frame.
+
+When viewing Side by Side, the structure should be:
+
+[ Master PDF file card ]       [ Excel file card ]
+
+[ Master PDF viewer ]          [ Excel viewer ]
+
+Each viewer should have:
+
+* Its own border
+* Its own scrolling
+* Its own controls
+* Its own internal document area
+
+---
+
+# 4. The Viewers Are Currently Far Too Small
+
+Increase the viewer size substantially.
+
+The Master Document viewer must be large enough to display one FULL PDF PAGE at once at a comfortable readable size.
+
+The user should be able to see:
+
+* The top of the page
+* The bottom of the page
+* The full left edge
+* The full right edge
+
+without the PDF being clipped by the viewer at the default full-page viewing mode.
+
+Do not size the viewer as a small preview card.
+
+It should feel like a proper document viewer.
+
+---
+
+# 5. PDF Determines the Baseline Size
+
+Use the Master Document PDF page as the baseline for the viewer dimensions.
+
+Determine a comfortable display size where a full PDF page can be seen.
+
+Then make the viewer border slightly larger than that rendered PDF page.
+
+There should be visible breathing room around the PDF.
+
+The relationship should look like:
+
+Viewer Border
+→ small internal margin
+→ full PDF page
+→ small internal margin
+→ Viewer Border
+
+The PDF should not touch the viewer edges.
+
+---
+
+# 6. Excel Viewer Must Match the PDF Viewer EXACTLY
+
+In Side-by-Side mode:
+
+The Excel Template viewer must have the SAME:
+
+* Width
+* Height
+* Outer dimensions
+
+as the Master Document viewer.
+
+The two viewer containers should visually match.
+
+If the Master Document viewer is 650px wide × 850px tall, the Excel viewer should also be 650px wide × 850px tall.
+
+Do not make the Excel preview narrower, shorter, or differently proportioned.
+
+The Excel content can scroll inside its viewer.
+
+The viewer itself should match the PDF viewer dimensions.
+
+---
+
+# 7. Side-by-Side Mode
+
+When the user selects:
+
+**Side by Side**
+
+display:
+
+Master Document file card
+above
+Master Document viewer
+
+beside:
+
+Excel Template file card
+above
+Excel Template viewer
+
+Both viewer containers should be equal size.
+
+Both should be large enough to be genuinely useful.
+
+The layout should remain centered in the available page space.
+
+If the two full-sized viewers cannot fit comfortably at their preferred size on the current screen, scale BOTH viewer containers down proportionally together.
+
+Do not shrink one independently from the other.
+
+Maintain matching dimensions.
+
+---
+
+# 8. Master Document Tab
+
+When the user selects:
+
+**Master Document**
+
+hide the Excel Template file card and viewer completely.
+
+Then center the Master Document file card and Master Document viewer in the available workspace.
+
+The PDF viewer should remain large enough to display the full PDF page.
+
+Do not leave an empty column where the Excel viewer used to be.
+
+Do not anchor the Master Document viewer to one side.
+
+It should be centered.
+
+---
+
+# 9. Excel Template Tab
+
+When the user selects:
+
+**Excel Template**
+
+hide the Master Document file card and viewer completely.
+
+Then center the Excel Template file card and Excel viewer in the available workspace.
+
+The Excel viewer should use the same baseline dimensions as the Master Document viewer.
+
+Do not leave an empty Master Document column.
+
+Do not anchor the Excel viewer to one side.
+
+It should be centered.
+
+---
+
+# 10. Analyze & Fill Placement
+
+Move:
+
+**Analyze & Fill**
+
+BELOW the document viewer workspace.
+
+The button should be horizontally centered beneath the viewer or viewers.
+
+Do not position Analyze & Fill beside the viewer.
+
+The visual flow should be:
+
+Files
+
+↓
+
+Document Viewer(s)
+
+↓
+
+Analyze & Fill
+
+The privacy/helper text:
+
+`Files are read locally — nothing is uploaded.`
+
+can appear directly below the Analyze & Fill button.
+
+---
+
+# 11. Viewer Border Padding
+
+The viewer border should be slightly larger than the rendered document.
+
+For the PDF:
+
+* Center the page inside the viewer.
+* Leave a modest margin around all four sides.
+* Do not crop the page.
+* Do not allow the PDF to touch the outer border.
+
+For Excel:
+
+* Use the same viewer dimensions.
+* Keep a modest internal margin between spreadsheet content and the viewer boundary where appropriate.
+
+The border should feel like a frame around the content rather than a tight box around it.
+
+---
+
+# 12. Default PDF Zoom Behavior
+
+The default PDF view should prioritize:
+
+**Fit Entire Page**
+
+rather than an arbitrary zoom percentage such as 120%.
+
+When the Master Document is first loaded, automatically size the PDF so one complete page fits inside the viewer while leaving the required padding.
+
+The user can still zoom in afterward.
+
+The initial view should not clip the left, right, top, or bottom of the document.
+
+---
+
+# 13. Do Not Waste Available Space
+
+The current application has substantial unused workspace.
+
+Use enough of that space to provide useful document viewing.
+
+However, do not make the viewer arbitrarily gigantic.
+
+The target is:
+
+**Large enough to show a complete document page comfortably, with matching Excel dimensions and modest border padding.**
+
+Not:
+
+**Fill every available pixel.**
+
+---
+
+# Desired Visual Structure
+
+## Master Document Tab
+
+```
+            [ LiveOutLoveOct2026.pdf ]
+
+          ┌───────────────────────────┐
+          │                           │
+          │      FULL PDF PAGE        │
+          │                           │
+          │      centered inside      │
+          │       viewer border       │
+          │                           │
+          └───────────────────────────┘
+
+                [ Analyze & Fill ]
+```
+
+---
+
+## Excel Template Tab
+
+```
+              [ LiveOutLoveX.xlsx ]
+
+          ┌───────────────────────────┐
+          │                           │
+          │       EXCEL VIEWER        │
+          │                           │
+          │    SAME SIZE AS PDF       │
+          │        VIEWER             │
+          │                           │
+          └───────────────────────────┘
+
+                [ Analyze & Fill ]
+```
+
+---
+
+## Side-by-Side Tab
+
+[ Master PDF file ]                    [ Excel file ]
+
+┌─────────────────────────┐     ┌─────────────────────────┐
+│                         │     │                         │
+│      FULL PDF PAGE      │     │      EXCEL VIEWER       │
+│                         │     │                         │
+│                         │     │                         │
+│                         │     │                         │
+└─────────────────────────┘     └─────────────────────────┘
+
+Both viewer containers must have the same width and height.
+
+```
+                 [ Analyze & Fill ]
+```
+
+# Final Principle
+
+Once files are loaded, the viewer should feel like the CENTERPIECE of Sheet Fill.
+
+The current small right-aligned preview-panel design is not acceptable.
+
+Make the document workspace:
+
+**large, centered, balanced, separate, and easy to inspect.**
