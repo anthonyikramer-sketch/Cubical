@@ -373,29 +373,29 @@ export function SheetFill() {
           {/* ── LEFT: controls ── */}
           <div className="sf-controls-pane">
 
-            {/* Compact file slots */}
-            <div className="sf-compact-slots">
-              <div className="sf-slot-row">
-                <span className="sf-slot-label">PDF</span>
-                <DropZone
-                  label="Source Document" accept=".pdf,application/pdf" acceptDesc="PDF"
-                  icon={<FileText className="w-4 h-4" />}
-                  file={pdfFile} onFile={loadPdfFile} onClear={clearPdf}
-                  disabled={step === 'analyzing'} compact
-                />
+            {/* Missing file prompt — shown only when one file is absent and we're still in setup */}
+            {step === 'setup' && (!pdfFile || !xlsxFile) && (
+              <div className="sf-missing-files">
+                {!pdfFile && (
+                  <DropZone
+                    label="Source Document" accept=".pdf,application/pdf" acceptDesc="PDF"
+                    icon={<FileText className="w-4 h-4" />}
+                    file={pdfFile} onFile={loadPdfFile} onClear={clearPdf}
+                    compact
+                  />
+                )}
+                {!xlsxFile && (
+                  <DropZone
+                    label="Excel Template"
+                    accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    acceptDesc="XLSX"
+                    icon={<FileSpreadsheet className="w-4 h-4" />}
+                    file={xlsxFile} onFile={loadXlsxFile} onClear={clearXlsx}
+                    compact
+                  />
+                )}
               </div>
-              <div className="sf-slot-row">
-                <span className="sf-slot-label">XLSX</span>
-                <DropZone
-                  label="Excel Template"
-                  accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                  acceptDesc="XLSX"
-                  icon={<FileSpreadsheet className="w-4 h-4" />}
-                  file={xlsxFile} onFile={loadXlsxFile} onClear={clearXlsx}
-                  disabled={step === 'analyzing'} compact
-                />
-              </div>
-            </div>
+            )}
 
             {/* ── Setup controls ── */}
             {step === 'setup' && (
@@ -584,49 +584,99 @@ export function SheetFill() {
             {/* ── Content ── */}
             <div className="sf-preview-content">
 
-              {/* PDF */}
-              {activeTab === 'pdf' && pdfData && (
-                <PdfViewer ref={pdfViewerRef} data={pdfData} className="sf-viewer-full" />
-              )}
-              {activeTab === 'pdf' && !pdfData && (
-                <div className="sf-viewer-empty">
-                  <FileText className="w-8 h-8" />
-                  <p>Upload a PDF to preview it here.</p>
+              {/* PDF single view */}
+              {activeTab === 'pdf' && (
+                <div className="sf-single-viewer">
+                  <div className="sf-viewer-header">
+                    <span className="sf-vh-label">Master Document</span>
+                    <DropZone
+                      label="Source Document" accept=".pdf,application/pdf" acceptDesc="PDF"
+                      icon={<FileText className="w-3.5 h-3.5" />}
+                      file={pdfFile} onFile={loadPdfFile} onClear={clearPdf}
+                      disabled={step === 'analyzing'} compact
+                    />
+                  </div>
+                  {pdfData
+                    ? <PdfViewer ref={pdfViewerRef} data={pdfData} />
+                    : (
+                      <div className="sf-viewer-empty">
+                        <FileText className="w-8 h-8" />
+                        <p>Upload a PDF to preview it here.</p>
+                      </div>
+                    )}
                 </div>
               )}
 
-              {/* Excel original */}
-              {activeTab === 'xlsx-orig' && xlsxData && (
-                <XlsxViewer data={xlsxData} />
-              )}
-              {activeTab === 'xlsx-orig' && !xlsxData && (
-                <div className="sf-viewer-empty">
-                  <FileSpreadsheet className="w-8 h-8" />
-                  <p>Upload an XLSX template to preview it here.</p>
+              {/* Excel original single view */}
+              {activeTab === 'xlsx-orig' && (
+                <div className="sf-single-viewer">
+                  <div className="sf-viewer-header">
+                    <span className="sf-vh-label">Excel Template</span>
+                    <DropZone
+                      label="Excel Template"
+                      accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                      acceptDesc="XLSX"
+                      icon={<FileSpreadsheet className="w-3.5 h-3.5" />}
+                      file={xlsxFile} onFile={loadXlsxFile} onClear={clearXlsx}
+                      disabled={step === 'analyzing'} compact
+                    />
+                  </div>
+                  {xlsxData
+                    ? <XlsxViewer data={xlsxData} />
+                    : (
+                      <div className="sf-viewer-empty">
+                        <FileSpreadsheet className="w-8 h-8" />
+                        <p>Upload an XLSX template to preview it here.</p>
+                      </div>
+                    )}
                 </div>
               )}
 
               {/* Filled preview */}
               {activeTab === 'xlsx-filled' && xlsxData && (
-                <XlsxViewer
-                  data={xlsxData}
-                  virtualCells={virtualCells}
-                  highlightMeta={highlightMeta}
-                  onCellClick={(id, meta, rect) => setCellPopover({ id, meta, rect })}
-                />
+                <div className="sf-single-viewer">
+                  <div className="sf-viewer-header">
+                    <span className="sf-vh-label sf-vh-label-filled">Filled Preview</span>
+                    <span className="sf-vh-note">Highlighted cells are proposed changes — click any to inspect</span>
+                  </div>
+                  <XlsxViewer
+                    data={xlsxData}
+                    virtualCells={virtualCells}
+                    highlightMeta={highlightMeta}
+                    onCellClick={(id, meta, rect) => setCellPopover({ id, meta, rect })}
+                  />
+                </div>
               )}
 
-              {/* Side by side: PDF + Original Excel */}
+              {/* Side by side: file controls in each panel header */}
               {activeTab === 'side-by-side' && (
                 <div className="sf-sidebyside">
                   <div className="sf-sb-panel">
-                    <div className="sf-sb-label">Master Document</div>
+                    <div className="sf-viewer-header">
+                      <span className="sf-vh-label">Master Document</span>
+                      <DropZone
+                        label="Source Document" accept=".pdf,application/pdf" acceptDesc="PDF"
+                        icon={<FileText className="w-3.5 h-3.5" />}
+                        file={pdfFile} onFile={loadPdfFile} onClear={clearPdf}
+                        disabled={step === 'analyzing'} compact
+                      />
+                    </div>
                     {pdfData
                       ? <PdfViewer ref={pdfViewerRef} data={pdfData} />
                       : <div className="sf-viewer-empty"><FileText className="w-6 h-6" /><p>Upload a PDF</p></div>}
                   </div>
                   <div className="sf-sb-panel">
-                    <div className="sf-sb-label">Excel Template</div>
+                    <div className="sf-viewer-header">
+                      <span className="sf-vh-label">Excel Template</span>
+                      <DropZone
+                        label="Excel Template"
+                        accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        acceptDesc="XLSX"
+                        icon={<FileSpreadsheet className="w-3.5 h-3.5" />}
+                        file={xlsxFile} onFile={loadXlsxFile} onClear={clearXlsx}
+                        disabled={step === 'analyzing'} compact
+                      />
+                    </div>
                     {xlsxData
                       ? <XlsxViewer data={xlsxData} />
                       : <div className="sf-viewer-empty"><FileSpreadsheet className="w-6 h-6" /><p>Upload an XLSX</p></div>}
@@ -638,11 +688,15 @@ export function SheetFill() {
               {activeTab === 'compare' && xlsxData && (
                 <div className="sf-sidebyside">
                   <div className="sf-sb-panel">
-                    <div className="sf-sb-label">Original</div>
+                    <div className="sf-viewer-header">
+                      <span className="sf-vh-label">Original</span>
+                    </div>
                     <XlsxViewer data={xlsxData} />
                   </div>
                   <div className="sf-sb-panel">
-                    <div className="sf-sb-label sf-sb-label-filled">Filled Preview</div>
+                    <div className="sf-viewer-header">
+                      <span className="sf-vh-label sf-vh-label-filled">Filled Preview</span>
+                    </div>
                     <XlsxViewer
                       data={xlsxData}
                       virtualCells={virtualCells}

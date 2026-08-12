@@ -1,0 +1,107 @@
+# Adjust the Sheet Fill Document Viewer Layout
+
+Update the existing Sheet Fill document preview layout.
+
+The goal is NOT to make the document viewers fill every unused pixel of the page.
+
+The goal is to make the previews large enough to comfortably view a **full PDF page**, and then use that same viewer height for the Excel preview so both sides feel balanced.
+
+## Side-by-Side View
+
+When viewing:
+
+**Master Document | Excel Template**
+
+size the Master Document viewer so one full PDF page can be viewed comfortably within the available application window.
+
+Use that PDF viewer height as the baseline height for BOTH document viewers.
+
+The Excel Template viewer should therefore have the same height as the Master Document viewer.
+
+Example:
+
+* Master PDF viewer: full-page viewing height
+* Excel viewer: exact same height
+* Both panes should align cleanly along the top and bottom
+
+Do not shrink both viewers into a small preview card simply to fit them beside one another.
+
+Each side should receive approximately half of the available document-workspace width.
+
+The Excel viewer may scroll vertically and horizontally inside its pane.
+
+The PDF viewer may scroll through additional pages inside its pane.
+
+## Single-Document Tabs
+
+The tabs are view modes:
+
+### Master Document
+
+When the user selects **Master Document**:
+
+* Completely hide/remove the Excel Template viewer from the document workspace.
+* Expand the Master Document viewer horizontally into the space that was previously occupied by Excel.
+* Center the PDF page within the enlarged viewer.
+* Keep the viewer at a sensible full-page viewing height.
+* Do not unnecessarily stretch the viewer vertically just because additional empty space exists.
+
+### Excel Template
+
+When the user selects **Excel Template**:
+
+* Completely hide/remove the Master Document viewer.
+* Expand the Excel Template viewer horizontally into the freed space.
+* Allow the spreadsheet to use the additional width.
+* Keep approximately the same sensible viewer height used in the document workspace.
+* Do not leave an empty PDF-sized column beside it.
+
+### Side by Side
+
+When the user selects **Side by Side**:
+
+* Restore both viewers.
+* Give each approximately 50% of the available workspace width.
+* Give both viewers the same height.
+* Base that height on what is needed to comfortably display a full PDF page.
+
+## File Controls
+
+After files have been loaded, move each file control above its corresponding document preview.
+
+In Side-by-Side mode, the layout should conceptually be:
+
+**Master Document file**
+[PDF viewer]
+
+beside:
+
+**Excel Template file**
+[Excel viewer]
+
+The PDF upload/current-file control should visually belong to the PDF viewer.
+
+The XLSX upload/current-file control should visually belong to the Excel viewer.
+
+Do not leave both file controls grouped far away from the previews after the files have been loaded.
+
+## Important Layout Principle
+
+The PDF determines the baseline viewer height because a document page has a natural visual size.
+
+The Excel preview should match that viewer height for visual consistency.
+
+When one tab is selected individually, use the additional HORIZONTAL space, but do not inflate the viewer vertically without reason.
+
+The desired effect is:
+
+**Side by Side**
+Two equally sized, useful document viewers.
+
+**Master Document**
+One centered, wider PDF viewer.
+
+**Excel Template**
+One wider spreadsheet viewer.
+
+The layout should feel like a document workspace, not a dashboard containing tiny preview cards.
