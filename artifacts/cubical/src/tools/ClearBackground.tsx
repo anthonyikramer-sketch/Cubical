@@ -23,28 +23,91 @@ function colorDistance(a: RgbColor, b: RgbColor): number {
 const MAX_DIST = Math.sqrt(3 * 255 ** 2);
 
 /**
- * Remove background from imageData in-place.
+ * Remove background from imageData in-place using edge-connected flood fill
+ * (BFS from all border pixels). Only pixels reachable from the image edges
+ * within the color tolerance are made transparent — interior pixels that
+ * happen to share the background color are preserved.
+ *
  * Uses soft alpha blending so anti-aliased edges don't leave a hard ring.
  */
 function removeBackground(
   data: Uint8ClampedArray,
   target: RgbColor,
   tolerance: number, // 0-100 user-facing → mapped to 0-MAX_DIST internally
+  width: number,
+  height: number,
 ): void {
   const threshold = (tolerance / 100) * MAX_DIST;
   const feather   = threshold * 0.25; // blend zone width
 
-  for (let i = 0; i < data.length; i += 4) {
-    const a = data[i + 3];
-    if (a === 0) continue; // already transparent — skip
+  // visited[pixelIndex] = true once we've queued/processed that pixel
+  const visited = new Uint8Array(width * height);
+  const queue: number[] = [];
+
+  // Seed BFS with all border pixels that match the target color
+  const enqueue = (x: number, y: number) => {
+    const idx = y * width + x;
+    if (visited[idx]) return;
+    const i = idx * 4;
+    if (data[i + 3] === 0) {
+      // Already transparent — mark visited but don't flood further
+      visited[idx] = 1;
+      return;
+    }
     const pixel: RgbColor = { r: data[i], g: data[i + 1], b: data[i + 2] };
     const dist = colorDistance(pixel, target);
     if (dist <= threshold) {
-      // Inside threshold → calculate soft alpha
-      const alpha = dist <= threshold - feather
-        ? 0
-        : Math.round(((dist - (threshold - feather)) / feather) * a);
-      data[i + 3] = Math.min(a, alpha);
+      visited[idx] = 1;
+      queue.push(idx);
+    }
+  };
+
+  // Top and bottom rows
+  for (let x = 0; x < width; x++) {
+    enqueue(x, 0);
+    enqueue(x, height - 1);
+  }
+  // Left and right columns (excluding corners already covered)
+  for (let y = 1; y < height - 1; y++) {
+    enqueue(0, y);
+    enqueue(width - 1, y);
+  }
+
+  // BFS flood fill
+  let qi = 0;
+  while (qi < queue.length) {
+    const idx = queue[qi++];
+    const x = idx % width;
+    const y = (idx - x) / width;
+
+    // Apply soft alpha to this pixel
+    const i = idx * 4;
+    const a = data[i + 3];
+    const pixel: RgbColor = { r: data[i], g: data[i + 1], b: data[i + 2] };
+    const dist = colorDistance(pixel, target);
+    const alpha = dist <= threshold - feather
+      ? 0
+      : feather > 0
+        ? Math.round(((dist - (threshold - feather)) / feather) * a)
+        : 0;
+    data[i + 3] = Math.min(a, alpha);
+
+    // Expand to 4-connected neighbours
+    const neighbours: [number, number][] = [
+      [x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1],
+    ];
+    for (const [nx, ny] of neighbours) {
+      if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
+      const nIdx = ny * width + nx;
+      if (visited[nIdx]) continue;
+      const ni = nIdx * 4;
+      if (data[ni + 3] === 0) { visited[nIdx] = 1; continue; }
+      const nPixel: RgbColor = { r: data[ni], g: data[ni + 1], b: data[ni + 2] };
+      const nDist = colorDistance(nPixel, target);
+      if (nDist <= threshold) {
+        visited[nIdx] = 1;
+        queue.push(nIdx);
+      }
     }
   }
 }
@@ -86,7 +149,7 @@ export function ClearBackground() {
     const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
     ctx.drawImage(img, 0, 0);
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    removeBackground(imageData.data, color, tol);
+    removeBackground(imageData.data, color, tol, canvas.width, canvas.height);
     ctx.putImageData(imageData, 0, 0);
 
     // Revoke previous object URL to avoid leaks
