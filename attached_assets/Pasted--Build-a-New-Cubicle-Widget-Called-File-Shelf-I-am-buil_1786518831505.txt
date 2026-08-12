@@ -1,0 +1,1029 @@
+# Build a New Cubicle Widget Called “File Shelf”
+
+I am building a desktop software platform called **Cubicle**. Cubicle is a free, downloadable, Steam-inspired productivity platform where users can install tools and customize their workspace with widgets.
+
+Build a NEW Cubicle widget called:
+
+# File Shelf
+
+**Description:**
+Keep frequently referenced files organized and one click away.
+
+File Shelf is NOT a file editor and is NOT intended to replace Windows File Explorer.
+
+It is a lightweight, persistent file-reference widget designed for users who frequently need to look through the same PDFs, documents, spreadsheets, images, or other files while working.
+
+The fundamental idea is:
+
+**Add important files → organize them into optional folders → find them quickly → click one whenever you need it → view it directly inside Cubicle.**
+
+Everything should work locally inside the packaged Cubicle Electron desktop application.
+
+No AI is required.
+
+---
+
+# Core Widget
+
+File Shelf itself should behave like all other Cubicle widgets.
+
+It must use Cubicle's existing widget system and support the same behaviors as other widgets, including:
+
+* Moving around the workspace
+* Resizing
+* Moving to another Cubicle tab
+* Persisting its location
+* Persisting its size
+* Persisting its contents
+* Existing widget customization behavior
+* Existing widget close/remove behavior
+
+Do not create a separate standalone application.
+
+File Shelf lives directly inside the user's Cubicle workspace.
+
+---
+
+# Main File Shelf Interface
+
+The File Shelf interface should be vertically organized in this order:
+
+1. Search bar
+2. Add File and Create Folder controls
+3. Folders
+4. Files
+
+Conceptually:
+
+**Search File Shelf...**
+
+**+ Add File**   **+ Create Folder**
+
+📁 Event Documents
+📁 Budgets
+📁 Reference
+
+📄 October Event Master
+📊 Current Budget
+📄 Employee Handbook
+
+The file/folder area should be vertically scrollable when there are more items than can fit inside the widget.
+
+Keep the interface compact enough to remain useful as a desktop widget.
+
+---
+
+# Search Bar
+
+At the top of File Shelf, provide a search bar.
+
+Placeholder:
+
+**Search File Shelf...**
+
+Search should work locally and instantly.
+
+It should search:
+
+* File nicknames
+* Original filenames
+* Folder names
+
+Do NOT use AI or an external search service.
+
+Search results should update as the user types.
+
+If a matching file is located inside a folder, the search result should still make that file discoverable.
+
+Where practical, indicate the folder it belongs to.
+
+Example:
+
+**October Event Master**
+`Event Documents`
+
+Clicking the result should open the file normally.
+
+---
+
+# Add File and Create Folder
+
+Directly BELOW the search bar, provide two controls:
+
+**+ Add File**
+
+**+ Create Folder**
+
+These should remain easy to access.
+
+Below these controls should be the user's folders followed by their unfiled files.
+
+---
+
+# Adding Files
+
+Allow users to add files from their local computer using the normal desktop file picker.
+
+Drag-and-drop support is also desirable.
+
+The user should be able to add multiple files.
+
+When adding a file, allow the user to:
+
+* Assign a nickname
+* Assign a color
+* Optionally place it into an existing File Shelf folder
+
+If no folder is selected, place it in the main File Shelf area.
+
+---
+
+# File Entries
+
+Each saved file should appear as a compact row.
+
+A file entry should contain:
+
+* User-selected color indicator
+* File-type icon where appropriate
+* Nickname
+* Original filename, optionally in smaller secondary text
+* X/remove button on the far right where appropriate
+
+Example:
+
+🔵 📄 **October Event Master**
+`LiveOutLoveOct2026.pdf`
+
+🟢 📊 **Current Budget**
+`EventBudget.xlsx`
+
+🟣 📄 **Employee Handbook**
+`Handbook.pdf`
+
+Keep the list clean and easy to scan.
+
+---
+
+# File Nicknames
+
+When a user adds a file, allow them to assign a custom nickname.
+
+For example:
+
+Original filename:
+
+`LiveOutLoveOct2026_FINAL_REV3.pdf`
+
+Nickname:
+
+`October Event Master`
+
+The nickname should be the prominent name shown in File Shelf.
+
+The original filename may appear underneath in smaller text.
+
+If the user does not enter a nickname, use the original filename automatically.
+
+Allow the nickname to be changed later.
+
+---
+
+# File Colors
+
+Allow each File Shelf entry to have a user-selected color.
+
+This color is primarily an organizational marker.
+
+Do NOT force the user to assign meanings to colors.
+
+Provide a small color palette consistent with Cubicle's visual language.
+
+The selected color may appear as:
+
+* A small dot
+* A narrow colored strip
+* A file icon accent
+
+Avoid aggressively coloring the entire file row.
+
+Allow the color to be changed later.
+
+---
+
+# File Shelf Folders
+
+Users should be able to create simple folders INSIDE File Shelf.
+
+These are organizational folders for File Shelf references.
+
+They are NOT required to create actual folders or move files around on the user's computer.
+
+For example, the user might create:
+
+📁 **Current Events**
+
+📁 **Budgets**
+
+📁 **Employee Documents**
+
+📁 **Reference**
+
+Moving a file into one of these folders changes its organization inside File Shelf only.
+
+It must NOT move the original file on the user's computer.
+
+This distinction is extremely important.
+
+---
+
+# Creating a Folder
+
+Clicking:
+
+**+ Create Folder**
+
+should open a small, simple folder creation interface.
+
+Allow the user to choose:
+
+**Folder Name**
+
+and:
+
+**Folder Color**
+
+Then provide:
+
+**Cancel | Create Folder**
+
+After creation, the new folder should appear in the Folders section of File Shelf.
+
+---
+
+# Folder Colors
+
+Every File Shelf folder should support a user-selected color.
+
+Provide the same or a similar color palette used for individual files.
+
+The color should be visually obvious without overwhelming the interface.
+
+For example:
+
+🔵 📁 **Event Documents**
+
+🟢 📁 **Budgets**
+
+🟣 📁 **Reference**
+
+🟠 📁 **Current Project**
+
+Allow the folder's color to be changed later.
+
+Do NOT force a meaning onto any particular color.
+
+---
+
+# Opening Folders
+
+Clicking a folder should open that folder inside the File Shelf widget.
+
+When inside a folder, show the folder name clearly and provide an obvious way to return to the main File Shelf view.
+
+For example:
+
+**← File Shelf / Event Documents**
+
+Then show the files contained within that folder.
+
+The File Shelf widget itself should remain the same widget.
+
+Do not spawn a separate window simply for opening a folder.
+
+---
+
+# Folder Contents
+
+Files inside folders should behave exactly like files in the main File Shelf area.
+
+They can still be:
+
+* Opened
+* Viewed
+* Removed from File Shelf
+* Sent to another File Shelf folder
+* Found using Search
+* Nicknamed
+* Color coded
+
+A folder is simply an organizational layer.
+
+---
+
+# Folder Depth
+
+Keep folder organization SIMPLE.
+
+For V1, use one level of folders.
+
+Example:
+
+**File Shelf**
+→ Event Documents
+→ Budgets
+→ Reference
+
+Do NOT support deeply nested structures such as:
+
+File Shelf
+→ Work
+→ 2026
+→ October
+→ Events
+→ Current
+
+The goal is fast organization, not recreating File Explorer inside Cubicle.
+
+Files may either exist:
+
+* In the main File Shelf area
+* Inside one File Shelf folder
+
+---
+
+# Right-Click File Menu
+
+Right-clicking a file inside File Shelf should open a compact context menu.
+
+Include:
+
+**Open**
+
+**Send to Folder**
+
+**Remove from File Shelf**
+
+Use **Remove from File Shelf** rather than simply **Delete** if possible because the action does NOT delete the original file from the computer.
+
+If the UI uses the word Delete anywhere, it must make absolutely clear that only the File Shelf reference is being deleted.
+
+---
+
+# Open
+
+Selecting:
+
+**Open**
+
+should behave exactly like left-clicking the file.
+
+Open the file in a File Shelf Viewer if the file type is supported.
+
+---
+
+# Send to Folder
+
+Selecting:
+
+**Send to Folder**
+
+should open a submenu or small picker containing the user's File Shelf folders.
+
+Example:
+
+**Send to Folder →**
+
+* Event Documents
+* Budgets
+* Reference
+* Current Project
+
+Selecting a folder should move that FILE REFERENCE into the selected File Shelf folder.
+
+It must NOT move the actual file on the user's computer.
+
+If the file is already inside a folder, also provide:
+
+**Main File Shelf**
+
+as a destination.
+
+This allows the user to remove a file from a folder without removing it from File Shelf entirely.
+
+Example:
+
+**Send to Folder →**
+
+* Main File Shelf
+* Event Documents
+* Budgets
+* Reference
+
+The current folder may be disabled or visually marked.
+
+---
+
+# Removing a File from File Shelf
+
+Removing a file must ONLY remove its File Shelf reference.
+
+It must NEVER delete the original file from the user's computer.
+
+Show a confirmation:
+
+**Remove this file from File Shelf?**
+
+`This will not delete the original file from your computer.`
+
+Then:
+
+**Cancel | Remove**
+
+This applies whether removal was initiated from:
+
+* The file row X
+* The right-click context menu
+* Another File Shelf interface
+
+---
+
+# Folder Right-Click Menu
+
+Folders should also have a simple right-click menu.
+
+Include:
+
+**Open**
+
+**Rename**
+
+**Change Color**
+
+**Delete Folder**
+
+Deleting a File Shelf folder must NEVER delete original files from the user's computer.
+
+If the folder contains File Shelf references, ask what should happen to them before deleting the folder.
+
+Provide something such as:
+
+**Delete Folder**
+
+`This folder contains 6 files. What should happen to them?`
+
+**Move Files to Main File Shelf**
+
+**Remove Files from File Shelf**
+
+**Cancel**
+
+Make it clear that neither option deletes the original files from the user's computer.
+
+---
+
+# Reordering
+
+Allow users to reorder folders and files where practical.
+
+Drag-and-drop is preferred.
+
+Users should be able to:
+
+* Reorder folders
+* Reorder files
+* Drag a file into a folder
+* Drag a file back to the main File Shelf area
+
+Dragging a file into a folder should have the same result as:
+
+**Right Click → Send to Folder**
+
+Again, this changes File Shelf organization only.
+
+It does NOT move the actual file on disk.
+
+Persist the user's chosen organization and ordering.
+
+---
+
+# Opening a File
+
+Clicking the main area of a file entry should open that file inside Cubicle.
+
+This should NOT open a small modal dialog.
+
+Instead, create a dedicated:
+
+# File Shelf Viewer
+
+inside the Cubicle workspace.
+
+The viewer should behave similarly to a Cubicle widget/window.
+
+---
+
+# File Shelf Viewer
+
+When a user clicks a supported file, spawn a new read-only viewer in the current Cubicle workspace.
+
+For example:
+
+The user clicks:
+
+**October Event Master**
+
+File Shelf creates:
+
+**October Event Master — Viewer**
+
+The viewer displays the actual file contents.
+
+---
+
+# Viewer Must Behave Like a Cubicle Object
+
+The opened File Shelf Viewer should support the same workspace behavior as Cubicle widgets wherever practical.
+
+The user should be able to:
+
+* Move the viewer
+* Resize the viewer
+* Move the viewer to another Cubicle tab
+* Keep it open while working
+* Close it
+* Reopen it later from File Shelf
+
+Do NOT implement the viewer as a temporary centered modal that blocks the rest of Cubicle.
+
+It should feel like the user has placed the document itself onto their Cubicle workspace.
+
+---
+
+# Viewer Close Button
+
+The opened File Shelf Viewer must have an:
+
+**X**
+
+in its top-right corner.
+
+Clicking this X closes ONLY the open viewer.
+
+It must NOT:
+
+* Delete the original file
+* Remove the file from File Shelf
+* Modify the file
+
+This is different from removing a file from File Shelf.
+
+The behaviors are:
+
+**Remove from File Shelf**
+→ Remove the shortcut/reference from File Shelf.
+
+**Viewer X**
+→ Close this particular open viewer.
+
+Keep these behaviors completely separate.
+
+---
+
+# Read-Only Requirement
+
+File Shelf is for REFERENCE and VIEWING.
+
+It is NOT an editing tool.
+
+Do not allow users to modify the contents of files through File Shelf.
+
+The viewer should be explicitly read-only.
+
+This keeps the widget lightweight and prevents accidental file modifications.
+
+---
+
+# PDF Support
+
+PDF should receive excellent native support because it is one of the primary intended uses.
+
+When a PDF is opened, provide:
+
+* Full PDF rendering
+* Vertical page scrolling
+* Page numbers
+* Zoom in
+* Zoom out
+* Fit Page
+* Fit Width
+* Page count
+
+The PDF viewer should render the actual PDF pages rather than displaying extracted plain text.
+
+Default to a sensible **Fit Page** or **Fit Width** behavior based on viewer size.
+
+When the viewer is resized, PDF rendering should adapt appropriately.
+
+---
+
+# PDF Rendering Stability
+
+If using PDF.js, ensure rendering is stable during:
+
+* Viewer resizing
+* Zoom changes
+* Fit Page
+* Fit Width
+* Moving between tabs
+* Viewer mounting/unmounting
+* Rapid interactions
+
+Never start multiple PDF.js `render()` operations on the same canvas simultaneously.
+
+If a render is already active, cancel it or wait for it to complete before rendering again.
+
+Properly clean up render tasks when the viewer unmounts.
+
+Prevent errors such as:
+
+`Cannot use the same canvas during multiple render() operations.`
+
+Fix the underlying rendering lifecycle rather than hiding development errors.
+
+---
+
+# Other File Types
+
+File Shelf should be designed to support multiple file types.
+
+For V1, prioritize reliable viewing of common workplace/reference files.
+
+Where practical, support:
+
+* PDF
+* PNG
+* JPG / JPEG
+* WEBP
+* TXT
+* CSV
+* XLSX
+* DOCX
+
+However, do NOT build unreliable homemade renderers merely to claim every format is supported.
+
+The priority is:
+
+**Reliable viewing > enormous file compatibility list.**
+
+---
+
+# Unsupported Files
+
+File Shelf should still be able to STORE A REFERENCE to a file even if Cubicle cannot preview that file type internally.
+
+For unsupported file types, clicking the file should offer:
+
+**Preview unavailable**
+
+**Open in Default App**
+
+This should open the file using the user's normal operating-system application for that file type.
+
+---
+
+# Excel Viewing
+
+If XLSX preview support is implemented, it should be READ-ONLY.
+
+Allow:
+
+* Vertical scrolling
+* Horizontal scrolling
+* Worksheet switching
+* Viewing cell values
+* Viewing basic formatting where practical
+
+Do NOT include spreadsheet editing controls in File Shelf.
+
+---
+
+# Word Document Viewing
+
+If DOCX preview support is implemented, it should be READ-ONLY.
+
+Prioritize:
+
+* Readable text
+* Headings
+* Paragraphs
+* Tables
+* Basic formatting
+
+Do not attempt to recreate Microsoft Word.
+
+---
+
+# Image Viewing
+
+For supported image files, provide:
+
+* Image display
+* Zoom in
+* Zoom out
+* Fit to viewer
+* Natural aspect ratio preservation
+
+Do not allow image editing.
+
+---
+
+# Text File Viewing
+
+For TXT and similar plain-text files:
+
+* Display readable text
+* Allow vertical scrolling
+* Preserve line breaks
+* Provide reasonable wrapping
+* Remain read-only
+
+---
+
+# Multiple Open Files
+
+Allow multiple File Shelf Viewers to exist simultaneously.
+
+Opening one file should NOT automatically close another.
+
+Each viewer should be treated as its own workspace object.
+
+For example:
+
+**Event Master PDF**
+
+could remain open on one Cubicle tab while:
+
+**Current Budget**
+
+is open on another.
+
+---
+
+# Moving an Open File Between Tabs
+
+An open File Shelf Viewer should be movable between Cubicle tabs using the same or similar behavior used for existing widgets.
+
+The user should not have to close and reopen a document merely to move it to another workspace.
+
+---
+
+# Viewer Resizing
+
+File Shelf Viewers must be resizable.
+
+When resized:
+
+PDF:
+Recalculate Fit Page / Fit Width appropriately.
+
+Images:
+Scale while maintaining aspect ratio.
+
+Excel:
+Increase/decrease visible spreadsheet area.
+
+Text:
+Reflow/wrap where appropriate.
+
+Set sensible minimum dimensions so viewers cannot become unusably tiny.
+
+---
+
+# Persistence
+
+File Shelf should remember its organization between Cubicle sessions.
+
+Persist:
+
+* File reference/path
+* File nickname
+* File color
+* File type
+* File ordering
+* Folder names
+* Folder colors
+* Folder ordering
+* Which folder each file belongs to
+
+Also preserve the File Shelf widget's:
+
+* Position
+* Size
+* Tab placement
+
+using Cubicle's existing persistence system.
+
+Where supported by Cubicle's architecture, open File Shelf Viewer objects may also preserve:
+
+* Tab
+* Position
+* Size
+
+Do not duplicate original files merely to achieve persistence unless technically necessary.
+
+---
+
+# Local File References
+
+File Shelf should normally reference the user's ORIGINAL local files.
+
+File Shelf folders organize REFERENCES.
+
+They do not reorganize the user's actual computer filesystem.
+
+For example:
+
+Moving:
+
+`Budget.xlsx`
+
+from:
+
+**Main File Shelf**
+
+to:
+
+**Budgets**
+
+must NOT change where `Budget.xlsx` physically exists on the user's computer.
+
+This distinction must remain consistent throughout File Shelf.
+
+---
+
+# Missing or Moved Files
+
+The original file may eventually be:
+
+* Moved
+* Renamed
+* Deleted
+* Stored on a disconnected drive
+* Temporarily unavailable
+
+File Shelf must handle this gracefully.
+
+Display:
+
+**File unavailable**
+
+`File Shelf can't find this file at its saved location.`
+
+Provide:
+
+**Locate File**
+
+and:
+
+**Remove from File Shelf**
+
+If the user successfully locates the file again, update the saved reference while preserving:
+
+* Nickname
+* Color
+* Folder
+* Ordering
+* Other File Shelf metadata
+
+---
+
+# Compact Widget Behavior
+
+Because File Shelf is a widget, it may sometimes be resized fairly small.
+
+At smaller sizes:
+
+* Prioritize folder/file names
+* Keep color indicators visible
+* Keep important controls accessible
+* Truncate long filenames cleanly
+* Maintain vertical scrolling
+
+At larger sizes:
+
+* Show more secondary information
+* Allow more generous spacing
+
+Do not require a huge widget for File Shelf to remain useful.
+
+---
+
+# No AI
+
+File Shelf does NOT require AI.
+
+Do not add:
+
+* AI document analysis
+* AI summarization
+* AI extraction
+* AI categorization
+* AI search
+* External AI APIs
+
+This is intentionally a local, deterministic utility.
+
+---
+
+# Offline Requirement
+
+All core File Shelf functionality must work offline after Cubicle is downloaded and installed.
+
+This includes:
+
+* Adding files
+* Creating folders
+* Searching
+* Nicknames
+* Colors
+* Moving files into folders
+* Reordering
+* Right-click menus
+* Opening supported files
+* Viewing supported files
+* Moving viewers
+* Resizing viewers
+* Moving viewers between tabs
+* Closing/reopening viewers
+
+Do not depend on Replit or cloud APIs for core functionality.
+
+---
+
+# Electron / Desktop Requirement
+
+File Shelf must work in the packaged Cubicle Electron desktop application.
+
+Do not rely on:
+
+* Replit-specific file paths
+* Replit development servers
+* Temporary URLs
+* Browser sandbox behavior that will not exist in Electron
+* Replit-specific storage for file references
+
+Use appropriate desktop-safe local file handling.
+
+---
+
+# Future Cubicle Tool Integration
+
+Architect File Shelf so it can later participate in Cubicle's planned **Send to Tool** system.
+
+For example, in the future a user may right-click:
+
+**Budget.xlsx**
+
+and choose:
+
+**Send To → Another Cubicle Tool**
+
+Do NOT build the entire Send to Tool system inside File Shelf if Cubicle does not yet support it.
+
+Simply avoid architecture that would prevent this later.
+
+---
+
+# UX Goal
+
+File Shelf should feel like a small organized shelf of documents sitting directly on the user's digital desk.
+
+The user's mental model should be:
+
+**“These are the files I keep reaching for.”**
+
+The workflow should be:
+
+**File Shelf**
+
+→ Find file immediately
+
+→ Open it
+
+→ Read/reference it
+
+→ Close it when finished
+
+Folders provide just enough organization to keep a larger File Shelf manageable without turning the widget into a second File Explorer.
+
+Keep the experience:
+
+* Fast
+* Local
+* Read-only
+* Simple
+* Organized
+* Persistent
+* Visually consistent with Cubicle
+* Friendly to ordinary computer users

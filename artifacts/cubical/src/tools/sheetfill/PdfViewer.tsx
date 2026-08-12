@@ -26,12 +26,13 @@ export const PdfViewer = forwardRef<PdfViewerHandle, Props>(({ data, className =
   const [fitWidthScale, setFitWidthScale] = useState(1.0); // "fit width" scale
   const [loading, setLoading]       = useState(true);
 
-  const pdfDocRef    = useRef<any>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const pageRefs     = useRef<(HTMLDivElement | null)[]>([]);
-  const canvasRefs   = useRef<(HTMLCanvasElement | null)[]>([]);
-  const versionRef   = useRef(0);
-  const didFitRef    = useRef(false); // ensure auto-fit only runs once per load
+  const pdfDocRef      = useRef<any>(null);
+  const containerRef   = useRef<HTMLDivElement>(null);
+  const pageRefs       = useRef<(HTMLDivElement | null)[]>([]);
+  const canvasRefs     = useRef<(HTMLCanvasElement | null)[]>([]);
+  const versionRef     = useRef(0);
+  const didFitRef      = useRef(false); // ensure auto-fit only runs once per load
+  const renderTasksRef = useRef<any[]>([]); // active pdfjs render tasks — cancelled before each new pass
 
   useImperativeHandle(ref, () => ({
     scrollToPage: (page: number) => {
@@ -94,6 +95,11 @@ export const PdfViewer = forwardRef<PdfViewerHandle, Props>(({ data, className =
   // ── Re-render pages when totalPages or scale changes ─────────────────────
   useEffect(() => {
     if (!pdfDocRef.current || totalPages === 0) return;
+
+    // Cancel any in-flight render tasks before starting a new pass
+    renderTasksRef.current.forEach(t => { try { t.cancel(); } catch {} });
+    renderTasksRef.current = [];
+
     versionRef.current++;
     const v = versionRef.current;
 
@@ -109,7 +115,16 @@ export const PdfViewer = forwardRef<PdfViewerHandle, Props>(({ data, className =
         canvas.height = viewport.height;
         const ctx = canvas.getContext('2d')!;
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        await page.render({ canvasContext: ctx, viewport }).promise;
+        const task = page.render({ canvasContext: ctx, viewport });
+        renderTasksRef.current.push(task);
+        try {
+          await task.promise;
+        } catch (e: unknown) {
+          // RenderingCancelledException is expected when we cancel mid-pass
+          if (e && typeof e === 'object' && (e as { name?: string }).name === 'RenderingCancelledException') return;
+          throw e;
+        }
+        renderTasksRef.current = renderTasksRef.current.filter(t => t !== task);
 
         // Compute fit-width scale from first rendered page
         if (p === 1 && containerRef.current && !defaultFit) {

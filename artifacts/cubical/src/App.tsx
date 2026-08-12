@@ -116,6 +116,7 @@ const FileInspector       = lazy(() => import('./tools/FileInspector').then(m   
 const PdfFormFiller       = lazy(() => import('./tools/PdfFormFiller').then(m      => ({ default: m.PdfFormFiller })));
 const ClearBackground     = lazy(() => import('./tools/ClearBackground').then(m    => ({ default: m.ClearBackground })));
 const SheetFill           = lazy(() => import('./tools/SheetFill').then(m          => ({ default: m.SheetFill })));
+import { FileShelfWidget, FileShelfViewerLayer } from './widgets/FileShelfWidget';
 
 // ─── App version (injected by Vite define at build time) ─────────────────────
 declare const __APP_VERSION__: string;
@@ -598,7 +599,7 @@ function storeEvents(events: CalendarEvent[]) { writeLocal(CALENDAR_STORAGE_KEY,
 // LayoutItem.w/h are pixel dimensions.
 // No grid, no snapping — widgets float freely and stop where released.
 
-type WidgetId = 'calendar' | 'clock' | 'notepad' | 'file-finder' | 'link-shelf' | 'decision-maker' | 'calculator';
+type WidgetId = 'calendar' | 'clock' | 'notepad' | 'file-finder' | 'link-shelf' | 'decision-maker' | 'calculator' | 'file-shelf';
 
 type LayoutItem = { id: WidgetId; x: number; y: number; w: number; h: number; };
 
@@ -610,6 +611,7 @@ const WIDGET_LABELS: Record<WidgetId, string> = {
   'link-shelf':     'Link Shelf',
   'decision-maker': 'Decision Maker',
   calculator:       'Calculator',
+  'file-shelf':     'File Shelf',
 };
 
 // Minimum pixel dimensions — below these a widget cannot be resized
@@ -621,6 +623,7 @@ const WIDGET_MIN: Record<WidgetId, { w: number; h: number }> = {
   'link-shelf':     { w: 220, h: 180 },
   'decision-maker': { w: 220, h: 180 },
   calculator:       { w: 180, h: 280 },
+  'file-shelf':     { w: 220, h: 240 },
 };
 
 // Portable by default — widgets not in the registry (e.g. file-finder) are NOT portable.
@@ -658,6 +661,7 @@ const WIDGET_REGISTRY: WidgetDef[] = [
   { id: 'link-shelf',     label: 'Link Shelf',     defaultW: 390, defaultH: 264, defaultX: 0,   defaultY: 644 },
   { id: 'decision-maker', label: 'Decision Maker', defaultW: 310, defaultH: 360, defaultX: 400, defaultY: 644 },
   { id: 'calculator',     label: 'Calculator',     defaultW: 240, defaultH: 450, defaultX: 720, defaultY: 274 },
+  { id: 'file-shelf',    label: 'File Shelf',     defaultW: 280, defaultH: 420, defaultX: 720, defaultY: 0   },
   // file-finder is a system widget not managed through this registry
 ];
 
@@ -685,7 +689,7 @@ function getStoredLayout(): LayoutItem[] {
     if (!raw) return DEFAULT_LAYOUT;
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return DEFAULT_LAYOUT;
-    const ids: WidgetId[] = ['calendar', 'clock', 'notepad', 'file-finder', 'link-shelf', 'decision-maker', 'calculator'];
+    const ids: WidgetId[] = ['calendar', 'clock', 'notepad', 'file-finder', 'link-shelf', 'decision-maker', 'calculator', 'file-shelf'];
     const result: LayoutItem[] = [];
     for (const id of ids) {
       const found = parsed.find((item: unknown) => item && typeof item === 'object' && (item as Record<string, unknown>).id === id);
@@ -2569,6 +2573,7 @@ function GridWidget({
           {item.id === 'link-shelf'     && <LinkShelfWidget gridW={approxGridW} gridH={approxGridH} />}
           {item.id === 'decision-maker' && <DecisionMakerWidget gridW={approxGridW} gridH={approxGridH} />}
           {item.id === 'calculator'     && <CalculatorWidget />}
+          {item.id === 'file-shelf'    && <FileShelfWidget />}
         </div>
 
         {canRemove && (
@@ -4890,6 +4895,7 @@ function App() {
           </DisplacedWidgetBandCtx.Provider>
         </NavProvider>
       </Router>
+    <FileShelfViewerLayer />
     </PortableProvider>
   );
 }

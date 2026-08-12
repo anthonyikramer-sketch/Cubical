@@ -99,7 +99,7 @@ export const CUBICAL_SKINS: CubicalSkin[] = [
 
 // ─── Widget layout types ───────────────────────────────────────────────────────
 
-export type WidgetId = 'calendar' | 'clock' | 'notepad' | 'file-finder' | 'link-shelf' | 'decision-maker' | 'calculator';
+export type WidgetId = 'calendar' | 'clock' | 'notepad' | 'file-finder' | 'link-shelf' | 'decision-maker' | 'calculator' | 'file-shelf';
 
 export type LayoutItem = { id: WidgetId; x: number; y: number; w: number; h: number; };
 
@@ -111,6 +111,7 @@ export const WIDGET_LABELS: Record<WidgetId, string> = {
   'link-shelf':     'Link Shelf',
   'decision-maker': 'Decision Maker',
   calculator:       'Calculator',
+  'file-shelf':     'File Shelf',
 };
 
 export const WIDGET_MIN: Record<WidgetId, { w: number; h: number }> = {
@@ -121,6 +122,7 @@ export const WIDGET_MIN: Record<WidgetId, { w: number; h: number }> = {
   'link-shelf':     { w: 220, h: 180 },
   'decision-maker': { w: 220, h: 180 },
   calculator:       { w: 180, h: 280 },
+  'file-shelf':     { w: 220, h: 240 },
 };
 
 export const DEFAULT_LAYOUT: LayoutItem[] = [
