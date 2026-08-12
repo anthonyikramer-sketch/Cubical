@@ -1,0 +1,200 @@
+Add a new tool to the existing **Cubical** application called **Clear Background**.
+
+This is a **TOOL**, not a widget.
+
+It must integrate into Cubical's existing **Store and Library system** the same way the other Cubical tools do. Do not add Clear Background to the Home widget system, draggable widgets, or dashboard widget selection.
+
+## Cubical Integration
+
+Add **Clear Background** as a new tool in the Cubical Store.
+
+The tool should:
+
+* Be listed in the **Store** alongside the other productivity tools.
+* Be marked **FREE**.
+* Use the same Store card design, styling, spacing, buttons, and behavior as the existing Cubical tools.
+* Have a simple icon appropriate for an image/background-removal utility.
+* Have a short description explaining what it does.
+* Be discoverable through the existing Store search system.
+* Follow Cubical's existing ownership/claim behavior for free tools.
+* Once claimed/added, appear in the user's **Library**.
+* Follow the same owned-state behavior as other Store tools, including the existing greyed-out/green-check owned appearance if that is how the current system handles owned tools.
+* Be searchable through the existing Library search.
+* Launch from the Library like the other Cubical tools.
+* Use Cubical's existing tool-opening/navigation architecture rather than creating a separate website, browser tab, widget, or unrelated application.
+
+Do not redesign the Store, Library, sidebar, Home page, widgets, or other existing Cubical systems to accommodate this tool. Integrate it into what already exists.
+
+## Tool Purpose
+
+Clear Background is a lightweight image utility that allows the user to import an image and remove a white, near-white, or user-selected colored background by converting those pixels into transparency.
+
+The primary workflow should be extremely simple:
+
+**Open Clear Background → Add Image → Adjust if necessary → Export PNG**
+
+This should feel like a small, focused Cubical utility rather than a full image editor.
+
+## Core Functionality
+
+### 1. Import Image
+
+Allow the user to:
+
+* Drag and drop an image into the tool.
+* Click to browse for an image on their computer.
+
+Support common image formats such as PNG, JPG/JPEG, and WebP where practical.
+
+Once selected, display the image inside the tool.
+
+### 2. Automatic White Background Removal
+
+By default, Clear Background should target **white**.
+
+Detect white and near-white pixels and convert them into transparent pixels.
+
+The default settings should attempt to produce a useful result immediately so that, for a simple image on a white background, the user may only need to import the image and click Export.
+
+### 3. Tolerance Control
+
+Include a **Tolerance** slider.
+
+This determines how similar a pixel must be to the target color before it is removed.
+
+At low tolerance:
+
+* Only pixels extremely close to the selected color should be affected.
+
+At higher tolerance:
+
+* A wider range of similar colors should become transparent.
+
+The processed image preview must update in real time while the tolerance is adjusted.
+
+Display the current tolerance value in a simple, understandable way.
+
+### 4. Soft Edges / Anti-Aliasing
+
+Avoid creating ugly white outlines around the remaining image.
+
+Pixels around anti-aliased edges should be capable of becoming partially transparent based on their similarity to the target color.
+
+The goal is to produce smooth edges instead of a harsh pixelated cutout.
+
+Preserve the original colors of the subject as much as possible.
+
+### 5. Select Another Background Color
+
+Although the default target is white, allow the user to remove other solid-color backgrounds.
+
+Include a **Pick Color** feature.
+
+The user should be able to select a color from the imported image and make that the new target color.
+
+Show a small color swatch indicating the currently selected target color.
+
+The tolerance control should then operate relative to that selected color.
+
+Include an easy way to return the target color to white.
+
+### 6. Preview
+
+Provide a clear preview of the processed image.
+
+Use the standard checkerboard pattern behind transparent areas so transparency is immediately obvious.
+
+The interface may show:
+
+**Original | Result**
+
+or another clean comparison layout if that works better with Cubical's existing design.
+
+Do not let very large images break or overflow the interface. Scale them appropriately for preview while processing/exporting at their actual resolution.
+
+### 7. Export
+
+Include a prominent:
+
+**Export PNG**
+
+button.
+
+PNG should be used because the exported file needs to preserve transparency.
+
+The exported image should:
+
+* Preserve transparency.
+* Maintain the original image dimensions/resolution.
+* Preserve the remaining image quality as much as possible.
+* Save through a method compatible with both Cubical's current development environment and the packaged Electron desktop version.
+
+### 8. Reset / New Image
+
+Include controls to:
+
+* Reset the current adjustments.
+* Load a new image.
+
+Reset should restore the default white target color and default tolerance without requiring the user to re-import the image.
+
+## Privacy
+
+Perform the actual image processing **locally on the user's computer**.
+
+Do not upload images to an external service or API merely to remove the background.
+
+This is intended to be a fast, offline-friendly Cubical utility.
+
+## Tool UI
+
+Follow the existing **Cubical visual language**.
+
+Do not make Clear Background look like a separate application that has been embedded inside Cubical.
+
+Reuse existing Cubical components, typography, button styling, spacing, borders, cards, navigation patterns, and theme behavior wherever possible.
+
+The tool should remain visually compatible with Cubical skins/themes if the existing architecture supports them.
+
+A rough internal layout could be:
+
+**Clear Background**
+
+*Turn solid-color image backgrounds into transparency.*
+
+[ Drag an image here or Choose Image ]
+
+[ Original Preview ]     [ Result Preview ]
+
+**Target Color:** [ color swatch ] [ Pick Color ] [ Reset to White ]
+
+**Tolerance**
+[ slider ]
+
+[ Reset ]     [ Export PNG ]
+
+This is only a structural suggestion. Adapt it to Cubical's existing UI so it looks native.
+
+## Important Architecture Requirements
+
+This tool is part of **Cubical**, not a standalone project.
+
+Before implementing it, inspect how existing Cubical tools are registered, displayed in the Store, added to the Library, marked as owned, searched, launched, and navigated.
+
+Reuse those existing systems instead of creating duplicate systems specifically for Clear Background.
+
+Clear Background should be treated exactly like another installable/claimable Cubical tool.
+
+It is:
+
+**Store Item → FREE → Claim/Add → Library → Launch Tool**
+
+It is NOT:
+
+**Home Widget → Dashboard Widget → Draggable Widget**
+
+Do not add Clear Background to the widget selector or widget architecture.
+
+Make sure the implementation works in the existing React/Vite application and remains compatible with the Electron desktop build.
+
+Do not modify or break unrelated Cubical functionality while implementing this tool. Preserve the existing Store, Library, Home, Breakroom, Profile, Settings, widgets, navigation, persistence, themes, and other tools unless a minimal integration change is specifically required for Clear Background.

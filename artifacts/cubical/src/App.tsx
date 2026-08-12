@@ -86,6 +86,7 @@ import {
   Underline,
   X,
   Zap,
+  Eraser,
 } from 'lucide-react';
 import { Link, Route, Router, Switch, useLocation } from 'wouter';
 
@@ -113,6 +114,7 @@ const PdfToolkitPage      = lazy(() => import('./tools/PdfToolkitPage').then(m  
 const FileToolbox         = lazy(() => import('./tools/FileToolbox').then(m        => ({ default: m.FileToolbox })));
 const FileInspector       = lazy(() => import('./tools/FileInspector').then(m      => ({ default: m.FileInspector })));
 const PdfFormFiller       = lazy(() => import('./tools/PdfFormFiller').then(m      => ({ default: m.PdfFormFiller })));
+const ClearBackground     = lazy(() => import('./tools/ClearBackground').then(m    => ({ default: m.ClearBackground })));
 
 // ─── App version (injected by Vite define at build time) ─────────────────────
 declare const __APP_VERSION__: string;
@@ -331,6 +333,7 @@ type Product = CatalogProduct;
 // Add new entries here when adding products with new icon names.
 
 const ICON_REGISTRY: Record<string, typeof Files> = {
+  Eraser,
   File, FileArchive, FileScan, FileSpreadsheet, FileText, Files,
   FolderCog, FolderOpen, FolderSearch, FormInput,
   Gamepad2, Globe, HardDrive, Hash, ImagePlus, Monitor,
@@ -356,6 +359,7 @@ const DEFAULT_CATALOG_PRODUCTS: CatalogProduct[] = [
   { id: 'tool.startup-manager',     type: 'tool', name: 'Startup Manager',     description: 'See and manage what launches with Windows.',                             version: '1.0.0', price: 'FREE', isFree: true, iconName: 'PackageOpen',     iconColor: 'hsl(262 48% 50%)', iconBg: 'hsl(262 48% 50% / .11)', deliveryType: 'bundled', status: 'active' },
   { id: 'tool.file-inspector',      type: 'tool', name: 'File Inspector',      description: "Drop in a file and see what's inside.",                                  version: '1.0.0', price: 'FREE', isFree: true, iconName: 'FileText',        iconColor: 'hsl(350 58% 46%)', iconBg: 'hsl(350 58% 46% / .11)', deliveryType: 'bundled', status: 'active' },
   { id: 'tool.system-info',         type: 'tool', name: 'System Info',         description: 'A clean overview of your PC and hardware.',                              version: '1.0.0', price: 'FREE', isFree: true, iconName: 'Monitor',         iconColor: 'hsl(45 68% 40%)',  iconBg: 'hsl(45 68% 40% / .12)',  deliveryType: 'bundled', status: 'active' },
+  { id: 'tool.clear-background',    type: 'tool', name: 'Clear Background',    description: 'Remove white or solid-color backgrounds from images — locally, instantly.', version: '1.0.0', price: 'FREE', isFree: true, iconName: 'Eraser',        iconColor: 'hsl(195 60% 36%)', iconBg: 'hsl(195 60% 36% / .11)', deliveryType: 'bundled', status: 'active' },
   { id: 'tool.pdf-form-filler',     type: 'tool', name: 'PDF Form Filler',     description: 'Automatically detect fillable areas in PDFs, add text fields, save templates, and complete forms faster.', version: '1.0.0', price: 'FREE', isFree: true, iconName: 'FormInput',       iconColor: 'hsl(210 60% 42%)', iconBg: 'hsl(210 60% 42% / .11)', deliveryType: 'bundled', status: 'active' },
   { id: 'skin.sakura',              type: 'skin', name: 'Sakura',              description: 'Cherry blossoms and soft pinks. A peaceful seasonal look.',               version: '1.0.0', price: 'FREE', isFree: true, iconName: 'Sparkles',        iconColor: 'hsl(340 55% 55%)', iconBg: 'hsl(340 55% 55% / .12)', deliveryType: 'bundled', status: 'active', featured: true },
   { id: 'game.memory-match',        type: 'game', name: 'Memory Match',        description: 'A clean card-flipping memory game. Find all the pairs as fast as you can.', version: '1.0.0', price: 'FREE', isFree: true, iconName: 'Gamepad2',     iconColor: 'hsl(262 50% 52%)', iconBg: 'hsl(262 50% 52% / .12)', deliveryType: 'bundled', status: 'active' },
@@ -377,6 +381,7 @@ const TOOL_ROUTES: Record<string, string> = {
   'tool.file-inspector':      '/tool/file-inspector',
   'tool.system-info':         '/tool/system-info',
   'tool.pdf-form-filler':     '/tool/pdf-form-filler',
+  'tool.clear-background':    '/tool/clear-background',
 };
 
 function getToolRoute(product: CatalogProduct): string | undefined {
@@ -4870,6 +4875,7 @@ function App() {
               <Route path="/tool/file-inspector"><FileInspector /></Route>
               <Route path="/tool/system-info"><SystemInfoPage /></Route>
               <Route path="/tool/pdf-form-filler"><PdfFormFiller /></Route>
+              <Route path="/tool/clear-background"><ClearBackground /></Route>
               <Route path="/profile"><ProfilePage /></Route>
               <Route path="/settings"><SettingsPage /></Route>
               <Route><NotFound /></Route>

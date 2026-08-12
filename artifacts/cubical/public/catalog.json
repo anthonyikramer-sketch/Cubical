@@ -201,6 +201,24 @@
       "isNew": false
     },
     {
+      "id": "tool.clear-background",
+      "type": "tool",
+      "name": "Clear Background",
+      "description": "Remove white or solid-color backgrounds from images — locally, instantly.",
+      "version": "1.0.0",
+      "price": "FREE",
+      "isFree": true,
+      "iconName": "Eraser",
+      "iconColor": "hsl(195 60% 36%)",
+      "iconBg": "hsl(195 60% 36% / .11)",
+      "deliveryType": "bundled",
+      "category": "image",
+      "tags": ["image", "background", "transparency", "png"],
+      "status": "active",
+      "featured": false,
+      "isNew": true
+    },
+    {
       "id": "tool.system-info",
       "type": "tool",
       "name": "System Info",
