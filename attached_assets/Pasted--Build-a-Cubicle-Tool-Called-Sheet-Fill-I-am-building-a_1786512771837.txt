@@ -1,0 +1,405 @@
+# Build a Cubicle Tool Called “Sheet Fill”
+
+I am building a desktop software platform called **Cubicle**. Cubicle is a free, downloadable, Steam-inspired productivity platform where users can install simple workplace tools from a Store.
+
+This is a **TOOL for Cubicle**, not a widget.
+
+The tool should be called:
+
+# SheetFill
+
+**Store description:**
+Turn master documents into filled Excel templates. 
+It should be listed as FREE. 
+
+## Purpose
+
+SheetFill should allow a user to provide:
+
+1. A **master/source document**, initially supporting PDF.
+2. A **preformatted Excel ****`.xlsx`**** template**.
+
+SheetFill should read the source document, understand the structure and labels of the Excel template, identify information from the source document that corresponds to fields in the spreadsheet, fill supported information into the appropriate cells, preserve the original workbook formatting and structure, and export a new completed `.xlsx` file.
+
+The goal is to automate repetitive manual transcription from documents into existing Excel templates.
+
+## Example Workflow
+
+A user receives a multi-page event-planning PDF containing information such as:
+
+* Event date
+* Budget
+* Expected attendance
+* Event schedule
+* Check-in time
+* Program elements
+* Staffing requirements
+* Budget line items
+* Marketing expenses
+* Refreshments
+* Professional services
+
+The user's Excel template may contain fields or sections such as:
+
+* Team Lead
+* Budget
+* Estimated Attendance
+* Sponsors
+* Time of Event
+* Venue
+* Food & Hospitality
+* Decor & Ambience
+* Marketing & Promotion
+* Professional Services
+* Program Elements
+* Volunteer/Staff Support
+* Items
+* Details
+* Cost
+* Budget
+* Assigned
+* Thank You's Sent
+
+The wording between the document and spreadsheet does NOT have to be identical.
+
+For example:
+
+**Source document:**
+“Expected Attendance: 50 participants”
+
+**Excel template:**
+“Estimated Attendance”
+
+SheetFill should understand that these represent the same concept and propose filling the value `50 participants`.
+
+Another example:
+
+**Source:**
+“Marketing & Printing — $100”
+
+**Template:**
+“Marketing & Promotion”
+
+These are semantically related and can be matched.
+
+## Core Principle
+
+**The Excel template determines what information SheetFill is looking for.**
+
+Do NOT simply summarize the source document and dump information into the workbook.
+
+First analyze the workbook to understand its existing fields, categories, sections, repeating rows, headers, and value areas.
+
+Then analyze the source document specifically for information that can satisfy those fields.
+
+## Extraction Rules
+
+### 1. Never invent information
+
+Only populate a field when the source document provides reasonable evidence for the value.
+
+If the Excel template contains:
+
+`Venue: ______`
+
+but the source document never identifies a venue, leave it blank.
+
+Do NOT guess.
+
+Do NOT generate a plausible venue.
+
+Do NOT infer information merely because a field exists.
+
+### 2. Preserve existing human-entered information
+
+Existing non-empty cells should NOT be overwritten automatically.
+
+For example, if the workbook already contains:
+
+`Team Lead: Michelle`
+
+and the source document does not mention Michelle, preserve the existing value.
+
+The absence of information in the source document is NOT evidence that an existing spreadsheet value is wrong.
+
+### 3. Detect conflicts
+
+If an existing spreadsheet value conflicts with information found in the source document, do not automatically overwrite it.
+
+Instead, flag the conflict during review.
+
+Example:
+
+**Current spreadsheet:**
+Decor & Ambience — $50
+
+**Source document:**
+Decorations & General Supplies — $100
+
+Show the user both values and allow them to choose:
+
+* Keep existing $50
+* Replace with $100
+
+### 4. Support semantic matching
+
+Do not rely only on exact text matches.
+
+Examples:
+
+* Expected Attendance ↔ Estimated Attendance
+* Marketing & Printing ↔ Marketing & Promotion
+* Refreshments ↔ Food & Hospitality
+* Licensed Clinicians/Therapists ↔ Professional Services
+
+Use document context when determining whether two concepts correspond.
+
+### 5. Preserve relationships between values
+
+If the source contains:
+
+`Sneaker Design Studio Supplies — $200`
+
+keep the item and dollar amount connected.
+
+Do not independently extract `$200` without knowing what it belongs to.
+
+The resulting spreadsheet should place the item and its corresponding amount in the appropriate related cells.
+
+### 6. Handle repeating sections
+
+Some spreadsheet categories have multiple rows beneath them.
+
+For example, a source document may contain staffing requirements:
+
+* Event Director (1)
+* Open Mic Host/MC (1)
+* Licensed Clinicians/Therapists (3)
+* Visual Arts Facilitators (3)
+* Registration Team (2)
+* Hospitality Team (2)
+* Photographer/Social Media Volunteer (1)
+* General Volunteers (4–6)
+
+If the spreadsheet contains a `Volunteer/Staff Support` section with available rows, populate those requirements into that section.
+
+Similarly, program elements or budget items may contain multiple entries.
+
+### 7. Do not treat every empty cell as a destination
+
+Excel templates may contain hundreds of intentionally empty cells.
+
+Some sections may be reusable planning/reference material rather than fields that should automatically receive information.
+
+Analyze workbook structure, labels, neighboring cells, merged cells, formatting, headers, and categories to determine likely input areas.
+
+Never use the rule:
+
+`Empty cell = fillable cell`
+
+### 8. Be conservative when uncertain
+
+Every proposed extraction should internally have a confidence level:
+
+* High confidence
+* Medium confidence
+* Low confidence / unresolved
+
+High-confidence matches can be proposed normally.
+
+Medium-confidence matches should be visibly identified during review.
+
+Low-confidence matches should remain blank or be presented as suggestions rather than automatically inserted.
+
+When uncertain, leaving something blank is preferable to inserting incorrect information.
+
+## Review Screen
+
+Do NOT immediately modify/export the workbook after extraction.
+
+Show a simple review screen first.
+
+Example:
+
+**Ready to Fill**
+
+✓ Budget
+$1,500
+
+✓ Estimated Attendance
+50 participants
+
+✓ Check-in
+4:30 PM
+
+✓ Event Start
+5:00 PM
+
+✓ Refreshments
+$250
+
+⚠ Marketing & Promotion
+Matched from “Marketing & Printing — $100”
+
+— Venue
+Not found in source document
+
+— Sponsors
+Not found in source document
+
+For conflicts:
+
+⚠ **Decor & Ambience**
+
+Current spreadsheet: `$50`
+
+Source document: `Decorations & General Supplies — $100`
+
+Allow:
+
+**Keep $50**
+**Use $100**
+
+The user should be able to approve or reject proposed changes before the workbook is generated.
+
+## Excel Handling
+
+Use deterministic Excel-handling code to modify the workbook after extraction/matching has been approved.
+
+The AI or semantic extraction system should determine **what information corresponds to what field**.
+
+Normal program logic should perform the actual workbook modification.
+
+Preserve as much of the original workbook as possible, including:
+
+* Fonts
+* Font sizes
+* Cell colors
+* Borders
+* Alignment
+* Row heights
+* Column widths
+* Number formats
+* Currency formatting
+* Merged cells
+* Existing formulas
+* Existing values
+* Worksheet names
+* Workbook structure
+
+Do not rebuild the spreadsheet from scratch.
+
+Load the original workbook, modify only approved target cells, and save a new copy.
+
+Never overwrite the user's original file.
+
+## Export
+
+After approval, provide:
+
+**Export Filled Spreadsheet**
+
+The result should be a standard `.xlsx` file that can be opened normally in Microsoft Excel.
+
+Use a sensible filename derived from the original template, such as:
+
+`EventPlanning_Filled.xlsx`
+
+## User Interface
+
+Cubicle is intended for ordinary computer users, not programmers or Excel power users.
+
+The interface should therefore be extremely simple.
+
+Suggested flow:
+
+# SheetFill
+
+**Turn documents into completed Excel templates.**
+
+### 1. Master Document
+
+Drag PDF here
+or
+**Browse**
+
+### 2. Excel Template
+
+Drag XLSX here
+or
+**Browse**
+
+Once both are loaded:
+
+**Analyze & Fill**
+
+Then display the Review Screen.
+
+After review:
+
+**Create Spreadsheet**
+
+Then:
+
+**Save / Export .xlsx**
+
+Do not expose technical concepts such as JSON, schemas, XML, cell mappings, embeddings, LLM prompts, or parsing logic to the normal user.
+
+## Error Handling
+
+Provide friendly errors for situations such as:
+
+* Password-protected PDF
+* Corrupt XLSX
+* Unsupported file type
+* PDF containing little or no readable text
+* No meaningful matches between source and template
+* Workbook containing unsupported Excel features
+* Extraction failure
+
+Never silently create a spreadsheet filled with guesses when extraction fails.
+
+## Privacy
+
+Treat uploaded documents as potentially sensitive workplace documents.
+
+Do not retain source documents or generated spreadsheets longer than necessary for the tool's operation.
+
+Do not use uploaded documents for unrelated purposes.
+
+Avoid logging extracted document contents unnecessarily.
+
+## Initial File Support
+
+V1:
+
+**Source**
+
+* PDF
+
+**Template**
+
+* XLSX
+
+**Output**
+
+* XLSX
+
+Architect the tool so additional source formats such as `.docx` could be added later, but do not complicate V1 unnecessarily.
+
+## Cubicle Integration
+
+This is a **free Cubicle Store tool**.
+
+It should:
+
+* Launch from the user's Cubicle Library.
+* Follow Cubicle's existing tool-window conventions and visual language.
+* Feel like a native part of Cubicle rather than a separate website.
+* Be simple enough for a nontechnical office worker to understand immediately.
+* Not require the user to understand AI, Excel internals, or document parsing.
+* Prioritize clarity and reliability over advanced configuration.
+
+The fundamental promise of SheetFill is:
+
+**Give it the document you received and the spreadsheet you need to fill. SheetFill handles the repetitive transcription, shows you what it found, lets you verify it, and gives you back your Excel file.**
