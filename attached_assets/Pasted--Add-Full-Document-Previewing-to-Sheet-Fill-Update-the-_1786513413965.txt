@@ -1,0 +1,283 @@
+# Add Full Document Previewing to Sheet Fill
+
+Update the existing **Sheet Fill** Cubicle tool so users can visually inspect and scroll through both of their documents throughout the entire workflow.
+
+The user should never have to blindly trust Sheet Fill. They should be able to see the source document, the original Excel template, and the completed Excel workbook directly inside the tool.
+
+## Core Requirement
+
+Sheet Fill accepts:
+
+1. A master/source PDF
+2. An Excel `.xlsx` template
+
+After either file is loaded, the user must be able to **open and visually preview the entire document inside Sheet Fill without leaving the tool**.
+
+The previews must be scrollable and should resemble the actual documents as closely as reasonably possible.
+
+---
+
+# Before Analysis
+
+Once both documents are uploaded, show them in a document workspace.
+
+Provide two clearly labeled tabs or panels:
+
+**Master Document**
+
+**Excel Template**
+
+The user should be able to switch between them at any time.
+
+If screen space allows, also provide an optional:
+
+**Side-by-Side View**
+
+This displays:
+
+**Master Document | Excel Template**
+
+next to each other.
+
+Both sides must have their own independent scrolling.
+
+The user should be able to scroll through the entire PDF and through the relevant worksheet area of the Excel workbook.
+
+---
+
+# PDF Preview
+
+Render the actual PDF pages inside Sheet Fill.
+
+The user should be able to:
+
+* Scroll vertically through all pages
+* See page boundaries
+* See page numbers
+* Zoom in
+* Zoom out
+* Fit page to width
+* Return to 100% zoom
+
+The preview should preserve the visual appearance of the original PDF as closely as possible.
+
+Do not merely display extracted plain text.
+
+The user needs to be able to visually inspect the actual source document.
+
+---
+
+# Excel Preview
+
+Provide an Excel-style workbook preview.
+
+The user should be able to:
+
+* Scroll vertically
+* Scroll horizontally
+* View cell values
+* View rows and columns
+* See merged cells
+* See the workbook's existing formatting as accurately as reasonably possible
+* Switch worksheets if the workbook contains multiple sheets
+* Zoom in and out if practical
+
+The preview does NOT need to recreate the entire Microsoft Excel application.
+
+Its purpose is to let the user visually inspect the workbook and verify that Sheet Fill is putting information in the correct places.
+
+Do not convert the Excel workbook into a simple text list for this preview.
+
+It should visually resemble the spreadsheet.
+
+---
+
+# Analysis and Review
+
+After the user clicks:
+
+**Analyze & Fill**
+
+keep the document viewers available.
+
+The user should be able to inspect the master document while reviewing Sheet Fill's proposed matches.
+
+For example, if Sheet Fill proposes:
+
+**Estimated Attendance**
+`50 participants`
+
+the user should be able to see where that information came from in the master document.
+
+When practical, add a:
+
+**View Source**
+
+action beside proposed matches.
+
+Clicking it should switch/open the Master Document preview and navigate to the relevant page or location where the extracted information was found.
+
+This allows the user to quickly verify Sheet Fill's reasoning.
+
+---
+
+# Before vs. After Excel Preview
+
+Before Sheet Fill creates the final file, allow the user to compare:
+
+**Original**
+
+and
+
+**Filled Preview**
+
+The Original view shows the Excel workbook exactly as it was uploaded.
+
+The Filled Preview shows what the workbook will look like after the currently approved changes are applied.
+
+The user must be able to switch back and forth between these views without losing their place.
+
+If practical, provide:
+
+**Original | Filled**
+
+as a side-by-side comparison mode.
+
+Both spreadsheets should remain independently scrollable.
+
+---
+
+# Highlight Changes
+
+In the Filled Preview, temporarily highlight cells that Sheet Fill proposes to change.
+
+This highlighting is ONLY part of the Sheet Fill interface.
+
+**Do not add permanent highlighting, comments, colors, notes, or markers to the exported Excel workbook unless they were already present in the original workbook.**
+
+The exported file should retain the original workbook's appearance except for the approved data that was inserted.
+
+Use simple preview states such as:
+
+**Added**
+A previously blank field received a high-confidence value.
+
+**User Approved**
+A medium-confidence suggestion was manually approved.
+
+**Conflict**
+An existing spreadsheet value conflicts with information found in the master.
+
+The user should be able to click a highlighted changed cell and see:
+
+* Original value
+* Proposed/new value
+* Source information
+* Confidence level
+* Whether the change was automatic or manually approved
+
+---
+
+# Live Filled Preview
+
+As the user approves, rejects, or changes proposed matches in the Review Screen, update the **Filled Preview** accordingly.
+
+For example:
+
+If the user rejects:
+
+`Decor & Ambience → $100`
+
+the Filled Preview should immediately return that cell to its original state.
+
+If the user approves:
+
+`Estimated Attendance → 50 participants`
+
+the Filled Preview should immediately show `50 participants` in the appropriate spreadsheet cell.
+
+The user should therefore be able to visually construct and verify the final workbook before exporting it.
+
+---
+
+# Final Review
+
+Before exporting, provide a final step:
+
+# Review Completed Spreadsheet
+
+Show the completed Excel workbook inside Sheet Fill.
+
+The user should be able to scroll through the entire resulting workbook and inspect it.
+
+Provide:
+
+**View Master**
+
+**View Original Excel**
+
+**View Filled Excel**
+
+and, when practical:
+
+**Compare Original & Filled**
+
+The user should be able to return to the Review Screen and change decisions if they notice a problem.
+
+---
+
+# Export
+
+Only after the user is satisfied should they click:
+
+**Export Filled Spreadsheet**
+
+The exported `.xlsx` should match the Filled Preview.
+
+Do not overwrite the original workbook.
+
+---
+
+# Important Data Rule
+
+The existing Sheet Fill confidence rules remain unchanged.
+
+Document previewing must NOT make Sheet Fill more aggressive about filling fields.
+
+Sheet Fill should still:
+
+* Automatically fill only high-confidence matches
+* Require approval for medium-confidence matches
+* Leave low-confidence or unsupported fields blank
+* Never invent missing information
+* Never automatically overwrite conflicting existing information
+
+The preview system exists to make these decisions more transparent and easier for the user to verify.
+
+---
+
+# UX Goal
+
+The workflow should feel like:
+
+**Upload → Look → Analyze → Compare → Approve → Look Again → Export**
+
+Not:
+
+**Upload → AI does something invisible → Download**
+
+Sheet Fill should make the user's documents feel continuously present throughout the process.
+
+The user should always be able to answer:
+
+**What did I upload?**
+
+**What did Sheet Fill find?**
+
+**Where did that information come from?**
+
+**What is Sheet Fill changing?**
+
+**What will my final Excel file look like?**
+
+without needing to leave the tool.

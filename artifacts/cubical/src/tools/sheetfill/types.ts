@@ -22,6 +22,7 @@ export interface MatchResult {
   field: XlsxField;
   extractedValue: string;
   sourceText: string;    // original PDF line(s) that matched
+  sourcePage: number;    // page number in the PDF where the match was found
   confidence: Confidence;
   matchReason: string;
   isConflict: boolean;   // existingValue is non-empty and differs from extractedValue

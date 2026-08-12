@@ -167,6 +167,7 @@ export function matchFields(fields: XlsxField[], lines: PdfLine[]): MatchResult[
         field,
         extractedValue:  '',
         sourceText:      '',
+        sourcePage:      1,
         confidence:      'low',
         matchReason:     'No matching content found in source document.',
         isConflict:      false,
@@ -196,6 +197,7 @@ export function matchFields(fields: XlsxField[], lines: PdfLine[]): MatchResult[
       field,
       extractedValue:  valueOk ? rawValue : '',
       sourceText:      bestLine.text,
+      sourcePage:      bestLine.page,
       confidence,
       matchReason: bestScore >= HIGH_THRESHOLD
         ? `Strong match (score ${(bestScore * 100).toFixed(0)}%)`
