@@ -114,6 +114,12 @@ function nextOrder(list: { order: number }[]): number {
 }
 
 // ─── Module-level viewer pub-sub (tab-aware + persisted) ─────────────────────
+export interface ViewerState {
+  scale?: number;  // PDF scale
+  page?: number;   // PDF page (1-based)
+  zoom?: number;   // Image zoom
+}
+
 export interface ViewerInfo {
   id: string;
   file: ShelfFile;
@@ -123,6 +129,7 @@ export interface ViewerInfo {
   y: number;
   w: number;
   h: number;
+  viewerState?: ViewerState;
 }
 
 type SetViewers = (vs: ViewerInfo[]) => void;
@@ -132,7 +139,7 @@ const _viewerSubs = new Set<SetViewers>();
 // ── Persistence ───────────────────────────────────────────────────────────────
 const VIEWERS_STORAGE_KEY = 'cubical-shelf-viewers';
 
-interface PersistedViewer { id: string; fileId: string; tabId: string; x: number; y: number; w: number; h: number; }
+interface PersistedViewer { id: string; fileId: string; tabId: string; x: number; y: number; w: number; h: number; viewerState?: ViewerState; }
 
 function _readPersisted(): PersistedViewer[] {
   try {
@@ -154,6 +161,7 @@ function _persist() {
     const records: PersistedViewer[] = _viewers.map(v => ({
       id: v.id, fileId: v.file.id, tabId: v.tabId,
       x: v.x, y: v.y, w: v.w, h: v.h,
+      viewerState: v.viewerState,
     }));
     localStorage.setItem(VIEWERS_STORAGE_KEY, JSON.stringify(records));
   } catch {}
@@ -165,7 +173,13 @@ function _initViewers() {
   const shelf   = readShelf();
   const fileMap = new Map(shelf.files.map(f => [f.id, f] as const));
   _viewers = records
-    .map(r => { const file = fileMap.get(r.fileId); return file ? { id: r.id, file, tabId: r.tabId, x: r.x, y: r.y, w: r.w, h: r.h } : null; })
+    .map(r => {
+      const file = fileMap.get(r.fileId);
+      if (!file) return null;
+      const v: ViewerInfo = { id: r.id, file, tabId: r.tabId, x: r.x, y: r.y, w: r.w, h: r.h };
+      if (r.viewerState) v.viewerState = r.viewerState;
+      return v;
+    })
     .filter((v): v is ViewerInfo => v !== null);
 }
 
@@ -233,7 +247,7 @@ function closeViewer(id: string) {
   _persist();
 }
 
-function patchViewer(id: string, patch: Partial<Pick<ViewerInfo, 'x' | 'y' | 'w' | 'h'>>) {
+function patchViewer(id: string, patch: Partial<Pick<ViewerInfo, 'x' | 'y' | 'w' | 'h' | 'viewerState'>>) {
   _viewers = _viewers.map(v => v.id === id ? { ...v, ...patch } : v);
   _notify();
   _persist();
@@ -806,20 +820,39 @@ export function FileShelfWidget() {
 }
 
 // ─── Viewer content renderers ─────────────────────────────────────────────────
-function PdfContent({ dataUrl }: { dataUrl: string }) {
+function PdfContent({ viewerId, dataUrl, viewerState }: { viewerId: string; dataUrl: string; viewerState?: ViewerState }) {
   const buf = useMemo(() => dataUrlToBuffer(dataUrl), [dataUrl]);
-  return <PdfViewer data={buf} defaultFit={true} />;
+  const handleScaleChange = useCallback((scale: number) => {
+    patchViewer(viewerId, { viewerState: { ...viewerState, scale } });
+  }, [viewerId, viewerState]);
+  const handlePageChange = useCallback((page: number) => {
+    patchViewer(viewerId, { viewerState: { ...viewerState, page } });
+  }, [viewerId, viewerState]);
+  return (
+    <PdfViewer
+      data={buf}
+      defaultFit={viewerState?.scale == null}
+      initialScale={viewerState?.scale}
+      initialPage={viewerState?.page}
+      onScaleChange={handleScaleChange}
+      onPageChange={handlePageChange}
+    />
+  );
 }
 
-function ImageContent({ dataUrl }: { dataUrl: string }) {
-  const [zoom, setZoom] = useState(1);
+function ImageContent({ viewerId, dataUrl, viewerState }: { viewerId: string; dataUrl: string; viewerState?: ViewerState }) {
+  const [zoom, setZoom] = useState(viewerState?.zoom ?? 1);
+  const handleZoom = useCallback((z: number) => {
+    setZoom(z);
+    patchViewer(viewerId, { viewerState: { ...viewerState, zoom: z } });
+  }, [viewerId, viewerState]);
   return (
     <div className="fsv-image-wrap">
       <div className="fsv-img-controls">
-        <button className="fsv-zoom-btn" onClick={() => setZoom(z => Math.max(0.25, +(z - 0.25).toFixed(2)))}><ZoomOut className="w-3.5 h-3.5" /></button>
+        <button className="fsv-zoom-btn" onClick={() => handleZoom(Math.max(0.25, +(zoom - 0.25).toFixed(2)))}><ZoomOut className="w-3.5 h-3.5" /></button>
         <span className="fsv-zoom-pct">{Math.round(zoom * 100)}%</span>
-        <button className="fsv-zoom-btn" onClick={() => setZoom(z => Math.min(4, +(z + 0.25).toFixed(2)))}><ZoomIn className="w-3.5 h-3.5" /></button>
-        <button className="fsv-zoom-btn fsv-fit-btn" onClick={() => setZoom(1)}>Fit</button>
+        <button className="fsv-zoom-btn" onClick={() => handleZoom(Math.min(4, +(zoom + 0.25).toFixed(2)))}><ZoomIn className="w-3.5 h-3.5" /></button>
+        <button className="fsv-zoom-btn fsv-fit-btn" onClick={() => handleZoom(1)}>Fit</button>
       </div>
       <div className="fsv-img-scroll">
         <img src={dataUrl} alt="Preview" className="fsv-img" style={{ transform: `scale(${zoom})`, transformOrigin: 'top left' }} draggable={false} />
@@ -865,10 +898,11 @@ function UnavailableContent({ file }: { file: ShelfFile }) {
   );
 }
 
-function ViewerContent({ file }: { file: ShelfFile }) {
+function ViewerContent({ info }: { info: ViewerInfo }) {
+  const { file, id, viewerState } = info;
   if (!file.dataUrl)                                                    return <UnavailableContent file={file} />;
-  if (file.mimeType === 'application/pdf')                              return <PdfContent dataUrl={file.dataUrl} />;
-  if (file.mimeType.startsWith('image/'))                               return <ImageContent dataUrl={file.dataUrl} />;
+  if (file.mimeType === 'application/pdf')                              return <PdfContent viewerId={id} dataUrl={file.dataUrl} viewerState={viewerState} />;
+  if (file.mimeType.startsWith('image/'))                               return <ImageContent viewerId={id} dataUrl={file.dataUrl} viewerState={viewerState} />;
   if (file.mimeType.includes('spreadsheet') || file.mimeType.includes('excel')) return <XlsxContent dataUrl={file.dataUrl} />;
   if (file.mimeType.startsWith('text/') || file.mimeType === 'text/csv') return <TextContent dataUrl={file.dataUrl} />;
   return <UnavailableContent file={file} />;
@@ -940,7 +974,7 @@ function FileShelfViewer({ info }: { info: ViewerInfo }) {
 
       {/* Content */}
       <div className="fsv-body">
-        <ViewerContent file={info.file} />
+        <ViewerContent info={info} />
       </div>
 
       {/* Resize handle */}
