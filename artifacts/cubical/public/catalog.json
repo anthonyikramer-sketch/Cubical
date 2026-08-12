@@ -201,6 +201,24 @@
       "isNew": false
     },
     {
+      "id": "tool.sheet-fill",
+      "type": "tool",
+      "name": "SheetFill",
+      "description": "Turn master documents into filled Excel templates.",
+      "version": "1.0.0",
+      "price": "FREE",
+      "isFree": true,
+      "iconName": "FileSpreadsheet",
+      "iconColor": "hsl(142 52% 35%)",
+      "iconBg": "hsl(142 52% 35% / .11)",
+      "deliveryType": "bundled",
+      "category": "productivity",
+      "tags": ["excel", "pdf", "spreadsheet", "template", "fill"],
+      "status": "active",
+      "featured": false,
+      "isNew": true
+    },
+    {
       "id": "tool.clear-background",
       "type": "tool",
       "name": "Clear Background",
