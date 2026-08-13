@@ -68,7 +68,7 @@ catalog:
 
 autoInstallPeers: false
 
-onlyBuiltDependencies:
+allowBuilds:
   - '@swc/core'
   - electron
   - esbuild
