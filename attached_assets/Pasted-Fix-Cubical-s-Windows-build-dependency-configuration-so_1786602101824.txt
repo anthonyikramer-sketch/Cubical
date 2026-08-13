@@ -1,0 +1,35 @@
+Fix Cubical's Windows build/dependency configuration so fresh clones/downloads can be built on Windows without manually installing missing native packages each time.
+
+Cubical is developed in Replit/Linux but packaged as an Electron Windows application on Windows using pnpm.
+
+Currently, every fresh GitHub download on Windows requires manual fixes before Vite will build.
+
+We repeatedly encounter these issues:
+
+The root preinstall script uses Unix shell commands and hangs/fails in Windows CMD. We currently have to manually delete scripts.preinstall before installing dependencies.
+pnpm blocks build scripts for:
+esbuild@0.27.3
+exifreader@4.42.0
+Vite/Rollup fails because the Windows native Rollup package is missing. We currently fix it manually with:
+@rollup/rollup-win32-x64-msvc@4.62.3
+Lightning CSS fails because its Windows native binding is missing. We currently manually install:
+lightningcss-win32-x64-msvc@1.32.0
+Tailwind Oxide fails because its Windows native binding is missing. We currently manually install:
+@tailwindcss/oxide-win32-x64-msvc
+
+Please modify the actual repository configuration so these fixes persist in GitHub and future fresh downloads.
+
+Requirements:
+
+Make the root install/preinstall process cross-platform. Do not rely on Unix-only commands such as sh or rm.
+Preserve compatibility with Replit/Linux development.
+Preserve Windows x64 Electron production builds.
+Ensure the required Windows native dependencies are represented correctly in the project's package/pnpm configuration rather than requiring manual pnpm add commands after every download.
+Configure pnpm appropriately so legitimate required build scripts such as esbuild and ExifReader can run without requiring pnpm approve-builds every time on a fresh Windows checkout, if this can be safely configured at the repository level.
+Keep dependency versions compatible with the versions currently used by the project. Do not perform unrelated major dependency upgrades.
+Do not change Cubical's application functionality, UI, Electron updater behavior, or version number. Keep the application at 0.2.3.
+Do not remove the GitHub auto-update configuration we just fixed.
+
+Goal: On a fresh Windows download/clone of Cubical, I should ideally be able to run the normal dependency install and build process without manually patching Rollup, Lightning CSS, Tailwind Oxide, deleting Unix scripts, or approving the same packages every release.
+
+After making the changes, explain exactly which package/configuration files were changed and why.
