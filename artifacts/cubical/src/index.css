@@ -53,6 +53,10 @@
   --shadow-base: 32 20% 35%;
   /* Hover shade of primary (goes darker in light, lighter in dark) */
   --primary-hover: 164 48% 27%;
+  /* Widget surface opacity — higher in dark so dark widgets stay readable */
+  --widget-alpha: .82;
+  /* Alias so hsl(var(--fg)) works in widget CSS */
+  --fg: 222 35% 18%;
 }
 
 .dark {
@@ -74,6 +78,8 @@
   --ring: 164 48% 48%;
   --shadow-base: 222 35% 5%;
   --primary-hover: 164 48% 58%;
+  --widget-alpha: .92;
+  --fg: 42 43% 95%;
 }
 
 * { box-sizing: border-box; }
@@ -474,8 +480,10 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
   height: 100%;
   border: 1px solid hsl(var(--border));
   border-radius: 20px;
-  background: hsl(var(--card));
-  box-shadow: 0 6px 20px hsl(var(--shadow-base) / .05);
+  background: hsl(var(--card) / var(--widget-alpha));
+  backdrop-filter: blur(10px) saturate(1.15);
+  -webkit-backdrop-filter: blur(10px) saturate(1.15);
+  box-shadow: 0 6px 20px hsl(var(--shadow-base) / .07);
   overflow: hidden;
   transition: border-color .2s, box-shadow .2s;
   cursor: grab; /* drag always enabled — 6px dead-zone prevents content-click conflicts */
@@ -2315,6 +2323,32 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
   border-color: hsl(1 68% 54% / .6) !important;
 }
 
+/* Sakura skin — dark mode widget surfaces (warm dark brown, still translucent) */
+.dark[data-skin="sakura"] .grid-widget {
+  background: hsl(22 28% 13% / .92);
+  border-color: hsl(340 18% 25%);
+  box-shadow: 0 4px 18px hsl(22 30% 5% / .35);
+}
+.dark[data-skin="sakura"] .grid-widget:hover {
+  border-color: hsl(340 22% 38% / .4);
+}
+.dark[data-skin="sakura"] .grid-widget.is-editable {
+  border-color: hsl(340 25% 38% / .5);
+  border-style: dashed;
+}
+.dark[data-skin="sakura"] .grid-widget.is-active {
+  box-shadow: 0 16px 48px hsl(22 30% 5% / .55);
+  border-color: hsl(340 28% 42% / .7);
+  border-style: solid;
+}
+.dark[data-skin="sakura"] .grid-widget.is-conflict {
+  border-color: hsl(1 68% 54% / .6) !important;
+}
+.dark[data-skin="sakura"] .displaced-band-card {
+  background: hsl(22 28% 13% / .92);
+  border-color: hsl(340 18% 25%);
+}
+
 /* ─── Profile: Sakura skin card preview ──────────────────────────────────── */
 
 .skin-preview-sakura-img {
@@ -3223,8 +3257,10 @@ button:focus-visible, a:focus-visible { outline: 3px solid hsl(var(--accent) / .
   width: 200px;
   border: 1px solid hsl(var(--border));
   border-radius: 16px;
-  background: hsl(var(--card));
-  box-shadow: 0 4px 14px hsl(var(--shadow-base) / .06);
+  background: hsl(var(--card) / var(--widget-alpha));
+  backdrop-filter: blur(10px) saturate(1.15);
+  -webkit-backdrop-filter: blur(10px) saturate(1.15);
+  box-shadow: 0 4px 14px hsl(var(--shadow-base) / .07);
   overflow: hidden;
   display: flex;
   flex-direction: column;

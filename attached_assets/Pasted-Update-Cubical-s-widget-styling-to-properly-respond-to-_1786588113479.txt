@@ -1,0 +1,28 @@
+Update Cubical's widget styling to properly respond to Light Mode and Dark Mode.
+
+Please make this change globally for the widget system rather than manually styling each individual widget where possible. Existing widget functionality, positioning, resizing, persistence, dragging, and behavior should not be changed.
+
+Light Mode
+All widgets should use a translucent white/cream background rather than their current dark or strongly colored background.
+The background should still have some transparency so the active Cubical cosmetic/background can subtly show through.
+Primary widget text should be black or very dark for strong readability.
+Colored text, icons, buttons, highlights, borders, progress indicators, and other accents may use a more saturated/darker version of the active cosmetic's respective color so that the cosmetic theme is still represented clearly against the light widget.
+Do not use pale cosmetic colors for text if they have poor contrast against the cream background.
+Dark Mode
+All widgets should use a translucent dark-gray background.
+The background should retain some transparency so the active Cubical cosmetic/background subtly shows through.
+Primary widget text should be white or an appropriate light color for readability.
+Cosmetic-specific accent colors should remain visible, but adjust their brightness/saturation where necessary so they have good contrast against the dark-gray widget background.
+Cosmetic/Theming Behavior
+Do not remove the existing cosmetic/theme system.
+Cosmetics should still influence widget accent colors and visual personality.
+Light/Dark mode should primarily determine the widget's base surface and text contrast, while the selected cosmetic determines its accent colors.
+Think of it as:
+Light Mode = translucent cream surface + dark readable text + stronger cosmetic accents
+Dark Mode = translucent dark-gray surface + light readable text + visible cosmetic accents
+Make sure switching between Light and Dark mode updates all currently open widgets immediately without requiring a page refresh or reopening the widget.
+Important
+
+Preserve all existing widget functionality. This is a visual/theming update only. Do not redesign the widgets, change their layouts, alter their dimensions, change their drag/drop behavior, or modify their underlying features.
+
+Apply the styling consistently to all widgets, including their headers, labels, input text, buttons, icons, timers/clocks, notes text, calendar text, and other readable UI elements. Make sure there are no leftover light-colored text elements that become difficult to read in Light Mode.
