@@ -41,7 +41,9 @@ function setupAutoUpdater() {
   // No setFeedURL() call is needed — the provider, owner, and repo are already
   // embedded via the "publish" field in package.json.
   try {
-    autoUpdater.autoDownload = false; // let user initiate download
+    autoUpdater.autoDownload        = false; // user initiates download via Download button
+    autoUpdater.autoInstallOnAppQuit = false; // prevent a silent-less interactive wizard on
+                                              // normal quit; install only via Restart & Update
 
     autoUpdater.on('checking-for-update',  ()     => sendUpdateEvent('checking'));
     autoUpdater.on('update-available',     (info) => sendUpdateEvent('available',   { version: info.version }));

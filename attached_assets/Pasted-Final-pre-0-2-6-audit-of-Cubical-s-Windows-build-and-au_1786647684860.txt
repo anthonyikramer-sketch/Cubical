@@ -1,0 +1,47 @@
+Final pre-0.2.6 audit of Cubical’s Windows build and auto-update pipeline. Do not make changes unless you find a concrete problem.
+
+We are about to test the new silent Restart and Update flow using installed Cubical 0.2.5 → published v0.2.6.
+
+Current intended behavior:
+
+autoDownload = false
+user manually clicks Download update
+after update-downloaded, UI shows Restart and Update
+updater:install calls autoUpdater.quitAndInstall(true, true)
+update installs silently
+Cubical relaunches automatically
+
+Please verify all of the following:
+
+quitAndInstall(true, true) can only be triggered after an update has actually reached the downloaded/ready state.
+The renderer cannot accidentally call the install IPC before update-downloaded.
+The existing updater event-name mapping between main.cjs and the Settings UI is still consistent.
+autoDownload is still false.
+autoInstallOnAppQuit behavior will not create a conflicting second install path or unexpected install when the user merely closes Cubical after downloading an update.
+The GitHub publish config is still exactly:
+provider: github
+owner: anthonyikramer-sketch
+repo: Cubical
+NSIS artifact naming is still:
+Cubical-Setup-${version}.${ext}
+appId has not changed from the existing value, because changing it could break upgrades of already-installed copies.
+latest.yml, installer, and blockmap are generated together from the same build.
+build:win still uses --publish never so local builds cannot accidentally publish.
+The pnpm fresh-Windows workflow is still:
+pnpm install
+pnpm --filter @workspace/cubical run build:win
+with no manual approve-builds or native-package patching.
+There are no leftover references to the incorrect GitHub owner string anthonyjkramer-sketch.
+
+Also inspect whether there is any obvious risk of user data/settings being lost during an in-place NSIS update. Do not change the current persistence architecture unless there is a concrete issue.
+
+Keep Cubical at version 0.2.5 during this audit.
+
+Do not change Notes, UI, tools, widgets, dependencies, or unrelated configuration.
+
+At the end, give me:
+
+PASS/FAIL for each item,
+any concrete issue found,
+every file changed, if any,
+and whether it is safe to bump to 0.2.6 and perform the real silent-update test.
