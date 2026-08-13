@@ -1,0 +1,69 @@
+Harden Cubical’s Windows install/build/release configuration so future releases require as little manual setup as possible. Keep the app version at 0.2.3 and do not change application features or UI.
+
+We have already fixed the cross-platform preinstall and added these Windows x64 native packages as optional dependencies:
+
+@rollup/rollup-win32-x64-msvc@4.62.3
+lightningcss-win32-x64-msvc@1.32.0
+@tailwindcss/oxide-win32-x64-msvc@4.3.3
+
+A fresh Windows install now gets those native dependencies correctly.
+
+There are still a few release-pipeline issues to clean up:
+
+1. Persist pnpm build approvals
+
+Fresh Windows checkouts still require me to manually run pnpm approve-builds and approve:
+
+esbuild
+exifreader
+
+This project uses pnpm 11. Configure the repository-level pnpm allowBuilds settings appropriately so these two trusted packages are already approved on a fresh clone. Do not broadly allow arbitrary dependency scripts. Only approve the dependencies actually required by Cubical.
+
+2. Create simple Windows build commands
+
+Add clear package scripts so I do not need to manually remember low-level commands.
+
+I want a normal development/release flow resembling:
+
+pnpm install
+pnpm build:win
+
+where build:win performs the Cubical frontend production build and then creates the Windows NSIS installer using electron-builder.
+
+If useful, also add a frontend-only script such as build:app.
+
+Do not duplicate build logic unnecessarily. Reuse the existing workspace/package scripts where appropriate.
+
+3. Verify installer output
+
+A successful Windows release build must consistently generate:
+
+Cubical Setup <version>.exe
+Cubical Setup <version>.exe.blockmap
+latest.yml
+
+in artifacts/cubical/dist/installer.
+
+4. Verify auto-update packaging
+
+Confirm the packaged Windows application contains the correct electron-builder app-update.yml metadata for the public GitHub repository:
+
+owner: anthonyjkramer-sketch
+repo: Cubical
+
+The installed application must use this packaged GitHub configuration with electron-updater.
+
+Do not restore the old CUBICAL_UPDATE_URL environment-variable system or custom generic feed URL.
+
+5. Preserve cross-platform development
+
+Do not break Replit/Linux development or future macOS support. Windows-only native dependencies should remain optional/platform-specific where appropriate.
+
+6. Keep changes focused
+
+Keep Cubical at version 0.2.3.
+Do not perform unrelated dependency upgrades.
+Do not change tools, widgets, application UI, user data, or updater UX.
+Do not change the new Notes behavior if it has already been implemented.
+
+After completing this, explain the intended fresh-Windows workflow and list the exact commands I should need to run to go from a fresh GitHub clone/download to a finished installer.
