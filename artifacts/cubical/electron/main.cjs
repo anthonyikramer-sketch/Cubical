@@ -36,14 +36,11 @@ function sendUpdateEvent(type, extra = {}) {
 function setupAutoUpdater() {
   if (!autoUpdater || !app.isPackaged) return;
 
-  const updateUrl = process.env.CUBICAL_UPDATE_URL;
-  if (!updateUrl || updateUrl === '${CUBICAL_UPDATE_URL}') {
-    console.log('[updater] CUBICAL_UPDATE_URL not configured — update checking disabled.');
-    return;
-  }
-
+  // electron-updater reads the GitHub publish config from the app-update.yml
+  // file that electron-builder bakes into the package at build time.
+  // No setFeedURL() call is needed — the provider, owner, and repo are already
+  // embedded via the "publish" field in package.json.
   try {
-    autoUpdater.setFeedURL({ provider: 'generic', url: updateUrl });
     autoUpdater.autoDownload = false; // let user initiate download
 
     autoUpdater.on('checking-for-update',  ()     => sendUpdateEvent('checking'));
@@ -63,7 +60,7 @@ function setupAutoUpdater() {
       );
     }, 12000);
 
-    console.log('[updater] Auto-updater configured for:', updateUrl);
+    console.log('[updater] Auto-updater configured via GitHub Releases (anthonyjkramer-sketch/Cubical).');
   } catch (e) {
     console.error('[updater] setup failed:', e.message);
   }
@@ -74,10 +71,6 @@ function setupAutoUpdater() {
 ipcMain.handle('updater:check', async () => {
   if (!autoUpdater || !app.isPackaged) {
     return { devMode: true, message: 'Auto-updates are only available in packaged Cubical desktop builds.' };
-  }
-  const updateUrl = process.env.CUBICAL_UPDATE_URL;
-  if (!updateUrl || updateUrl === '${CUBICAL_UPDATE_URL}') {
-    return { devMode: true, message: 'CUBICAL_UPDATE_URL environment variable is not configured.' };
   }
   await autoUpdater.checkForUpdates();
   return {};
