@@ -110,12 +110,14 @@ function UpdatePanel() {
   useEffect(() => {
     if (!updater) return;
     const unsub = updater.onStatus((evt: UpdateStatusEvent) => {
-      if (evt.type === 'checking-for-update')  { setState('checking'); }
-      if (evt.type === 'update-not-available') { setState('up-to-date'); }
-      if (evt.type === 'update-available')     { setState('available');  setVersion(evt.version ?? null); }
-      if (evt.type === 'download-progress')    { setState('downloading'); setProgress(evt.percent ?? 0); }
-      if (evt.type === 'update-downloaded')    { setState('ready'); }
-      if (evt.type === 'error')                { setState('error'); setMessage(evt.message ?? 'Unknown error'); }
+      // These names match what main.cjs sendUpdateEvent() actually sends —
+      // NOT the raw electron-updater event names (which are longer).
+      if (evt.type === 'checking')    { setState('checking'); }
+      if (evt.type === 'up-to-date')  { setState('up-to-date'); }
+      if (evt.type === 'available')   { setState('available');  setVersion(evt.version ?? null); }
+      if (evt.type === 'downloading') { setState('downloading'); setProgress(evt.percent ?? 0); }
+      if (evt.type === 'ready')       { setState('ready');      setVersion(evt.version ?? null); }
+      if (evt.type === 'error')       { setState('error');      setMessage(evt.message ?? 'Unknown error'); }
     });
     return unsub;
   }, [updater]);

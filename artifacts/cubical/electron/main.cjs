@@ -72,7 +72,17 @@ ipcMain.handle('updater:check', async () => {
   if (!autoUpdater || !app.isPackaged) {
     return { devMode: true, message: 'Auto-updates are only available in packaged Cubical desktop builds.' };
   }
-  await autoUpdater.checkForUpdates();
+  try {
+    await autoUpdater.checkForUpdates();
+  } catch (e) {
+    // autoUpdater already emitted the 'error' event, which sendUpdateEvent()
+    // forwarded to the renderer with the real error message.
+    // We must NOT let this promise reject: an IPC rejection causes
+    // ipcRenderer.invoke() to throw, which triggers the generic catch-block
+    // in SettingsPage and overwrites the real error message with
+    // "Could not reach the update server."
+    console.error('[updater] checkForUpdates error:', e?.message ?? e);
+  }
   return {};
 });
 

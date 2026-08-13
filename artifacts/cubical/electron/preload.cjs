@@ -82,7 +82,8 @@ contextBridge.exposeInMainWorld('cubicalDesktop', {
 
   /**
    * Auto-updater — secure IPC bridge.
-   * Only functional in packaged desktop builds with CUBICAL_UPDATE_URL configured.
+   * Only functional in packaged desktop builds (uses the GitHub Releases config
+   * baked into app-update.yml by electron-builder at package time).
    * In browser/dev mode, checkForUpdates returns a { devMode: true, message } object.
    */
   updater: {
