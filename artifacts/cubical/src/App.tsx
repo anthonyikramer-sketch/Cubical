@@ -897,6 +897,7 @@ function AppShell({ children, libraryCount }: { children: ReactNode; libraryCoun
             <span className="sidebar-pin-label">{sidebarPinned ? 'Pinned' : 'Pin'}</span>
           </button>
           <p className="sidebar-footnote">A personal shelf for useful little tools.<br />Made for curious desktops.</p>
+          <span className="sidebar-version-badge">v{APP_VERSION}</span>
         </div>
       </aside>
       <main className="cubical-main">
