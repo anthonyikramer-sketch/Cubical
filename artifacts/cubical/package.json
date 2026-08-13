@@ -52,7 +52,7 @@
     },
     "publish": {
       "provider": "github",
-      "owner": "anthonyjkramer-sketch",
+      "owner": "anthonyikramer-sketch",
       "repo": "Cubical"
     },
     "updaterCacheDirName": "Cubical-updater"

@@ -60,7 +60,7 @@ function setupAutoUpdater() {
       );
     }, 12000);
 
-    console.log('[updater] Auto-updater configured via GitHub Releases (anthonyjkramer-sketch/Cubical).');
+    console.log('[updater] Auto-updater configured via GitHub Releases (anthonyikramer-sketch/Cubical).');
   } catch (e) {
     console.error('[updater] setup failed:', e.message);
   }
