@@ -1,0 +1,78 @@
+Improve Cubical's Windows auto-update installation UX.
+
+The auto-update pipeline is now confirmed working end-to-end:
+
+Installed Cubical 0.2.4 detected v0.2.5 from GitHub Releases.
+It downloaded the update successfully.
+It displayed the "Restart and Update" button.
+Clicking that button successfully updated Cubical to 0.2.5.
+
+The remaining problem is that clicking Restart and Update launches the normal interactive NSIS installer and makes the user go through the installation wizard again.
+
+I want in-app updates to behave like a normal desktop application update.
+
+Desired behavior
+
+After an update has downloaded and the user clicks Restart and Update:
+
+Cubical closes.
+The downloaded update installs silently in the background.
+No NSIS setup wizard is shown.
+The existing Cubical installation is updated in place.
+Cubical automatically relaunches when installation finishes.
+The newly launched Cubical reports the new version.
+
+The user should NOT need to select an installation directory, click through setup screens, manually reinstall Cubical, or manually reopen Cubical.
+
+Important distinction
+
+Preserve the existing interactive installer for first-time installations.
+
+A person downloading Cubical from the website for the first time should still be able to run the normal installer.
+
+Only updates initiated from inside an already-installed Cubical should install silently.
+
+Implementation requirements
+
+Audit the existing Electron main-process auto-updater code, including the IPC handler used by the renderer's Restart and Update button.
+
+Use the supported electron-updater / NSIS update mechanism. In particular, inspect the current autoUpdater.quitAndInstall() invocation and determine why the downloaded update is launching interactively.
+
+Configure/invoke the updater so the downloaded update installs silently and Cubical automatically relaunches afterward.
+
+Do NOT create a custom updater or manually execute the installer as a workaround.
+
+Preserve all currently working update infrastructure, including:
+
+GitHub provider
+owner: anthonyikramer-sketch
+repo: Cubical
+artifact naming: Cubical-Setup-${version}.${ext}
+update checking
+update discovery
+update downloading
+download progress
+Restart and Update button
+latest.yml
+
+Do not change unrelated Cubical functionality.
+
+Do not bump the Cubical version number yet. Keep it at 0.2.5.
+
+Before making changes
+
+Inspect the installed versions of Electron, electron-updater, electron-builder, and the current NSIS configuration so the solution matches the versions actually used by this project.
+
+After making changes
+
+Report:
+
+The exact reason the full installer wizard previously appeared.
+Every file changed.
+The exact updater/NSIS configuration or code that was changed.
+Why first-time installation will remain interactive.
+Why in-app updates will now be silent.
+Whether Cubical will automatically relaunch after the silent update.
+Any caveats we should know before testing this as v0.2.6.
+
+Do not claim the fix works merely because the code compiles. We will verify it with a real installed 0.2.5 → 0.2.6 update afterward.

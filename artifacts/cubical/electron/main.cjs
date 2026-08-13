@@ -87,7 +87,12 @@ ipcMain.handle('updater:check', async () => {
 });
 
 ipcMain.on('updater:install', () => {
-  if (autoUpdater) autoUpdater.quitAndInstall();
+  // isSilent=true  → electron-updater passes /S to the NSIS installer so no
+  //                  setup wizard is shown during an in-app update.
+  // isForceRunAfter=true → NSIS relaunches Cubical automatically when done.
+  // First-time installs are unaffected: the user runs the standalone .exe
+  // directly, which does NOT receive /S and therefore shows the full wizard.
+  if (autoUpdater) autoUpdater.quitAndInstall(true, true);
 });
 
 ipcMain.on('updater:download', () => {
