@@ -121,6 +121,11 @@
     "wouter": "^3.3.5",
     "zod": "catalog:"
   },
+  "optionalDependencies": {
+    "@rollup/rollup-win32-x64-msvc": "4.62.3",
+    "lightningcss-win32-x64-msvc": "1.32.0",
+    "@tailwindcss/oxide-win32-x64-msvc": "4.3.3"
+  },
   "dependencies": {
     "@tiptap/core": "^3.29.2",
     "@tiptap/extension-link": "^3.29.2",
