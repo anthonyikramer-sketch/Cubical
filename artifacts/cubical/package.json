@@ -54,8 +54,7 @@
       "provider": "github",
       "owner": "anthonyikramer-sketch",
       "repo": "Cubical"
-    },
-    "updaterCacheDirName": "Cubical-updater"
+    }
   },
   "devDependencies": {
     "@hookform/resolvers": "^3.10.0",
