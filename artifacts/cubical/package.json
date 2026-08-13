@@ -49,9 +49,10 @@
       "shortcutName": "Cubical"
     },
     "publish": {
-      "provider": "generic",
-      "url": "${CUBICAL_UPDATE_URL}"
-    }
+  "provider": "github",
+  "owner": "anthonyjkramer-sketch",
+  "repo": "Cubical"
+}
   },
   "devDependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -97,6 +98,8 @@
     "clsx": "catalog:",
     "cmdk": "^1.1.1",
     "date-fns": "^3.6.0",
+    "electron": "^43.4.0",
+    "electron-builder": "^26.15.3",
     "embla-carousel-react": "^8.6.0",
     "framer-motion": "catalog:",
     "input-otp": "^1.4.2",
