@@ -69,12 +69,12 @@ catalog:
 autoInstallPeers: false
 
 allowBuilds:
-  - '@swc/core'
-  - electron
-  - esbuild
-  - exifreader
-  - msw
-  - unrs-resolver
+  '@swc/core': true
+  electron: true
+  esbuild: true
+  exifreader: true
+  msw: true
+  unrs-resolver: true
 
 overrides:
   # replit uses linux-x64 only, we can exclude all other platforms
