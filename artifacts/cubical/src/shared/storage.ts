@@ -99,11 +99,28 @@ export const CUBICAL_SKINS: CubicalSkin[] = [
 
 // ─── Widget layout types ───────────────────────────────────────────────────────
 
-export type WidgetId = 'calendar' | 'clock' | 'notepad' | 'file-finder' | 'link-shelf' | 'decision-maker' | 'calculator' | 'file-shelf';
+/**
+ * WidgetId is a plain string alias. The static widget IDs are the named strings
+ * used throughout the codebase. Notepad additionally supports multiple concurrent
+ * instances whose IDs follow the pattern 'notepad-{timestamp}'.
+ * Use isNotepadId() to check for any notepad instance.
+ */
+export type WidgetId = string;
+
+/** True for the original 'notepad' ID and any 'notepad-{timestamp}' instance. */
+export function isNotepadId(id: string): boolean {
+  return id === 'notepad' || id.startsWith('notepad-');
+}
+
+/** Per-instance localStorage key for notepad HTML content.
+ *  'notepad' uses the legacy shared key for backward compatibility. */
+export function notepadContentKey(instanceId: string): string {
+  return instanceId === 'notepad' ? NOTEPAD_HTML_KEY : `${NOTEPAD_HTML_KEY}-${instanceId}`;
+}
 
 export type LayoutItem = { id: WidgetId; x: number; y: number; w: number; h: number; };
 
-export const WIDGET_LABELS: Record<WidgetId, string> = {
+export const WIDGET_LABELS: Record<string, string> = {
   calendar:         'Calendar',
   clock:            'Clock',
   notepad:          'Notepad',
@@ -114,7 +131,7 @@ export const WIDGET_LABELS: Record<WidgetId, string> = {
   'file-shelf':     'File Shelf',
 };
 
-export const WIDGET_MIN: Record<WidgetId, { w: number; h: number }> = {
+export const WIDGET_MIN: Record<string, { w: number; h: number }> = {
   calendar:         { w: 120, h: 110 },
   clock:            { w: 140, h: 100 },
   notepad:          { w: 220, h: 160 },
@@ -132,7 +149,7 @@ export const DEFAULT_LAYOUT: LayoutItem[] = [
 ];
 
 export type WidgetDef = {
-  id: WidgetId;
+  id: string;
   label: string;
   defaultW: number;
   defaultH: number;
@@ -159,7 +176,7 @@ export function getActiveWidgets(): WidgetId[] {
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return DEFAULT_ACTIVE_WIDGETS;
     const valid = (parsed as unknown[]).filter((id): id is WidgetId =>
-      WIDGET_REGISTRY.some((w) => w.id === id),
+      typeof id === 'string' && (WIDGET_REGISTRY.some((w) => w.id === id) || isNotepadId(id)),
     );
     return valid.length > 0 ? valid : DEFAULT_ACTIVE_WIDGETS;
   } catch { return DEFAULT_ACTIVE_WIDGETS; }
@@ -196,6 +213,22 @@ export function getStoredLayout(): LayoutItem[] {
       }
       const min = WIDGET_MIN[id];
       result.push({ id, x: Math.max(0, x), y: Math.max(0, y), w: Math.max(min.w, w), h: Math.max(min.h, h) });
+    }
+    // Also restore any dynamic notepad-{timestamp} instances saved in the layout
+    for (const raw of parsed as unknown[]) {
+      if (!raw || typeof raw !== 'object') continue;
+      const it = raw as Record<string, unknown>;
+      if (typeof it.id !== 'string' || !it.id.startsWith('notepad-')) continue;
+      if (typeof it.x !== 'number') continue;
+      const id = it.id as WidgetId;
+      const min = WIDGET_MIN['notepad'];
+      result.push({
+        id,
+        x: Math.max(0, (it.x as number) ?? 0),
+        y: Math.max(0, (it.y as number) ?? 0),
+        w: Math.max(min.w, (it.w as number) ?? 390),
+        h: Math.max(min.h, (it.h as number) ?? 450),
+      });
     }
     return result;
   } catch { return DEFAULT_LAYOUT; }

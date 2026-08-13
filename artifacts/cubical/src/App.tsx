@@ -429,6 +429,10 @@ const LIBRARY_STORAGE_KEY   = 'cubical-library';
 const CALENDAR_STORAGE_KEY  = 'cubical-calendar-events';
 const NOTEPAD_STORAGE_KEY   = 'cubical-notepad';       // legacy plain-text fallback
 const NOTEPAD_HTML_KEY      = 'cubical-notepad-html';  // rich-text (innerHTML)
+/** Per-instance content key — 'notepad' keeps the legacy key for backward compat. */
+function notepadContentKey(instanceId: string): string {
+  return instanceId === 'notepad' ? NOTEPAD_HTML_KEY : `${NOTEPAD_HTML_KEY}-${instanceId}`;
+}
 const CLOCK_SECONDS_KEY     = 'cubical-clock-seconds';
 const CLOCK_TIMER_KEY       = 'cubical-clock-timer';
 const CLOCK_ALARMS_KEY      = 'cubical-clock-alarms';
@@ -599,11 +603,33 @@ function storeEvents(events: CalendarEvent[]) { writeLocal(CALENDAR_STORAGE_KEY,
 // LayoutItem.w/h are pixel dimensions.
 // No grid, no snapping — widgets float freely and stop where released.
 
-type WidgetId = 'calendar' | 'clock' | 'notepad' | 'file-finder' | 'link-shelf' | 'decision-maker' | 'calculator' | 'file-shelf';
+/**
+ * WidgetId is a plain string alias. Static IDs are the named strings used
+ * throughout the codebase. Notepad supports multiple concurrent instances
+ * whose IDs follow the pattern 'notepad-{timestamp}'.
+ * Use isNotepadId() to check for any notepad instance.
+ */
+type WidgetId = string;
+
+/** True for 'notepad' (legacy/first instance) and any 'notepad-{timestamp}' instance. */
+function isNotepadId(id: string): boolean {
+  return id === 'notepad' || id.startsWith('notepad-');
+}
+
+/** Lookup label for any widget ID, including dynamic notepad instances. */
+function getWidgetLabel(id: WidgetId): string {
+  if (isNotepadId(id)) return 'Notepad';
+  return WIDGET_LABELS[id] ?? id;
+}
+
+/** Lookup minimum pixel dimensions, falling back to notepad's for any notepad instance. */
+function getWidgetMin(id: WidgetId): { w: number; h: number } {
+  return WIDGET_MIN[id] ?? WIDGET_MIN['notepad'];
+}
 
 type LayoutItem = { id: WidgetId; x: number; y: number; w: number; h: number; };
 
-const WIDGET_LABELS: Record<WidgetId, string> = {
+const WIDGET_LABELS: Record<string, string> = {
   calendar:         'Calendar',
   clock:            'Clock',
   notepad:          'Notepad',
@@ -615,7 +641,7 @@ const WIDGET_LABELS: Record<WidgetId, string> = {
 };
 
 // Minimum pixel dimensions — below these a widget cannot be resized
-const WIDGET_MIN: Record<WidgetId, { w: number; h: number }> = {
+const WIDGET_MIN: Record<string, { w: number; h: number }> = {
   calendar:         { w: 120, h: 110 },
   clock:            { w: 140, h: 100 },
   notepad:          { w: 220, h: 160 },
@@ -628,6 +654,7 @@ const WIDGET_MIN: Record<WidgetId, { w: number; h: number }> = {
 
 // Portable by default — widgets not in the registry (e.g. file-finder) are NOT portable.
 function isPortableWidget(id: WidgetId): boolean {
+  if (isNotepadId(id)) return true; // all notepad instances are portable
   const def = WIDGET_REGISTRY.find((w) => w.id === id);
   return def !== undefined && def.portable !== false;
 }
@@ -644,7 +671,7 @@ const DEFAULT_LAYOUT: LayoutItem[] = [
 // To add a future widget: add WidgetId, register here, render in GridWidget.
 
 type WidgetDef = {
-  id: WidgetId;
+  id: string;
   label: string;
   defaultW: number;
   defaultH: number;
@@ -675,7 +702,7 @@ function getActiveWidgets(): WidgetId[] {
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return DEFAULT_ACTIVE_WIDGETS;
     const valid = (parsed as unknown[]).filter((id): id is WidgetId =>
-      WIDGET_REGISTRY.some((w) => w.id === id),
+      typeof id === 'string' && (WIDGET_REGISTRY.some((w) => w.id === id) || isNotepadId(id)),
     );
     return valid.length > 0 ? valid : DEFAULT_ACTIVE_WIDGETS;
   } catch { return DEFAULT_ACTIVE_WIDGETS; }
@@ -713,6 +740,22 @@ function getStoredLayout(): LayoutItem[] {
       }
       const min = WIDGET_MIN[id];
       result.push({ id, x: Math.max(0, x), y: Math.max(0, y), w: Math.max(min.w, w), h: Math.max(min.h, h) });
+    }
+    // Also restore any dynamic notepad-{timestamp} instances saved in the layout
+    for (const raw of parsed as unknown[]) {
+      if (!raw || typeof raw !== 'object') continue;
+      const it = raw as Record<string, unknown>;
+      if (typeof it.id !== 'string' || !it.id.startsWith('notepad-')) continue;
+      if (typeof it.x !== 'number') continue;
+      const id = it.id as WidgetId;
+      const min = WIDGET_MIN['notepad'];
+      result.push({
+        id,
+        x: Math.max(0, (it.x as number) ?? 0),
+        y: Math.max(0, (it.y as number) ?? 0),
+        w: Math.max(min.w, (it.w as number) ?? 390),
+        h: Math.max(min.h, (it.h as number) ?? 450),
+      });
     }
     return result;
   } catch { return DEFAULT_LAYOUT; }
@@ -1754,23 +1797,27 @@ function sanitizeNotepadHtml(raw: string): string {
 // ── NotepadWidget (Tiptap-backed rich-text editor) ────────────────────────
 // Uses @tiptap/core (ProseMirror) headlessly — no execCommand anywhere.
 
-function readNotepadHtml(): string {
+function readNotepadHtml(instanceId: string): string {
+  const key = notepadContentKey(instanceId);
   try {
-    const h = window.localStorage.getItem(NOTEPAD_HTML_KEY);
+    const h = window.localStorage.getItem(key);
     if (h !== null) return sanitizeNotepadHtml(h);
-    const plain = window.localStorage.getItem(NOTEPAD_STORAGE_KEY) ?? '';
-    if (plain) {
-      const escaped = plain
-        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
-      const migrated = sanitizeNotepadHtml(escaped);
-      window.localStorage.setItem(NOTEPAD_HTML_KEY, migrated);
-      return migrated;
+    // For the original 'notepad' instance only: migrate legacy plain-text data
+    if (instanceId === 'notepad') {
+      const plain = window.localStorage.getItem(NOTEPAD_STORAGE_KEY) ?? '';
+      if (plain) {
+        const escaped = plain
+          .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+        const migrated = sanitizeNotepadHtml(escaped);
+        window.localStorage.setItem(NOTEPAD_HTML_KEY, migrated);
+        return migrated;
+      }
     }
     return '';
   } catch { return ''; }
 }
 
-function NotepadWidget({ compact = false }: { compact?: boolean }) {
+function NotepadWidget({ compact = false, instanceId }: { compact?: boolean; instanceId: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const tiptap       = useRef<Editor | null>(null);
   const saveTimer    = useRef<number | null>(null);
@@ -1791,15 +1838,15 @@ function NotepadWidget({ compact = false }: { compact?: boolean }) {
       if (!ed) return;
       try {
         const safe = sanitizeNotepadHtml(ed.getHTML());
-        window.localStorage.setItem(NOTEPAD_HTML_KEY, safe);
+        window.localStorage.setItem(notepadContentKey(instanceId), safe);
       } catch {}
     }, 400);
-  }, []);
+  }, [instanceId]);
 
   // Mount Tiptap once on first render
   useEffect(() => {
     if (!containerRef.current) return;
-    const initialHtml = readNotepadHtml();
+    const initialHtml = readNotepadHtml(instanceId);
 
     const ed = new Editor({
       element: containerRef.current,
@@ -1853,7 +1900,7 @@ function NotepadWidget({ compact = false }: { compact?: boolean }) {
   const clearEditor = () => {
     ed?.commands.clearContent(true);
     setCharCount(0);
-    try { window.localStorage.setItem(NOTEPAD_HTML_KEY, ''); } catch {}
+    try { window.localStorage.setItem(notepadContentKey(instanceId), ''); } catch {}
     if (saveTimer.current) window.clearTimeout(saveTimer.current);
   };
 
@@ -2518,7 +2565,9 @@ const SAKURA_DECOS: Partial<Record<WidgetId, React.ReactNode>> = {
 };
 
 function SakuraWidgetDecoration({ widgetId }: { widgetId: WidgetId }) {
-  const deco = SAKURA_DECOS[widgetId];
+  // All notepad instances share the 'notepad' decoration
+  const decoKey = isNotepadId(widgetId) ? 'notepad' : widgetId;
+  const deco = SAKURA_DECOS[decoKey];
   if (!deco) return null;
   return (
     <div className="sakura-deco-layer" aria-hidden>
@@ -2543,17 +2592,26 @@ function GridWidget({
   const approxGridW = Math.max(1, Math.round(item.w / 82));
   const approxGridH = Math.max(1, Math.round(item.h / 92));
   const isSakura = readEquippedSkin() === 'sakura';
-  const canRemove = isEditing && onRemoveWidget && WIDGET_REGISTRY.some((w) => w.id === item.id);
+  const canRemove = isEditing && onRemoveWidget && (
+    WIDGET_REGISTRY.some((w) => w.id === item.id) || isNotepadId(item.id)
+  );
 
   return (
     // Outer wrapper: pixel position; overflow:visible lets decorations overhang.
     // Transition eases boundary-correction settle; disabled while dragging (is-active-outer).
-    // onPointerDown is always active — startDrag uses a 6px dead-zone so content clicks pass through.
+    // onPointerDown starts a drag UNLESS the pointer lands inside an interactive element
+    // (text editor, input, etc.) — those handle their own pointer events.
     <div
       className={`grid-widget-outer${isActive ? ' is-active-outer' : ''}${isDragging ? ' is-dragging-outer' : ''}`}
       style={{ left: item.x, top: item.y, width: item.w, height: item.h }}
       data-testid={`grid-widget-${item.id}`}
-      onPointerDown={onDragStart}
+      onPointerDown={(e) => {
+        // Block drag when the pointer is inside a text editor, form control, or link.
+        // Buttons and the resize handle already call stopPropagation themselves.
+        const target = e.target as Element;
+        if (target.closest('[contenteditable],.ProseMirror,input,textarea,select,a[href]')) return;
+        onDragStart(e);
+      }}
     >
       {/* Visual card — keeps overflow: hidden for its own rounded corners */}
       <div
@@ -2562,14 +2620,14 @@ function GridWidget({
         {isEditing && (
           <div className="widget-edit-badge" aria-hidden>
             <GripHorizontal />
-            <span>{WIDGET_LABELS[item.id]}</span>
+            <span>{getWidgetLabel(item.id)}</span>
           </div>
         )}
 
         <div className={`grid-widget-content${isEditing ? ' is-locked' : ''}`}>
           {item.id === 'calendar'       && <CalendarWidget gridW={approxGridW} gridH={approxGridH} />}
           {item.id === 'clock'          && <ClockWidget gridH={approxGridH} />}
-          {item.id === 'notepad'        && <NotepadWidget compact={item.h < 300} />}
+          {isNotepadId(item.id)          && <NotepadWidget compact={item.h < 300} instanceId={item.id} />}
           {item.id === 'file-finder'    && <FileFinderWidget gridW={approxGridW} gridH={approxGridH} />}
           {item.id === 'link-shelf'     && <LinkShelfWidget gridW={approxGridW} gridH={approxGridH} />}
           {item.id === 'decision-maker' && <DecisionMakerWidget gridW={approxGridW} gridH={approxGridH} />}
@@ -2583,7 +2641,7 @@ function GridWidget({
             className="widget-remove-btn"
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => { e.stopPropagation(); onRemoveWidget!(item.id); }}
-            aria-label={`Remove ${WIDGET_LABELS[item.id]}`}
+            aria-label={`Remove ${getWidgetLabel(item.id)}`}
           >
             <X />
           </button>
@@ -2593,7 +2651,7 @@ function GridWidget({
           <div
             className="widget-resize-handle"
             onPointerDown={(e) => { e.stopPropagation(); onResizeStart(e); }}
-            aria-label={`Resize ${WIDGET_LABELS[item.id]}`}
+            aria-label={`Resize ${getWidgetLabel(item.id)}`}
           />
         )}
       </div>
@@ -2719,7 +2777,7 @@ function HomeWorkspace({
           if (baseline && (baseline - cw) / baseline > 0.30) {
             const scale = cw / baseline;
             next = next.map((item) => {
-              const min = WIDGET_MIN[item.id];
+              const min = getWidgetMin(item.id);
               const newW = Math.max(min.w, Math.round(item.w * scale));
               const newX = Math.max(0, Math.round(item.x * scale));
               return { ...item, w: newW, x: Math.min(Math.max(0, cw - newW), newX) };
@@ -2729,7 +2787,7 @@ function HomeWorkspace({
         // Every resize: clamp any widget whose right edge overflows the canvas
         next = next.map((item) => {
           if (item.x + item.w <= cw) return item;
-          const min = WIDGET_MIN[item.id];
+          const min = getWidgetMin(item.id);
           const clampedW = Math.max(min.w, Math.min(item.w, cw));
           const clampedX = Math.max(0, Math.min(cw - clampedW, item.x));
           return { ...item, x: clampedX, w: clampedW };
@@ -2746,10 +2804,50 @@ function HomeWorkspace({
     return () => ro.disconnect();
   }, []);
 
-  // Display only active widgets; show activeItem at its live preview position
-  const displayLayout = layout
-    .filter((item) => activeWidgets.includes(item.id))
-    .map((item) => (activeItem?.id === item.id ? activeItem : item));
+  // Persist layout entries for newly-added notepad-{timestamp} instances.
+  // They won't be in the stored layout on first add, so we create them here.
+  useEffect(() => {
+    setLayout((prev) => {
+      const newInstances = activeWidgets.filter(
+        (id) => id.startsWith('notepad-') && !prev.some((l) => l.id === id),
+      );
+      if (newInstances.length === 0) return prev;
+      const reg = WIDGET_REGISTRY.find((r) => r.id === 'notepad')!;
+      let next = prev;
+      for (const id of newInstances) {
+        // Offset each new instance slightly so they don't stack perfectly
+        const offset = next.filter((l) => isNotepadId(l.id)).length * 30;
+        next = [...next, {
+          id,
+          x: reg.defaultX + offset,
+          y: reg.defaultY + offset,
+          w: reg.defaultW,
+          h: reg.defaultH,
+        }];
+      }
+      storeLayout(next);
+      return next;
+    });
+  }, [activeWidgets]);
+
+  // Display only active widgets; show activeItem at its live preview position.
+  // Also inline newly-added notepad instances not yet in layout (beat the useEffect).
+  const displayLayout = (() => {
+    const result = layout
+      .filter((item) => activeWidgets.includes(item.id))
+      .map((item) => (activeItem?.id === item.id ? activeItem : item));
+    // Fallback for brand-new notepad instances that haven't hit the useEffect yet
+    const reg = WIDGET_REGISTRY.find((r) => r.id === 'notepad')!;
+    for (const id of activeWidgets) {
+      if (!id.startsWith('notepad-') || result.some((i) => i.id === id)) continue;
+      const offset = result.filter((i) => isNotepadId(i.id)).length * 30;
+      const entry: LayoutItem = activeItem?.id === id
+        ? activeItem
+        : { id, x: reg.defaultX + offset, y: reg.defaultY + offset, w: reg.defaultW, h: reg.defaultH };
+      result.push(entry);
+    }
+    return result;
+  })();
 
   // ── Drag ──────────────────────────────────────────────────────────────────
   // Drag is ALWAYS enabled — no isEditing guard.
@@ -2873,7 +2971,7 @@ function HomeWorkspace({
           '/store': 'Store', '/library': 'Library', '/breakroom': 'Breakroom',
         };
         displace(id, dropPage);
-        setTransferToast(`${WIDGET_LABELS[id]} moved to ${PAGE_LABEL[dropPage] ?? dropPage}`);
+        setTransferToast(`${getWidgetLabel(id)} moved to ${PAGE_LABEL[dropPage] ?? dropPage}`);
         setDragId(null);
         setActiveItem(null);
         activeItemRef.current = null;
@@ -2931,7 +3029,7 @@ function HomeWorkspace({
     const item = layout.find((l) => l.id === id)!;
     const origW = item.w, origH = item.h;
     const startMX = e.clientX, startMY = e.clientY;
-    const min = WIDGET_MIN[id];
+    const min = getWidgetMin(id);
 
     setActiveItem({ ...item });
     activeItemRef.current = { ...item };
@@ -3016,7 +3114,7 @@ function HomeWorkspace({
           }}
         >
           <div className="grid-widget is-active drag-ghost-card">
-            <span className="drag-ghost-label">{WIDGET_LABELS[portalDragItem.id]}</span>
+            <span className="drag-ghost-label">{getWidgetLabel(portalDragItem.id)}</span>
           </div>
           {readEquippedSkin() === 'sakura' && <SakuraWidgetDecoration widgetId={portalDragItem.id} />}
         </div>,
@@ -3047,14 +3145,20 @@ function HomePage() {
   const { activeWidgets, displaced, addWidget, removeWidget, recallAll } = usePortable();
   const displacedCount = displaced.length;
 
-  // Widgets available to add = registry minus active minus displaced
+  // Widgets available to add = registry minus active minus displaced.
+  // Notepad is always addable — multiple instances are supported.
   const displacedIds = displaced.map((d) => d.id);
-  const addable = WIDGET_REGISTRY.filter((w) => !activeWidgets.includes(w.id) && !displacedIds.includes(w.id));
+  const addable = WIDGET_REGISTRY.filter((w) => {
+    if (w.id === 'notepad') return true; // always addable
+    return !activeWidgets.includes(w.id) && !displacedIds.includes(w.id);
+  });
 
   const handleRemove = (id: WidgetId) => removeWidget(id);
 
   const handleAdd = (id: WidgetId) => {
-    addWidget(id);
+    // For notepad, generate a unique instance ID so multiple can coexist
+    const instanceId: WidgetId = id === 'notepad' ? `notepad-${Date.now()}` : id;
+    addWidget(instanceId);
     setAddOpen(false);
   };
 
@@ -3342,14 +3446,14 @@ function DisplacedWidgetBandImpl() {
         if (dropPage === '/') {
           // Dragged to Home nav → Recall
           recall(widgetId);
-          setBandToast(`${WIDGET_LABELS[widgetId]} recalled to Home`);
+          setBandToast(`${getWidgetLabel(widgetId)} recalled to Home`);
         } else if (dropPage && dropPage !== sectionPage) {
           // Valid cross-tab transfer
           const PAGE_LABEL: Record<string, string> = {
             '/store': 'Store', '/library': 'Library', '/breakroom': 'Breakroom',
           };
           displace(widgetId, dropPage);
-          setBandToast(`${WIDGET_LABELS[widgetId]} moved to ${PAGE_LABEL[dropPage] ?? dropPage}`);
+          setBandToast(`${getWidgetLabel(widgetId)} moved to ${PAGE_LABEL[dropPage] ?? dropPage}`);
         }
         // inSidebar && !dropPage → widget stays put (invalid drop, no snapback needed for band)
       } else {
@@ -3387,7 +3491,7 @@ function DisplacedWidgetBandImpl() {
             <div className="displaced-band-header">
               <span className="displaced-band-label">
                 <GripHorizontal className="displaced-grip" />
-                {WIDGET_LABELS[d.id]}
+                {getWidgetLabel(d.id)}
               </span>
               <div className="displaced-band-header-actions">
                 {isExpanded && canExpand && (
@@ -3415,7 +3519,7 @@ function DisplacedWidgetBandImpl() {
               className="displaced-band-body"
               onPointerDown={isExpanded ? (e) => e.stopPropagation() : undefined}
             >
-              {d.id === 'notepad'        && <NotepadWidget compact={false} />}
+              {isNotepadId(d.id)          && <NotepadWidget compact={false} instanceId={d.id} />}
               {d.id === 'calendar'       && <CalendarWidget gridW={3} gridH={3} />}
               {d.id === 'clock'          && <ClockWidget gridH={isExpanded ? 2 : 1} />}
               {d.id === 'link-shelf'     && <LinkShelfWidget gridW={isExpanded ? 4 : 3} gridH={isExpanded ? 3 : 2} />}
@@ -3441,7 +3545,7 @@ function DisplacedWidgetBandImpl() {
           }}
         >
           <div className="grid-widget is-active drag-ghost-card">
-            <span className="drag-ghost-label">{WIDGET_LABELS[portalInfo.id]}</span>
+            <span className="drag-ghost-label">{getWidgetLabel(portalInfo.id)}</span>
           </div>
           {isSakura && <SakuraWidgetDecoration widgetId={portalInfo.id} />}
         </div>,

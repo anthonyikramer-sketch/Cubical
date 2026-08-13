@@ -1,0 +1,90 @@
+Cubical Notes Widget Update
+
+Update Cubical's existing Notes widget with two specific improvements:
+
+1. Allow multiple Notes widgets simultaneously
+
+Currently, Cubical effectively treats Notes as a single widget instance.
+
+Change this so the user can create multiple independent Notes widgets at the same time.
+
+Requirements:
+
+Clicking/adding Notes again should create a new Notes widget, even if another Notes widget already exists.
+Every Notes widget must have its own independent:
+text/content
+position
+size
+unique stable ID
+Editing one note must never change another note.
+Moving/resizing one note must never affect another note.
+Closing/deleting one note must only remove that specific instance.
+Creating a new Notes widget must not replace, overwrite, or simply focus an existing Notes widget.
+Multiple Notes widgets should be allowed on the same tab/screen.
+Preserve Cubical's existing cross-tab widget behavior.
+All Notes instances, their contents, positions, and sizes must persist across app reloads/restarts using Cubical's existing persistence system.
+Preserve existing saved Notes data. If the current persistence format assumes only one Notes widget, migrate it safely rather than deleting or resetting the user's existing note.
+2. Clicking inside the Notes text box must NEVER drag the widget
+
+Right now interacting with the Notes text area can cause the entire widget to move.
+
+Separate text editing from widget dragging.
+
+When the mouse/pointer is inside the actual Notes text box:
+
+Clicking should place the normal text insertion caret.
+The cursor should display the normal text/I-beam cursor.
+The user must be able to type normally.
+The user must be able to click to reposition the caret.
+The user must be able to click-and-drag to select text.
+Double-clicking words and normal text-selection behavior should work.
+Keyboard shortcuts such as Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X, undo/redo, etc. should continue working.
+Mouse/pointer events originating inside the text box must not initiate widget dragging under any circumstances.
+Dragging behavior outside the text box
+
+I still want the Notes widget itself to be freely draggable.
+
+The rule should be simple:
+
+Inside the text box = interact with/edit text. Do NOT move the widget.
+
+Outside the text box but inside the Notes widget = drag/move the widget normally.
+
+So the user should be able to grab the widget's surrounding background, padding, header/title area, or other non-interactive empty area and drag the Notes widget around.
+
+Interactive controls such as buttons, inputs, resize handles, or other clickable elements must also not accidentally initiate dragging.
+
+Do not solve this by disabling Notes dragging entirely. Only prevent dragging when the pointer interaction originates from the text-editing area or another interactive control.
+
+Preserve existing functionality
+
+Do not redesign the Notes widget.
+
+Preserve:
+
+current visual design
+resizing
+cross-tab behavior
+widget positioning system
+persistence
+existing Notes functionality
+other widgets
+
+Do not modify unrelated Cubical functionality.
+
+Test before completion
+
+Verify all of the following:
+
+Create three Notes widgets simultaneously.
+Enter different text into each.
+Move each Notes widget independently.
+Resize each independently.
+Click inside the text box and type without moving the widget.
+Click-and-drag across text to select it without moving the widget.
+Click outside the text box but within the widget and drag it successfully.
+Close one note and verify the other two remain unchanged.
+Reload/restart Cubical.
+Verify the remaining Notes widgets retain their individual text, position, and size.
+
+Do not change the Cubical version number as part of this task. I will handle the version bump separately.
