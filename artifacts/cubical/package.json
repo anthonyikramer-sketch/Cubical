@@ -48,7 +48,8 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Cubical"
+      "shortcutName": "Cubical",
+      "artifactName": "Cubical-Setup-${version}.${ext}"
     },
     "publish": {
       "provider": "github",
