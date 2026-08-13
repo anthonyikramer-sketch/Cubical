@@ -12,6 +12,11 @@ const os    = require('os');
 
 const isDev = process.env.ELECTRON_DEV === 'true';
 
+// Disable GPU acceleration before any window or ready-event fires.
+// Prevents an APPCRASH (exit_code=-2147483645 / GPU process isn't usable)
+// on Windows PCs where Chromium's GPU process fails at startup.
+app.disableHardwareAcceleration();
+
 // ─── Auto-updater setup ──────────────────────────────────────────────────────
 // Only load electron-updater in packaged production builds.
 // In development the module may not be present and the update URL is not configured.

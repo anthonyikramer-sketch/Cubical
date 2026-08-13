@@ -1,0 +1,76 @@
+Fix a Windows compatibility crash in the **Cubical Desktop Electron application**.
+
+A clean install of Cubical 0.2.7 on another Windows PC installs successfully, but Cubical crashes during startup.
+
+Running Cubical with Electron logging produced repeated errors:
+
+`GPU process exited unexpectedly: exit_code=-2147483645`
+
+followed by:
+
+`FATAL:content\browser\gpu\gpu_data_manager_impl_private.cc:416] GPU process isn't usable. Goodbye.`
+
+Windows Reliability Monitor reports:
+
+* Application: `Cubical.exe`
+* Version: `0.2.7.0`
+* Problem Event: `APPCRASH`
+* Exception Code: `80000003`
+* Fault Module: `Cubical.exe`
+
+## Targeted fix
+
+In the Electron main process, add:
+
+`app.disableHardwareAcceleration();`
+
+It MUST execute at the earliest valid point in Electron startup:
+
+* after Electron's `app` object is imported/available,
+* BEFORE `app.whenReady()`,
+* BEFORE any `BrowserWindow` is created.
+
+The purpose is to force Cubical to use software rendering instead of Chromium's GPU acceleration path, which is crashing on the affected Windows machine.
+
+## Extremely important scope restrictions
+
+This should be a SMALL, TARGETED compatibility patch.
+
+Do NOT:
+
+* redesign or modify the Cubical UI,
+* modify renderer code,
+* modify React components,
+* modify IPC behavior,
+* modify the auto-update state machine,
+* modify GitHub release configuration,
+* modify `autoDownload`,
+* modify `autoInstallOnAppQuit`,
+* modify `quitAndInstall(true, true)`,
+* modify the NSIS installer configuration,
+* modify the `appId`,
+* modify artifact naming,
+* modify the website,
+* modify the website download route,
+* modify any unrelated startup behavior,
+* add unrelated Chromium command-line switches,
+* add new dependencies.
+
+Do not attempt additional speculative GPU fixes at this time.
+
+ONLY disable Electron hardware acceleration using the official Electron `app.disableHardwareAcceleration()` API.
+
+## Verification
+
+After making the change:
+
+1. Confirm `app.disableHardwareAcceleration()` executes before `app.whenReady()`.
+2. Confirm it executes before any `BrowserWindow` creation.
+3. Confirm the existing updater setup remains unchanged.
+4. Confirm the Electron application still builds successfully.
+5. Report exactly which file and line/location were changed.
+6. Report whether anything other than the hardware-acceleration call was modified.
+
+Do NOT increment the Cubical version or publish a new release yet.
+
+I want to review the patch first before building/publishing version 0.2.8.
